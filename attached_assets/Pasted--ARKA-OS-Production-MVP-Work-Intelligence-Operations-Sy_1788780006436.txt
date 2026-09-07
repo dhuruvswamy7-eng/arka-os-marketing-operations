@@ -1,0 +1,1613 @@
+# ARKA OS
+
+## Production MVP — Work Intelligence & Operations System
+
+You are the **Lead Product Engineer, Full-Stack Developer, and System Architect** responsible for building the first production-ready MVP of **ARKA OS** for Arka Digital Media.
+
+This is NOT a design exercise.
+
+This is NOT a static prototype.
+
+This is NOT a collection of fake dashboards.
+
+Build a **real, functional, secure internal web application** that Arka's team can actually use every day.
+
+The MVP must have a clean architecture, real database persistence, authentication, authorization, task management, time tracking, operational visibility, and a founder command center.
+
+---
+
+# 1. PRODUCT PURPOSE
+
+ARKA OS is an internal **Work Intelligence & Operations System**.
+
+Its purpose is to give Arka one reliable system of record for:
+
+* People
+* Work
+* Task ownership
+* Priorities
+* Deadlines
+* Progress
+* Time / effort
+* Workload
+* Bottlenecks
+* Operational activity
+* Founder visibility
+
+The central product loop is:
+
+**PEOPLE → WORK → ASSIGNMENT → DEADLINE → PROGRESS → TIME → WORKLOAD → BOTTLENECK → FOUNDER INSIGHT**
+
+The MVP should answer these questions:
+
+### For a Team Member
+
+* What do I need to work on?
+* What is due today?
+* What is overdue?
+* What is my priority?
+* How much time have I spent?
+
+### For a Manager
+
+* What is my team working on?
+* Who owns each task?
+* What is due?
+* What is delayed?
+* Who has too much work?
+
+### For the Founder
+
+* What is happening across the company?
+* Who is working on what?
+* What is completed?
+* What is overdue?
+* Where is the workload concentrated?
+* Where are the bottlenecks?
+* What requires my attention?
+
+---
+
+# 2. MVP BOUNDARY
+
+The MVP must include:
+
+### CORE
+
+1. Authentication
+2. User management
+3. Roles and permissions
+4. My Workspace
+5. Task management
+6. Task assignment
+7. Task status
+8. Priority
+9. Deadlines
+10. Task activity history
+11. Time tracking
+12. Workload visibility
+13. Overdue detection
+14. Founder Command Center
+15. Basic operational intelligence
+16. Responsive professional UI
+17. Security / RLS
+18. Real database persistence
+
+The MVP must NOT include:
+
+* Content Calendar
+* Full CRM
+* Client Portal
+* Social Media Publishing
+* Advanced AI Agents
+* Complex n8n automation
+* Marketing analytics integrations
+* Billing
+* Payroll
+* Employee surveillance features
+
+These are future possibilities, not MVP requirements.
+
+---
+
+# 3. TECHNOLOGY
+
+Use the following stack:
+
+### Frontend
+
+Next.js
+React
+TypeScript
+Tailwind CSS
+App Router
+
+### Backend / Database
+
+Supabase
+PostgreSQL
+Supabase Auth
+Row Level Security
+
+### Deployment
+
+Vercel-compatible architecture.
+
+Use clean server/client boundaries.
+
+Use environment variables for secrets.
+
+Never hard-code credentials.
+
+---
+
+# 4. APPLICATION STRUCTURE
+
+Create a proper application structure.
+
+Suggested routes:
+
+/login
+
+/app
+
+/app/dashboard
+
+/app/my-work
+
+/app/tasks
+
+/app/tasks/[id]
+
+/app/team
+
+/app/time
+
+/app/reports
+
+/app/settings
+
+Do not create unnecessary pages.
+
+Navigation should change based on role.
+
+---
+
+# 5. AUTHENTICATION
+
+Implement real authentication.
+
+Use Supabase Auth.
+
+Requirements:
+
+* Email/password login
+* Logout
+* Session persistence
+* Protected routes
+* Authentication error handling
+* Redirect unauthenticated users to /login
+* Redirect authenticated users to the appropriate application area
+
+The user must never be able to access internal application routes without authentication.
+
+---
+
+# 6. ORGANIZATION MODEL
+
+Design the system so it can support an organization.
+
+Every operational record should be scoped to:
+
+org_id
+
+Even though the MVP may initially have only one organization.
+
+This allows future expansion without rebuilding the database.
+
+---
+
+# 7. USER SYSTEM
+
+Create a users table connected to Supabase Auth.
+
+Fields:
+
+id
+org_id
+name
+email
+role
+avatar_url nullable
+is_active
+created_at
+updated_at
+
+Roles:
+
+* founder_admin
+* manager
+* team_member
+
+---
+
+# 8. ROLE PERMISSIONS
+
+## Founder / Admin
+
+Can:
+
+* View all users
+* View all tasks
+* Create tasks
+* Assign tasks
+* Reassign tasks
+* Change priority
+* Change deadlines
+* View all time
+* View workload
+* View reports
+* View operational activity
+* Manage users
+* Manage roles
+
+## Manager
+
+Can:
+
+* View assigned team members
+* Create tasks
+* Assign tasks
+* Reassign tasks
+* View task progress
+* View team workload
+* View relevant time data
+* View overdue work
+
+## Team Member
+
+Can:
+
+* View own workspace
+* View assigned tasks
+* Update task status
+* Update permitted task fields
+* Start/stop timer
+* Add manual time
+* View own time
+* View own activity
+
+Do not rely on frontend UI hiding.
+
+Permissions must be enforced with Supabase RLS.
+
+---
+
+# 9. DATABASE DESIGN
+
+Create proper migrations.
+
+Do not manually create tables only through the Supabase dashboard.
+
+Use migrations so the database schema is reproducible.
+
+## TABLE: users
+
+id
+org_id
+name
+email
+role
+avatar_url
+is_active
+created_at
+updated_at
+
+## TABLE: login_logs
+
+id
+org_id
+user_id
+login_at
+logout_at
+
+## TABLE: tasks
+
+id
+org_id
+title
+description
+assignee_id
+created_by
+status
+priority
+due_date
+started_at nullable
+completed_at nullable
+created_at
+updated_at
+
+Also include:
+
+client_id nullable
+campaign_id nullable
+
+Do not build CRM yet.
+
+These fields simply keep the task architecture future-ready.
+
+## TABLE: task_activity
+
+id
+org_id
+task_id
+changed_by
+activity_type
+old_value nullable
+new_value nullable
+created_at
+
+Activity types may include:
+
+* created
+* assigned
+* reassigned
+* status_changed
+* priority_changed
+* deadline_changed
+* completed
+* reopened
+
+## TABLE: time_entries
+
+id
+org_id
+task_id
+user_id
+start_time
+end_time
+duration_minutes
+entry_type
+created_at
+
+entry_type:
+
+* timer
+* manual
+
+---
+
+# 10. DATABASE RULES
+
+Important:
+
+Every operational table should contain org_id where appropriate.
+
+Use foreign keys.
+
+Use indexes for:
+
+* assignee_id
+* due_date
+* status
+* priority
+* org_id
+* created_at
+
+Use constraints wherever practical.
+
+Prevent invalid time entries.
+
+Prevent negative durations.
+
+Prevent invalid task states.
+
+Use timestamps consistently.
+
+---
+
+# 11. ROW LEVEL SECURITY
+
+Implement RLS from the first migration.
+
+Rules must enforce:
+
+### Founder/Admin
+
+Organization-wide visibility.
+
+### Manager
+
+Access to permitted organizational/team operational data.
+
+### Team Member
+
+Own tasks and own time records, plus only the task data necessary for assigned work.
+
+Never treat frontend restrictions as security.
+
+Test RLS independently.
+
+---
+
+# 12. APPLICATION SHELL
+
+Create a professional internal SaaS application shell.
+
+Desktop-first.
+
+Responsive.
+
+Components:
+
+* Sidebar
+* Top navigation
+* User profile
+* Organization name
+* Page title
+* Breadcrumb where useful
+* Notifications area
+* Main content area
+
+Sidebar:
+
+Dashboard
+My Work
+Tasks
+Team
+Time
+Reports
+Settings
+
+Hide pages users are not authorized to access.
+
+---
+
+# 13. DESIGN SYSTEM
+
+The UI should look like a serious modern operations platform.
+
+Not like:
+
+* attendance software
+* a generic admin template
+* a basic CRUD application
+
+Design characteristics:
+
+* Clean
+* Minimal
+* Professional
+* Executive-friendly
+* Strong typography
+* Clear spacing
+* Consistent cards
+* Clear status badges
+* Clear tables
+* Fast scanning
+* Accessible
+* Responsive
+
+Do not overuse charts.
+
+Prioritize information and decisions.
+
+---
+
+# 14. MY WORKSPACE
+
+Route:
+
+/app/my-work
+
+This is the main page for team members.
+
+Display:
+
+### Greeting
+
+Good morning, [Name]
+
+### Today's Work
+
+Tasks due today.
+
+### My Active Tasks
+
+Tasks currently being worked on.
+
+### Upcoming
+
+Future deadlines.
+
+### Overdue
+
+Tasks past their deadline.
+
+### My Time
+
+Hours today.
+
+Hours this week.
+
+### Recent Activity
+
+Recent task updates.
+
+Each task should display:
+
+Title
+Priority
+Status
+Deadline
+Days remaining
+Timer state
+
+The page should answer:
+
+**“What should I work on right now?”**
+
+---
+
+# 15. TASK MANAGEMENT
+
+Route:
+
+/app/tasks
+
+Create a real task management system.
+
+Task creation form:
+
+* Title
+* Description
+* Assignee
+* Priority
+* Status
+* Due date
+
+Optional:
+
+* Client
+* Campaign
+
+Do not make the optional fields mandatory.
+
+---
+
+# 16. TASK LIST
+
+Display tasks in a professional table/list.
+
+Columns:
+
+Task
+Assignee
+Priority
+Status
+Due Date
+Time Spent
+Updated
+
+Filters:
+
+* All
+* My Tasks
+* Status
+* Priority
+* Assignee
+* Due Today
+* Overdue
+
+Sorting:
+
+* Deadline
+* Priority
+* Recently Updated
+* Created Date
+
+---
+
+# 17. TASK DETAIL PAGE
+
+Route:
+
+/app/tasks/[id]
+
+Show:
+
+### Task Information
+
+Title
+Description
+Owner
+Priority
+Status
+Deadline
+
+### Time
+
+Total time spent.
+
+Current timer state.
+
+Start Timer button.
+
+Stop Timer button.
+
+Manual Entry button.
+
+### Activity
+
+Timeline:
+
+Created
+Assigned
+Started
+Status changed
+Reassigned
+Completed
+
+### Actions
+
+Update status
+Change priority
+Change deadline
+Reassign
+
+Actions available depend on role.
+
+---
+
+# 18. TASK STATUS
+
+Use a simple MVP status system:
+
+NOT STARTED
+
+IN PROGRESS
+
+BLOCKED
+
+REVIEW
+
+DONE
+
+Do not create excessive workflow states.
+
+Allow future extension.
+
+---
+
+# 19. TASK PRIORITY
+
+Use:
+
+LOW
+
+MEDIUM
+
+HIGH
+
+URGENT
+
+Priorities must affect sorting and dashboard visibility.
+
+---
+
+# 20. DEADLINE SYSTEM
+
+Every normal task should have a deadline.
+
+Calculate:
+
+### Days Remaining
+
+If due date is future:
+
+“3 days left”
+
+If due today:
+
+“Due today”
+
+If past:
+
+“2 days overdue”
+
+Do not calculate based only on frontend display.
+
+Use a consistent date/time strategy.
+
+Handle timezone properly.
+
+---
+
+# 21. OVERDUE LOGIC
+
+A task is overdue when:
+
+due_date < current time/date
+
+AND
+
+status != DONE
+
+Display overdue tasks clearly.
+
+Founder and managers should be able to filter them immediately.
+
+---
+
+# 22. TIME TRACKING
+
+Time must belong to a task.
+
+Do not build generic clock-in/clock-out as the main time system.
+
+On the task page:
+
+### START TIMER
+
+Record:
+
+start_time
+
+### STOP TIMER
+
+Record:
+
+end_time
+
+Calculate:
+
+duration_minutes
+
+Also provide:
+
+### MANUAL TIME ENTRY
+
+Fields:
+
+Date
+Start time
+End time
+Duration
+Optional note
+
+Prevent overlapping timers for the same user.
+
+Show:
+
+Today's time
+This week's time
+Time per task
+
+---
+
+# 23. WORKLOAD INTELLIGENCE
+
+Create a basic workload indicator.
+
+Do not claim it is an exact employee-capacity calculation.
+
+Use operational signals such as:
+
+* Active tasks
+* High/urgent tasks
+* Tasks due soon
+* Overdue tasks
+* Logged effort
+
+Classify:
+
+LOW
+
+MEDIUM
+
+HIGH
+
+OVERLOADED
+
+Show the reason where possible.
+
+Example:
+
+HIGH
+
+7 active tasks
+3 due within 2 days
+1 overdue
+
+This is an operational indicator, not a surveillance score.
+
+---
+
+# 24. FOUNDER COMMAND CENTER
+
+Route:
+
+/app/dashboard
+
+This is the most important MVP screen.
+
+The founder should be able to open it every morning and understand the business operation quickly.
+
+---
+
+# 25. DASHBOARD HEADER
+
+Show:
+
+ARKA OS
+
+Founder Command Center
+
+Date
+
+Current time if useful
+
+---
+
+# 26. EXECUTIVE SUMMARY CARDS
+
+Show real database values:
+
+### TEAM ACTIVE
+
+Number of active/available team members.
+
+### ACTIVE WORK
+
+Number of active tasks.
+
+### DUE TODAY
+
+Number of tasks due today.
+
+### OVERDUE
+
+Number of overdue tasks.
+
+### HOURS THIS WEEK
+
+Total task-linked hours.
+
+Never use fake numbers.
+
+If no data exists:
+
+show:
+
+“No data yet”
+
+---
+
+# 27. ATTENTION REQUIRED
+
+This is a key feature.
+
+Create an “Attention Required” section.
+
+Show the highest-priority operational exceptions.
+
+Examples:
+
+🔴 Task overdue
+
+🔴 Urgent task due today
+
+🔴 High workload
+
+🔴 Blocked task
+
+🟠 Task approaching deadline
+
+Each item should explain:
+
+What happened
+Who owns it
+Deadline
+Recommended action
+
+Example:
+
+“Campaign Creative — overdue by 2 days — Owner: Designer A”
+
+---
+
+# 28. TEAM WORKLOAD
+
+Create a team workload table.
+
+Columns:
+
+Person
+Active Tasks
+Due Soon
+Overdue
+Hours This Week
+Workload
+
+Example:
+
+Designer A
+6
+3
+1
+21h
+HIGH
+
+Designer B
+3
+1
+0
+14h
+MEDIUM
+
+Use real data only.
+
+---
+
+# 29. WORK STATUS
+
+Create a simple operational overview:
+
+Not Started
+In Progress
+Blocked
+Review
+Done
+
+Use real task counts.
+
+Allow clicking a status to open filtered tasks.
+
+---
+
+# 30. OVERDUE WORK
+
+Create a dedicated dashboard section:
+
+### Overdue Work
+
+Show:
+
+Task
+Owner
+Days Overdue
+Priority
+Last Activity
+
+This should be one of the most visible founder sections.
+
+---
+
+# 31. BOTTLENECK DETECTION
+
+Implement simple rule-based bottleneck detection.
+
+Examples:
+
+### No Recent Activity
+
+Task has not changed recently.
+
+### Blocked
+
+Task status is BLOCKED.
+
+### Deadline Risk
+
+Task is approaching deadline but remains NOT STARTED.
+
+### Review Queue
+
+Multiple tasks are waiting in REVIEW.
+
+### Workload Concentration
+
+One user has substantially more active work than others.
+
+Do not use AI for this MVP.
+
+Use transparent rules.
+
+---
+
+# 32. RECENT OPERATIONAL ACTIVITY
+
+Show recent meaningful events.
+
+Example:
+
+“Rahul completed Campaign Creative.”
+
+“Priya was assigned Website Update.”
+
+“Task #104 moved to Review.”
+
+“Task #112 became overdue.”
+
+Display the most recent events.
+
+---
+
+# 33. REPORTS
+
+Route:
+
+/app/reports
+
+MVP reports:
+
+### Task Completion
+
+Completed vs open.
+
+### Overdue
+
+Overdue count and trend.
+
+### Workload
+
+Tasks by person.
+
+### Time
+
+Hours by person.
+
+### Time by Task
+
+Where operational effort is going.
+
+Keep reports simple.
+
+Do not build advanced BI.
+
+---
+
+# 34. TEAM PAGE
+
+Route:
+
+/app/team
+
+Founder/Admin:
+
+See:
+
+* Name
+* Role
+* Status
+* Active tasks
+* Overdue tasks
+* Hours this week
+* Workload
+
+Managers:
+
+Only see permitted team members.
+
+Team members:
+
+Do not need organization-wide team analytics unless explicitly authorized.
+
+---
+
+# 35. SETTINGS
+
+Create basic settings.
+
+Include:
+
+* Profile
+* Name
+* Email
+* Role display
+
+Founder/Admin:
+
+* User management
+* Activate/deactivate user
+* Role management
+
+Do not create complex configuration systems in the MVP.
+
+---
+
+# 36. EMPTY STATES
+
+Every screen must have useful empty states.
+
+Examples:
+
+“No tasks assigned yet.”
+
+“No overdue work.”
+
+“No time logged today.”
+
+“No recent activity.”
+
+“No team data available.”
+
+Do not show broken blank areas.
+
+---
+
+# 37. LOADING STATES
+
+Every database-driven page must have:
+
+* Loading state
+* Error state
+* Empty state
+* Success feedback
+
+Do not make the application feel frozen while data loads.
+
+---
+
+# 38. AUDITABILITY
+
+Important actions must be recorded.
+
+At minimum:
+
+* Task created
+* Task assigned
+* Task reassigned
+* Status changed
+* Priority changed
+* Deadline changed
+* Task completed
+* Task reopened
+* Time entry created
+
+This gives Arka a reliable operational history.
+
+---
+
+# 39. PERFORMANCE
+
+Use efficient database queries.
+
+Avoid fetching the entire database into the browser.
+
+Use:
+
+* Pagination where appropriate
+* Filtering at database level
+* Proper indexes
+* Server-side data fetching where appropriate
+* Optimistic UI only when safe
+
+Dashboard queries should be efficient.
+
+---
+
+# 40. VALIDATION
+
+Validate all user inputs.
+
+Examples:
+
+Task title cannot be empty.
+
+Assignee must be valid.
+
+Deadline must be valid.
+
+Time duration cannot be negative.
+
+Users cannot create invalid records.
+
+Handle database errors gracefully.
+
+---
+
+# 41. SECURITY TESTING
+
+Before calling the MVP complete, test:
+
+* Unauthenticated access
+* Team member attempting to access admin pages
+* Team member attempting to access another user's private time data
+* Manager permission boundaries
+* RLS policies
+* Invalid IDs
+* Unauthorized updates
+* Session expiration
+
+Security failures must be fixed before production.
+
+---
+
+# 42. SEED / DEMO DATA
+
+Create a development seed mechanism.
+
+Use clearly labelled demo data only for development.
+
+Example:
+
+5 demo users
+20 demo tasks
+time entries
+activity records
+
+Do not present demo data as Arka's real metrics.
+
+Production must start with empty/real data.
+
+---
+
+# 43. NOTIFICATIONS
+
+Do NOT build a complex notification system initially.
+
+For MVP:
+
+Show operational alerts directly in the dashboard.
+
+Future:
+
+Email
+Slack
+WhatsApp
+n8n
+
+Only after the core system proves useful.
+
+---
+
+# 44. AUTOMATION
+
+Do not add n8n during the first implementation unless explicitly requested.
+
+The build guide intentionally places automation after the core operational data exists.
+
+Later automation can include:
+
+* Deadline reminders
+* Overdue escalation
+* Daily founder digest
+* Task notifications
+
+But first:
+
+**Build the source of truth.**
+
+---
+
+# 45. AI
+
+Do not add AI agents to the MVP.
+
+Future AI opportunities:
+
+* Workload recommendations
+* Task prioritization
+* Operational summaries
+* Anomaly detection
+* Brief completeness
+* Founder daily intelligence
+
+AI should operate on trusted structured data.
+
+---
+
+# 46. FUTURE ARCHITECTURE
+
+The MVP should leave room for:
+
+PEOPLE
+
+↓
+
+WORK
+
+↓
+
+CLIENTS
+
+↓
+
+AUTOMATION
+
+↓
+
+INTELLIGENCE
+
+↓
+
+EXTERNAL SYSTEMS
+
+Future client/campaign relationships may be added to tasks using nullable fields.
+
+Do not implement the future modules now.
+
+---
+
+# 47. MVP NAVIGATION
+
+Founder:
+
+Dashboard
+My Work
+Tasks
+Team
+Time
+Reports
+Settings
+
+Manager:
+
+Dashboard
+My Work
+Tasks
+Team
+Time
+Reports
+
+Team Member:
+
+My Work
+Tasks
+Time
+
+Keep navigation simple.
+
+---
+
+# 48. PRODUCT LANGUAGE
+
+Use operational language.
+
+Good:
+
+“Workload”
+
+“Operational visibility”
+
+“Current work”
+
+“Active tasks”
+
+“Attention required”
+
+“Capacity indicator”
+
+“Time / effort”
+
+Avoid:
+
+“Employee surveillance”
+
+“Monitoring employees”
+
+“Productivity score”
+
+“Employee tracking”
+
+The system exists to improve coordination and operational intelligence.
+
+---
+
+# 49. BUILD ORDER
+
+Build in this order.
+
+## STEP 1
+
+Inspect the existing project.
+
+Determine:
+
+* Current framework
+* Dependencies
+* Existing pages
+* Existing database
+* Existing Supabase configuration
+* Existing authentication
+* Existing components
+
+Do not overwrite working code blindly.
+
+## STEP 2
+
+Set up database migrations.
+
+## STEP 3
+
+Implement authentication.
+
+## STEP 4
+
+Implement users and roles.
+
+## STEP 5
+
+Implement RLS.
+
+## STEP 6
+
+Build application shell.
+
+## STEP 7
+
+Build My Workspace.
+
+## STEP 8
+
+Build Task Management.
+
+## STEP 9
+
+Build Task Detail.
+
+## STEP 10
+
+Build Activity History.
+
+## STEP 11
+
+Build Time Tracking.
+
+## STEP 12
+
+Build Team Workload.
+
+## STEP 13
+
+Build Founder Command Center.
+
+## STEP 14
+
+Build Reports.
+
+## STEP 15
+
+Build Settings.
+
+## STEP 16
+
+Add validation and error handling.
+
+## STEP 17
+
+Run security testing.
+
+## STEP 18
+
+Run production build.
+
+## STEP 19
+
+Fix all errors.
+
+## STEP 20
+
+Prepare deployment.
+
+---
+
+# 50. DEFINITION OF MVP COMPLETE
+
+ARKA OS MVP is complete only when:
+
+### AUTH
+
+Users can securely log in and log out.
+
+### USERS
+
+Roles and permissions work.
+
+### WORKSPACE
+
+Every user has a usable workspace.
+
+### TASKS
+
+Tasks can be created, assigned, updated and completed.
+
+### DEADLINES
+
+Due dates and overdue states work correctly.
+
+### ACTIVITY
+
+Important task changes are recorded.
+
+### TIME
+
+Users can record actual task-linked effort.
+
+### WORKLOAD
+
+Managers can understand current workload.
+
+### FOUNDER
+
+Founder can understand the organization's operational state from one dashboard.
+
+### BOTTLENECKS
+
+The system surfaces operational exceptions.
+
+### REPORTS
+
+Basic work/time reports use real database data.
+
+### SECURITY
+
+RLS and authorization have been tested.
+
+### QUALITY
+
+The application works on desktop and responsive layouts, with loading, error and empty states.
+
+### DATA
+
+No production dashboard number is fabricated.
+
+---
+
+# 51. CRITICAL DEVELOPMENT RULE
+
+Do NOT build everything in one giant implementation.
+
+Build incrementally.
+
+After each major module:
+
+1. Run the application.
+2. Test the feature.
+3. Check database persistence.
+4. Check permissions.
+5. Fix errors.
+6. Confirm the feature works.
+7. Then continue.
+
+Do not move forward with broken foundations.
+
+---
+
+# 52. FIRST TASK — BEGIN NOW
+
+Before coding:
+
+### Inspect the existing project.
+
+Return a concise report containing:
+
+1. Project structure
+2. Framework/version
+3. Dependencies
+4. Supabase status
+5. Database status
+6. Authentication status
+7. Existing routes
+8. Existing components
+9. Existing problems
+10. Exact implementation plan for Phase 1
+
+Then begin implementation.
+
+Do not build future modules.
+
+Do not build a content calendar.
+
+Do not build CRM.
+
+Do not build AI.
+
+Do not build n8n automation.
+
+Build the **ARKA OS production MVP** around:
+
+**PEOPLE → WORK → TIME → WORKLOAD → BOTTLENECKS → FOUNDER INSIGHT**
+
+The final result must be a real internal product that Arka can begin using, not a presentation disguised as software.
