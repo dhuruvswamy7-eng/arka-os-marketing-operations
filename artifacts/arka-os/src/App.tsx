@@ -44,7 +44,7 @@ type ManagerReport = {
 };
 
 const people: Person[] = [
-  { id: 'maya', name: 'Maya Chen', role: 'Founder', title: 'Founder / Admin', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now' },
+  { id: 'maya', name: 'Monika Sriniva', role: 'Founder', title: 'Founder / Admin', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now' },
   { id: 'priya', name: 'Priya Shah', role: 'Manager', title: 'Operations Manager', managerId: null, presence: 'Online', loginAt: '8:58 AM', lastActiveAt: '2 min ago' },
   { id: 'rahul', name: 'Rahul Mehta', role: 'Team member', title: 'Product Designer', managerId: 'priya', presence: 'Online', loginAt: '9:10 AM', lastActiveAt: 'Just now' },
   { id: 'arun', name: 'Arun Nair', role: 'Team member', title: 'SEO Specialist', managerId: 'priya', presence: 'Online', loginAt: '9:24 AM', lastActiveAt: '4 min ago' },
