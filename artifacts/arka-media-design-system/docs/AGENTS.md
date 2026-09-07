@@ -40,6 +40,10 @@ on it and import its theme and components directly.
   `docs/consuming-slides.md` — platform-specific usage.
 - `docs/migrating-web.md` and `docs/migrating-expo.md` — replacing scaffolded or
   existing local design-system implementations.
+- `docs/references/` — retained ARKA OS source evidence, including the
+  transparent Arka Media logo, source theme notes, and component map. Read the
+  relevant reference files before changing extracted foundations or pilot
+  components.
 
 Every source file in this package is a `.tsx` file, including token, utility,
 and hook modules with no JSX, so every export below is a single `*.tsx` glob. Do

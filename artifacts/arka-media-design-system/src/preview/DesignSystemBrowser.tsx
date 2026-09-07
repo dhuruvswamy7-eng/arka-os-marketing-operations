@@ -183,6 +183,18 @@ export function DesignSystemBrowser() {
       <main className="min-w-0 px-6 py-10 sm:px-10 lg:px-14">
         <div className="mx-auto max-w-5xl">
           <header className="border-b pb-8">
+            <div className="mb-6 flex items-center gap-4">
+              <div className="rounded-lg bg-sidebar px-3 py-2">
+                <img
+                  src={`${import.meta.env.BASE_URL}assets/arkamedia-logo.png`}
+                  alt="Arka Media"
+                  className="h-9 w-auto max-w-[180px] object-contain object-left"
+                />
+              </div>
+              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Extracted from ARKA OS
+              </div>
+            </div>
             {active.id === OVERVIEW_ENTRY.id ? (
               <>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">

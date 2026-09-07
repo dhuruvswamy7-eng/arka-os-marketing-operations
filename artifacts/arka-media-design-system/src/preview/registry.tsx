@@ -1,9 +1,11 @@
 import { lazy, type ComponentType } from 'react';
 import {
+  BrandLogoPage,
   ColorsPage,
   FontsPage,
   LayoutPage,
   OverviewPage,
+  VoiceTonePage,
 } from './foundations';
 
 function lazyPage(load: () => Promise<ComponentType>) {
@@ -190,9 +192,9 @@ export type NavGroup = {
 };
 
 export const DESIGN_SYSTEM = {
-  title: 'Design System',
+  title: 'Arka Media Design System',
   description:
-    'A reusable system of foundations, components, and patterns for product surfaces.',
+    'The near-black, warm-gold, ivory visual language for Arka Digital Media operations.',
 } as const;
 
 export const OVERVIEW_ENTRY: PreviewEntry = {
@@ -203,7 +205,17 @@ export const OVERVIEW_ENTRY: PreviewEntry = {
 };
 
 export const NAV_GROUPS: NavGroup[] = [
-  { name: 'Brand', entries: [] },
+  {
+    name: 'Brand',
+    entries: [
+      {
+        id: 'brand-logo',
+        name: 'Logo',
+        description: 'The retained Arka Media primary wordmark and usage guidance.',
+        Page: BrandLogoPage,
+      },
+    ],
+  },
   {
     name: 'Colors',
     entries: [
@@ -584,7 +596,17 @@ export const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-  { name: 'Content', entries: [] },
+  {
+    name: 'Content',
+    entries: [
+      {
+        id: 'content-voice-tone',
+        name: 'Voice and tone',
+        description: 'Plain, calm, operational language for product surfaces.',
+        Page: VoiceTonePage,
+      },
+    ],
+  },
   {
     name: 'Charts',
     entries: [

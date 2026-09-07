@@ -1,0 +1,15 @@
+/* Retained source evidence. The generated design system is authored in
+ * ../tokens.json; this file records the values extracted from ARKA OS. */
+:root {
+  --background: 40 18% 96%;
+  --foreground: 0 0% 8%;
+  --border: 40 8% 84%;
+  --primary: 44 78% 42%;
+  --accent: 44 95% 55%;
+  --sidebar: 0 0% 4%;
+  --sidebar-foreground: 40 20% 94%;
+  --app-font-sans: 'DM Sans', sans-serif;
+  --app-font-display: 'Manrope', sans-serif;
+  --app-font-mono: 'Space Mono', monospace;
+  --radius: 0.8rem;
+}

@@ -11,6 +11,7 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
+import { Guidelines } from './parts';
 
 const CORE_SWATCHES = [
   { name: 'Primary', className: 'bg-primary' },
@@ -57,9 +58,55 @@ function Swatch({
   );
 }
 
+export function BrandLogoPage() {
+  const logoSrc = `${import.meta.env.BASE_URL}assets/arkamedia-logo.png`;
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border bg-sidebar p-6 text-sidebar-foreground">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-sidebar-foreground/60">
+          Primary mark
+        </p>
+        <div className="mt-6 rounded-lg border border-sidebar-border bg-sidebar p-8">
+          <img src={logoSrc} alt="Arka Media" className="h-20 w-auto max-w-full object-contain object-left" />
+        </div>
+        <p className="mt-4 text-sm text-sidebar-foreground/70">
+          Use the transparent Arka Media wordmark on near-black navigation,
+          authentication, and brand-led surfaces.
+        </p>
+      </section>
+      <section className="rounded-xl border bg-card p-6 text-card-foreground">
+        <h2 className="font-semibold">Logo guidance</h2>
+        <div className="mt-4">
+          <Guidelines
+            items={[
+              { kind: 'do', text: 'Give the wordmark enough horizontal room to remain legible.' },
+              { kind: 'do', text: 'Use the transparent mark against the near-black brand surface.' },
+              { kind: 'dont', text: 'Place the mark inside a competing colored badge or busy image.' },
+              { kind: 'dont', text: 'Recreate or redraw the wordmark with regular text.' },
+            ]}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function OverviewPage() {
   return (
     <div className="space-y-4">
+      <section className="rounded-xl border bg-sidebar p-5 text-sidebar-foreground">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-sidebar-foreground/60">
+          Arka Media visual language
+        </p>
+        <h2 className="mt-3 text-2xl font-bold tracking-tight">
+          Operational clarity with a warm point of view.
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-sidebar-foreground/70">
+          Near-black command surfaces, warm gold decisions, ivory workspace
+          surfaces, and quiet structure keep Founder, Manager, and Team Member
+          workflows focused on what needs attention.
+        </p>
+      </section>
       <section className="rounded-xl border bg-card p-5 text-card-foreground">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Core palette
@@ -129,6 +176,21 @@ export function OverviewPage() {
           <Badge variant="outline">Outline</Badge>
         </div>
       </section>
+      <section className="rounded-xl border bg-card p-5 text-card-foreground">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Composition principles
+        </h2>
+        <div className="mt-4">
+          <Guidelines
+            items={[
+              { kind: 'do', text: 'Lead with the operational question or decision.' },
+              { kind: 'do', text: 'Keep session time, task time, presence, and leave status separate.' },
+              { kind: 'dont', text: 'Use gold everywhere; reserve it for action, focus, and attention.' },
+              { kind: 'dont', text: 'Turn availability data into a productivity judgment.' },
+            ]}
+          />
+        </div>
+      </section>
     </div>
   );
 }
@@ -176,7 +238,9 @@ export function FontsPage() {
         </h2>
         <p className="mt-4 text-4xl font-bold">The quick brown fox</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          The token font family is applied across this entire preview.
+          DM Sans carries the operational UI; Manrope is the display companion
+          used by ARKA OS headings, and Space Mono is reserved for compact
+          operational metadata.
         </p>
       </section>
 
@@ -192,6 +256,31 @@ export function FontsPage() {
             <p className={entry.className}>Build products people understand.</p>
           </div>
         ))}
+      </section>
+    </div>
+  );
+}
+
+export function VoiceTonePage() {
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border bg-card p-6 text-card-foreground">
+        <h2 className="font-semibold">Voice and tone</h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          ARKA OS speaks plainly, with calm authority. Labels describe the
+          operational state; headings frame the decision; helper text explains
+          what the user can do next.
+        </p>
+      </section>
+      <section className="rounded-xl border bg-card p-6 text-card-foreground">
+        <Guidelines
+          items={[
+            { kind: 'do', text: 'Use direct labels such as Attendance, Leave, Review, Blocked, and Approved.' },
+            { kind: 'do', text: 'Name ownership and next steps clearly.' },
+            { kind: 'dont', text: 'Use surveillance language or imply that session length equals productivity.' },
+            { kind: 'dont', text: 'Hide important states behind vague dashboard language.' },
+          ]}
+        />
       </section>
     </div>
   );
