@@ -1,0 +1,2130 @@
+BUILD ARKA OS — ROLE-BASED INTERNAL OPERATING SYSTEM
+
+IMPORTANT:
+
+Do NOT build all three roles with the same dashboard.
+
+Do NOT give Founder, Manager and Team Member the same navigation.
+
+Do NOT make this a generic task-management application.
+
+ARKA OS is an internal operating system for Arka Digital Media where each role has a completely different responsibility.
+
+The three roles are:
+
+1. FOUNDER / ADMIN
+2. MANAGER
+3. TEAM MEMBER
+
+Each role must have a different workspace, different navigation, different permissions, different dashboard, and different actions.
+
+==================================================
+CORE OPERATING MODEL
+==================================================
+
+The operational hierarchy is:
+
+FOUNDER
+    ↓
+MANAGER
+    ↓
+TEAM MEMBERS
+
+But the Founder can also directly assign work to a Team Member when required.
+
+The normal operational flow is:
+
+FOUNDER
+↓
+creates / assigns work
+↓
+MANAGER
+↓
+assigns specific work to Team Members
+↓
+TEAM MEMBER
+↓
+logs in
+↓
+starts work
+↓
+updates work
+↓
+reports progress
+↓
+submits for approval
+↓
+MANAGER reviews
+↓
+approves / requests revision
+↓
+MANAGER reports to FOUNDER
+↓
+FOUNDER sees overall operation
+↓
+FOUNDER can approve / comment / reassign / intervene
+
+The system must represent this hierarchy.
+
+==================================================
+1. FOUNDER WORKSPACE
+==================================================
+
+The Founder is NOT an employee using ARKA OS to perform daily tasks.
+
+The Founder uses ARKA OS to:
+
+- See the entire company operation
+- See who is working
+- See who is logged in
+- See login time
+- See logout time
+- See what each person is working on
+- Assign work
+- Assign work directly to Managers
+- Assign work directly to Team Members when necessary
+- Monitor deadlines
+- Review reports
+- Approve work/reports
+- Comment
+- Reassign work
+- Identify blocked work
+- Identify overloaded people
+- Identify inactive/unassigned work
+- See manager performance
+- See team workload
+- See operational bottlenecks
+- Make decisions
+
+The Founder should NOT have a "My Tasks" employee-style experience.
+
+The Founder dashboard should be:
+
+COMMAND CENTER
+
+==================================================
+2. FOUNDER COMMAND CENTER
+==================================================
+
+When Founder logs in:
+
+Show:
+
+"Good morning, [Founder Name]."
+
+Then:
+
+"Here's the current state of Arka."
+
+The first priority is VISIBILITY.
+
+The Founder needs to know:
+
+WHO IS WORKING?
+
+WHO IS NOT WORKING?
+
+WHO IS LOGGED IN?
+
+WHO IS LOGGED OUT?
+
+WHAT IS EVERYONE WORKING ON?
+
+WHAT IS PENDING?
+
+WHAT IS OVERDUE?
+
+WHAT NEEDS MY APPROVAL?
+
+WHAT HAS THE MANAGER REPORTED?
+
+WHERE IS THE TEAM STUCK?
+
+==================================================
+3. FOUNDER PRESENCE VIEW
+==================================================
+
+Create a prominent:
+
+TEAM PRESENCE
+
+section.
+
+Example:
+
+TEAM PRESENCE
+
+ONLINE
+
+Rahul
+Team Member
+Logged in: 9:12 AM
+Current work: Website UI
+Status: Working
+
+Priya
+Manager
+Logged in: 8:58 AM
+Current work: Team coordination
+Status: Working
+
+Arun
+Team Member
+Logged in: 9:45 AM
+Current work: SEO audit
+Status: Working
+
+OFFLINE
+
+Kiran
+Team Member
+Last logout: 6:21 PM yesterday
+Current work: None
+
+For each person show:
+
+- Name
+- Role
+- Online/offline
+- Login time
+- Logout time
+- Last active time
+- Current assigned work
+- Current work status
+
+Do NOT use this as invasive surveillance.
+
+The purpose is operational visibility and availability.
+
+==================================================
+4. FOUNDER WORK OVERVIEW
+==================================================
+
+Founder should see:
+
+TOTAL ACTIVE WORK
+
+DUE TODAY
+
+DUE THIS WEEK
+
+OVERDUE
+
+BLOCKED
+
+WAITING FOR APPROVAL
+
+COMPLETED
+
+But every metric must open the actual underlying records.
+
+Example:
+
+OVERDUE
+4
+
+Click:
+
+1. Website redesign
+Owner: Rahul
+Manager: Priya
+Overdue: 2 days
+
+2. SEO Audit
+Owner: Arun
+Manager: Priya
+Overdue: 1 day
+
+==================================================
+5. FOUNDER ASSIGNMENT
+==================================================
+
+Founder can create new work.
+
+Button:
+
++ ASSIGN WORK
+
+Fields:
+
+Work title
+Description
+Work type
+Client optional
+Priority
+Deadline
+Estimated effort
+Assign to:
+    Manager
+    Team Member
+
+If assigned to Manager:
+
+The Manager becomes responsible for distributing the work.
+
+If assigned directly to Team Member:
+
+The Team Member receives the work directly.
+
+Founder can also reassign existing work.
+
+Every assignment must create an activity record.
+
+Example:
+
+Founder assigned
+"ABC Website Homepage"
+to Priya
+at 10:32 AM.
+
+==================================================
+6. FOUNDER REPORTS
+==================================================
+
+Founder needs a REPORTS area.
+
+Reports should answer:
+
+What work was completed?
+
+What work is pending?
+
+What work is overdue?
+
+What did each Manager report?
+
+What did each team member complete?
+
+How many hours were spent?
+
+Where are the bottlenecks?
+
+Which work is blocked?
+
+Which work is waiting for approval?
+
+Create:
+
+DAILY REPORT
+
+WEEKLY REPORT
+
+TEAM REPORT
+
+MANAGER REPORT
+
+WORK REPORT
+
+TIME / EFFORT REPORT
+
+==================================================
+7. FOUNDER APPROVAL
+==================================================
+
+Create:
+
+APPROVAL CENTER
+
+Founder can see reports/work submitted for approval.
+
+Each approval item:
+
+Work
+Submitted by
+Manager
+Team Member
+Submitted date
+Current stage
+Comments
+Attachments if applicable
+
+Actions:
+
+APPROVE
+
+REQUEST REVISION
+
+COMMENT
+
+REASSIGN
+
+When Founder requests revision, record:
+
+requested_by
+requested_at
+reason
+
+==================================================
+8. FOUNDER COMMENTS
+==================================================
+
+Founder can comment on:
+
+- Work
+- Reports
+- Manager reports
+- Team work
+- Approval requests
+
+Comments must be stored in the database.
+
+Each comment:
+
+Author
+Role
+Message
+Created time
+Related work/report
+
+==================================================
+9. MANAGER WORKSPACE
+==================================================
+
+The Manager must have a completely different dashboard.
+
+The Manager is responsible for:
+
+- Receiving work from Founder
+- Planning work
+- Breaking work into smaller tasks
+- Assigning work to Team Members
+- Tracking Team Member progress
+- Reviewing work
+- Approving/rejecting team submissions
+- Commenting
+- Reporting progress to Founder
+- Escalating blockers to Founder
+- Managing team workload
+
+The Manager should NOT see the Founder Command Center.
+
+The Manager should have:
+
+MANAGER COMMAND CENTER
+
+==================================================
+10. MANAGER DASHBOARD
+==================================================
+
+Manager's first question is:
+
+"WHAT DOES MY TEAM NEED TO EXECUTE?"
+
+Show:
+
+MY MANAGER WORK
+
+TEAM WORK
+
+UNASSIGNED WORK
+
+DUE TODAY
+
+DUE THIS WEEK
+
+OVERDUE
+
+BLOCKED
+
+WAITING FOR MY REVIEW
+
+REPORT TO FOUNDER
+
+==================================================
+11. MANAGER'S WORK RECEIVED FROM FOUNDER
+==================================================
+
+Create:
+
+FOUNDER ASSIGNMENTS
+
+This shows work assigned to the Manager by Founder.
+
+Example:
+
+Website redesign
+Assigned by Founder
+Deadline: 20 Sept
+Priority: High
+Status: Planning
+
+Manager can open it.
+
+Manager can:
+
+- Accept
+- Plan
+- Break into tasks
+- Assign team members
+- Set deadlines
+- Add instructions
+- Comment
+- Report progress
+
+==================================================
+12. MANAGER TEAM ASSIGNMENT
+==================================================
+
+Create:
+
+ASSIGN TO TEAM
+
+Manager selects a Work Item.
+
+Then:
+
++ ASSIGN TASK
+
+Select:
+
+Team Member
+Task
+Instructions
+Priority
+Deadline
+Estimated effort
+
+Example:
+
+Work:
+ABC Website
+
+Task:
+Create homepage UI
+
+Assigned to:
+Rahul
+
+Deadline:
+18 Sept
+
+Priority:
+High
+
+Instructions:
+Complete desktop homepage first and submit for review.
+
+The Team Member receives this in their workspace.
+
+==================================================
+13. MANAGER TEAM LIST
+==================================================
+
+Create:
+
+MY TEAM
+
+Show all Team Members managed by this Manager.
+
+For each:
+
+Name
+Online / Offline
+Login time
+Current work
+Active work count
+Due soon
+Overdue
+Blocked
+Hours
+Workload
+
+Example:
+
+RAHUL
+Online
+Working: Website UI
+4 active tasks
+1 due today
+0 overdue
+Workload: HIGH
+
+PRIYA
+Offline
+Last seen: 6:32 PM
+2 active tasks
+Workload: NORMAL
+
+Manager can click a team member.
+
+Then see that person's assigned work.
+
+==================================================
+14. MANAGER TEAM MONITORING
+==================================================
+
+Manager should be able to answer:
+
+What is Rahul working on?
+
+What is Priya working on?
+
+Who hasn't started assigned work?
+
+Who is blocked?
+
+Who is overloaded?
+
+Who has work due today?
+
+Who has submitted work for review?
+
+Who has not updated their work?
+
+Show this through real database data.
+
+Do NOT use fake status values.
+
+==================================================
+15. MANAGER REVIEW
+==================================================
+
+Create:
+
+TEAM SUBMISSIONS
+
+When Team Member completes work:
+
+They click:
+
+SUBMIT FOR REVIEW
+
+The work moves to:
+
+WAITING FOR MANAGER REVIEW
+
+Manager sees:
+
+Work
+Team Member
+Submitted time
+Deadline
+Time spent
+Description
+Comments
+Attachments
+
+Actions:
+
+APPROVE
+
+REQUEST REVISION
+
+COMMENT
+
+If approved:
+
+Work can move toward completion.
+
+If revision requested:
+
+Work returns to:
+
+REVISION
+
+and the Team Member sees the Manager's feedback.
+
+==================================================
+16. MANAGER REPORTING TO FOUNDER
+==================================================
+
+This is a major function.
+
+Create:
+
+REPORT TO FOUNDER
+
+Manager can create a daily/weekly operational report.
+
+Report fields:
+
+Reporting period
+Completed work
+In-progress work
+Delayed work
+Blocked work
+Team workload
+Important issues
+Achievements
+Risks
+Founder decisions required
+Additional comments
+
+Submit button:
+
+SUBMIT REPORT TO FOUNDER
+
+Once submitted:
+
+Founder sees it in:
+
+FOUNDER REPORTS
+
+Manager should be able to see report status:
+
+Draft
+Submitted
+Reviewed
+Needs revision
+
+==================================================
+17. MANAGER ESCALATION
+==================================================
+
+If something cannot be solved by Manager:
+
+Manager can escalate to Founder.
+
+Example:
+
+BLOCKER
+
+Work:
+ABC Website
+
+Problem:
+Client information missing
+
+Waiting for:
+Founder decision
+
+Button:
+
+ESCALATE TO FOUNDER
+
+Founder receives the escalation.
+
+==================================================
+18. TEAM MEMBER WORKSPACE
+==================================================
+
+Team Member has the simplest interface.
+
+Their question is:
+
+"WHAT DO I NEED TO WORK ON?"
+
+Team Member should NOT see company-wide analytics.
+
+Team Member should NOT see all employee data.
+
+Team Member should NOT see Founder reports.
+
+Team Member should NOT manage other employees.
+
+Team Member should focus on execution.
+
+==================================================
+19. TEAM MEMBER DASHBOARD
+==================================================
+
+Show:
+
+GOOD MORNING, [NAME]
+
+TODAY'S WORK
+
+NOW
+
+NEXT
+
+DUE TODAY
+
+DUE SOON
+
+BLOCKED
+
+WAITING FOR REVIEW
+
+RECENTLY COMPLETED
+
+Each work item:
+
+Title
+Manager
+Priority
+Deadline
+Stage
+Progress
+Instructions
+Time spent
+
+==================================================
+20. TEAM MEMBER LOGIN / LOGOUT
+==================================================
+
+When Team Member logs in:
+
+Automatically record:
+
+login_at
+
+When Team Member logs out:
+
+Automatically record:
+
+logout_at
+
+Also maintain:
+
+last_active_at
+
+Founder and Manager can see this according to their permissions.
+
+Team Member can see their own login history.
+
+Do not require manual attendance entry.
+
+==================================================
+21. TEAM MEMBER START WORK
+==================================================
+
+Team Member opens assigned Work.
+
+They see:
+
+WORK DETAILS
+
+What needs to be done
+Instructions
+Deadline
+Priority
+Manager
+Subtasks
+Comments
+Attachments
+
+Button:
+
+START WORK
+
+When clicked:
+
+- work starts
+- timestamp recorded
+- timer can start
+- stage becomes IN PROGRESS
+- activity recorded
+
+==================================================
+22. TEAM MEMBER TIME TRACKING
+==================================================
+
+Team Member can:
+
+START TIMER
+
+STOP TIMER
+
+or:
+
+ADD MANUAL TIME
+
+Every time entry is associated with actual work.
+
+Show:
+
+Today's time
+This week's time
+Time spent on current work
+Total work time
+
+The purpose is to understand where Arka's operational time is going.
+
+Not to judge productivity simply by hours.
+
+==================================================
+23. TEAM MEMBER WORK STATUS
+==================================================
+
+Team Member can update their assigned work.
+
+Allowed states:
+
+NOT STARTED
+IN PROGRESS
+BLOCKED
+READY FOR REVIEW
+COMPLETED
+
+But final approval is controlled by the Manager where applicable.
+
+Team Member cannot simply mark important work as fully approved.
+
+==================================================
+24. TEAM MEMBER BLOCKER
+==================================================
+
+If Team Member cannot continue:
+
+Button:
+
+MARK AS BLOCKED
+
+Required:
+
+Reason
+
+Optional:
+
+Waiting for
+
+Example:
+
+Blocked because:
+"Waiting for client logo"
+
+Waiting for:
+"Manager"
+
+This immediately becomes visible to Manager.
+
+Manager can resolve it or escalate to Founder.
+
+==================================================
+25. TEAM MEMBER REPORTING TO MANAGER
+==================================================
+
+Team Member must be able to submit progress.
+
+Create:
+
+REPORT PROGRESS
+
+Fields:
+
+Work
+What was completed
+What remains
+Problems/blockers
+Time spent
+Next step
+Comment
+
+Button:
+
+SUBMIT UPDATE TO MANAGER
+
+Manager receives the update.
+
+==================================================
+26. TEAM MEMBER SUBMIT FOR APPROVAL
+==================================================
+
+When Team Member believes work is finished:
+
+Button:
+
+SUBMIT FOR REVIEW
+
+Required:
+
+Completion note
+
+Optional:
+
+Attachment
+Comment
+
+Then:
+
+Team Member
+↓
+Manager Review
+
+Manager:
+
+APPROVE
+
+or
+
+REQUEST REVISION
+
+==================================================
+27. REVISION FLOW
+==================================================
+
+If Manager requests revision:
+
+Work stage:
+
+REVISION
+
+Manager adds:
+
+Revision instructions
+
+Team Member sees:
+
+REVISION REQUIRED
+
+with manager feedback.
+
+Team Member completes revision.
+
+Then:
+
+SUBMIT FOR REVIEW
+
+again.
+
+Every revision must be recorded.
+
+This allows ARKA OS to calculate:
+
+Number of revisions
+Time spent in revision
+Time waiting for review
+
+==================================================
+28. ROLE PERMISSION MATRIX
+==================================================
+
+IMPLEMENT THESE PERMISSIONS.
+
+                    FOUNDER     MANAGER     TEAM MEMBER
+
+View all people       YES          YES*          NO
+
+View own profile      YES          YES           YES
+
+View all work         YES          YES*          NO
+
+View assigned work    YES          YES           YES
+
+Create work           YES          YES           NO
+
+Assign to Manager     YES          NO            NO
+
+Assign to Team        YES          YES           NO
+
+Reassign work         YES          YES*          NO
+
+View team workload    YES          YES           NO
+
+View all time         YES          YES*          NO
+
+Log own time          Optional     Optional      YES
+
+Approve Team Work     YES          YES           NO
+
+Approve Manager Report YES         NO            NO
+
+Submit Team Report    NO           YES           NO
+
+Submit Progress       NO           NO            YES
+
+Report to Founder     NO           YES           NO
+
+Comment               YES          YES           YES*
+
+Manage users          YES          NO            NO
+
+View login history    YES          TEAM ONLY     OWN ONLY
+
+Escalate to Founder   NO           YES           NO
+
+*Only for people/work within the Manager's scope.
+
+==================================================
+29. THREE COMPLETELY DIFFERENT NAVIGATIONS
+==================================================
+
+FOUNDER NAVIGATION:
+
+COMMAND CENTER
+WORK
+TEAM
+MANAGERS
+REPORTS
+APPROVALS
+TIME & EFFORT
+INSIGHTS
+CLIENTS
+NOTIFICATIONS
+SETTINGS
+
+FOUNDER should not have:
+"My Tasks"
+
+Instead:
+
+"Company Work"
+
+--------------------------------------------------
+
+MANAGER NAVIGATION:
+
+MY DASHBOARD
+FOUNDER ASSIGNMENTS
+MY WORK
+MY TEAM
+TEAM TASKS
+REVIEWS
+REPORT TO FOUNDER
+TIME & WORKLOAD
+NOTIFICATIONS
+
+--------------------------------------------------
+
+TEAM MEMBER NAVIGATION:
+
+MY WORK
+TODAY
+MY TIME
+MY REPORTS
+MY SUBMISSIONS
+NOTIFICATIONS
+PROFILE
+
+This separation is mandatory.
+
+==================================================
+30. WORK HIERARCHY
+==================================================
+
+Support this relationship:
+
+FOUNDER
+  ↓
+WORK
+  ↓
+MANAGER
+  ↓
+TEAM MEMBER
+  ↓
+TASK
+  ↓
+TIME / PROGRESS
+  ↓
+REVIEW
+  ↓
+APPROVAL
+  ↓
+REPORT
+
+Example:
+
+FOUNDER
+
+"ABC Website Project"
+
+assigns to:
+
+MANAGER: Priya
+
+Priya breaks it into:
+
+Task 1:
+Homepage UI
+→ Rahul
+
+Task 2:
+Website copy
+→ Arun
+
+Task 3:
+Mobile optimization
+→ Kiran
+
+Rahul:
+
+Login
+↓
+Start Work
+↓
+Work
+↓
+Log time
+↓
+Update progress
+↓
+Submit for review
+
+Priya:
+
+Review
+↓
+Approve / Revision
+
+Priya:
+
+Reports status to Founder.
+
+Founder:
+
+Sees overall project status.
+
+==================================================
+31. WORK DETAIL
+==================================================
+
+Every Work Item must show:
+
+WORK TITLE
+
+CLIENT
+WORK TYPE
+PRIORITY
+DEADLINE
+FOUNDER
+MANAGER
+TEAM MEMBER(S)
+CURRENT STAGE
+STATUS
+PROGRESS
+
+Then:
+
+TASKS
+
+TIME
+
+ACTIVITY
+
+COMMENTS
+
+REPORTS
+
+REVIEWS
+
+APPROVALS
+
+BLOCKERS
+
+HISTORY
+
+==================================================
+32. ACTIVITY HISTORY
+==================================================
+
+Record every important event.
+
+Examples:
+
+Founder created work
+
+Founder assigned work to Manager
+
+Manager assigned task to Rahul
+
+Rahul logged in
+
+Rahul started work
+
+Rahul logged 45 minutes
+
+Rahul changed progress to 60%
+
+Rahul submitted for review
+
+Priya requested revision
+
+Rahul resubmitted
+
+Priya approved
+
+Priya submitted report to Founder
+
+Founder commented
+
+Every event must have:
+
+Actor
+Role
+Action
+Timestamp
+Related Work
+Optional message
+
+==================================================
+33. FOUNDER OPERATIONAL VIEW
+==================================================
+
+Founder should have a special view:
+
+"WHERE IS EVERYONE?"
+
+Display a live operational table:
+
+PERSON
+ROLE
+PRESENCE
+LOGIN
+CURRENT WORK
+WORK STATUS
+DEADLINE
+WORKLOAD
+LAST ACTIVITY
+
+Example:
+
+Rahul | Team | Online | 9:04 | Website UI | Working | Today | High
+
+Priya | Manager | Online | 8:55 | Team coordination | Working | — | Normal
+
+Arun | Team | Offline | 9:20 | SEO Audit | In Progress | Tomorrow | Normal
+
+This is one of the most important ARKA OS screens.
+
+==================================================
+34. FOUNDER ATTENTION QUEUE
+==================================================
+
+Create:
+
+ATTENTION REQUIRED
+
+Only show things that need intervention.
+
+Examples:
+
+4 overdue work items
+
+2 manager reports awaiting review
+
+3 blocked work items
+
+1 overloaded team member
+
+2 deadlines today
+
+1 manager escalation
+
+5 items awaiting approval
+
+Each has:
+
+Why it needs attention
+Who owns it
+Related work
+Deadline
+Action
+
+==================================================
+35. MANAGER ATTENTION QUEUE
+==================================================
+
+Manager should see:
+
+Team member hasn't started assigned work
+
+Work overdue
+
+Work blocked
+
+Submission waiting for review
+
+Deadline approaching
+
+Team member overloaded
+
+Founder assignment waiting to be planned
+
+Manager report due
+
+==================================================
+36. TEAM MEMBER ATTENTION
+==================================================
+
+Team Member sees only:
+
+Work due today
+
+New assignment
+
+Revision requested
+
+Review feedback
+
+Blocked work
+
+Manager comment
+
+Deadline approaching
+
+==================================================
+37. REPORTING STRUCTURE
+==================================================
+
+Reporting must follow:
+
+TEAM MEMBER
+↓
+reports progress
+↓
+MANAGER
+↓
+consolidates team progress
+↓
+FOUNDER
+
+Founder does not need to collect individual updates manually.
+
+Manager should be responsible for team reporting.
+
+Founder sees:
+
+Manager Report
+
+Inside it:
+
+Team progress
+Completed
+Pending
+Blocked
+Delayed
+Hours
+Major issues
+Founder decisions needed
+
+==================================================
+38. APPROVAL STRUCTURE
+==================================================
+
+TEAM MEMBER
+↓
+submits work
+↓
+MANAGER
+↓
+reviews
+↓
+approve / revision
+↓
+MANAGER reports to FOUNDER
+
+Founder can still directly review/approve when required.
+
+Do not force every small task through Founder.
+
+Founder should operate at the management level.
+
+==================================================
+39. PRESENCE SYSTEM
+==================================================
+
+Use Supabase Auth.
+
+Track:
+
+login_at
+logout_at
+last_active_at
+current_presence
+
+Presence states:
+
+ONLINE
+IDLE
+OFFLINE
+
+Do not fake presence.
+
+Use actual authentication/session/activity data.
+
+==================================================
+40. DATABASE MODEL
+==================================================
+
+Use Supabase PostgreSQL.
+
+Tables:
+
+organizations
+
+users
+
+login_logs
+
+work_items
+
+work_tasks
+
+work_assignments
+
+work_activity
+
+work_stage_history
+
+time_entries
+
+comments
+
+progress_reports
+
+manager_reports
+
+approvals
+
+notifications
+
+clients
+
+work_dependencies
+
+Each organization-owned table must include:
+
+organization_id
+
+Use UUIDs.
+
+Use foreign keys.
+
+Use timestamps.
+
+Use indexes.
+
+Use RLS.
+
+==================================================
+41. IMPORTANT ROLE DATA MODEL
+==================================================
+
+users:
+
+id
+organization_id
+name
+email
+role
+manager_id nullable
+is_active
+created_at
+updated_at
+
+role values:
+
+FOUNDER
+MANAGER
+TEAM_MEMBER
+
+manager_id allows:
+
+Team Member → Manager
+
+This allows each Manager to have a defined team.
+
+==================================================
+42. WORK ASSIGNMENT MODEL
+==================================================
+
+Do not store only one generic assignee field.
+
+The system must understand:
+
+created_by
+
+founder_owner / originating founder
+
+manager_id
+
+team_member_id
+
+depending on assignment.
+
+A Work Item may belong to a Manager and contain multiple Team Member tasks.
+
+Example:
+
+Work:
+ABC Website
+
+Manager:
+Priya
+
+Tasks:
+
+Homepage → Rahul
+SEO → Arun
+Testing → Kiran
+
+==================================================
+43. REPORT MODEL
+==================================================
+
+progress_reports:
+
+team_member
+work
+manager
+summary
+completed
+remaining
+blockers
+time_spent
+next_step
+submitted_at
+
+manager_reports:
+
+manager
+reporting_period
+completed_work
+pending_work
+blocked_work
+delayed_work
+team_status
+major_issues
+founder_decisions
+submitted_at
+status
+
+==================================================
+44. APPROVAL MODEL
+==================================================
+
+approvals:
+
+work_id
+submitted_by
+reviewer_id
+reviewer_role
+status
+comments
+requested_changes
+submitted_at
+reviewed_at
+
+Statuses:
+
+PENDING
+APPROVED
+REVISION_REQUESTED
+
+==================================================
+45. SECURITY
+==================================================
+
+This is critical.
+
+Founder:
+
+organization-wide visibility.
+
+Manager:
+
+only assigned team/work scope.
+
+Team Member:
+
+only own assigned work and appropriate shared information.
+
+Enforce permissions in Supabase RLS.
+
+Do not rely only on frontend hiding.
+
+A Team Member must not be able to access Founder reports by manually changing a URL.
+
+A Manager must not access another Manager's private operational scope unless explicitly permitted.
+
+==================================================
+46. COMMAND CENTER IS NOT A GENERIC DASHBOARD
+==================================================
+
+Do NOT create:
+
+4 generic KPI cards
+3 random charts
+fake analytics
+marketing reach
+campaign metrics
+
+Instead create:
+
+WHO IS WORKING
+WHAT IS HAPPENING
+WHAT IS LATE
+WHAT IS BLOCKED
+WHAT NEEDS APPROVAL
+WHAT DID MANAGERS REPORT
+WHERE IS THE TEAM STUCK
+WHAT NEEDS FOUNDER ACTION
+
+==================================================
+47. NO CONTENT CALENDAR
+==================================================
+
+Do NOT build:
+
+Content Calendar
+
+Scheduled Reach
+
+Content Production Dashboard
+
+Campaign Pulse
+
+Social Media Publishing
+
+Marketing Reach Metrics
+
+Those are NOT the core ARKA OS.
+
+ARKA OS is company operations.
+
+==================================================
+48. NO EMPLOYEE SURVEILLANCE PRODUCT
+==================================================
+
+Do not design ARKA OS as:
+
+"employee monitoring software."
+
+Login/logout/presence exists to establish:
+
+availability
+work state
+operational visibility
+
+Time exists to understand:
+
+where operational effort is being spent.
+
+Do not make simplistic claims such as:
+
+"Employee worked 8 hours therefore employee was productive."
+
+==================================================
+49. UI DESIGN
+==================================================
+
+Create a premium internal SaaS interface.
+
+Use:
+
+ARKA branding
+
+Professional typography
+
+Strong hierarchy
+
+Clean sidebar
+
+Responsive layouts
+
+Subtle borders
+
+Clear status indicators
+
+Excellent tables
+
+Excellent detail pages
+
+Minimal but useful charts
+
+Fast interactions
+
+Use the visual quality of the supplied screenshot as inspiration for polish only.
+
+Do NOT copy its product structure.
+
+The Founder, Manager and Team Member dashboards must visually communicate their different responsibilities.
+
+==================================================
+50. FOUNDER UI FEEL
+==================================================
+
+Founder:
+
+Executive
+Operational
+High-level
+Exception-focused
+
+Founder should feel:
+
+"I know what is happening across Arka."
+
+==================================================
+51. MANAGER UI FEEL
+==================================================
+
+Manager:
+
+Execution
+Coordination
+Team workload
+Reviews
+Reporting
+
+Manager should feel:
+
+"I know what my team needs to execute."
+
+==================================================
+52. TEAM MEMBER UI FEEL
+==================================================
+
+Team Member:
+
+Simple
+Focused
+Action-oriented
+
+Team Member should feel:
+
+"I know exactly what I need to work on."
+
+==================================================
+53. END-TO-END TEST
+==================================================
+
+Test this exact scenario.
+
+FOUNDER:
+
+Login
+
+See Command Center
+
+See Manager online
+
+See Team Members online
+
+Create:
+
+"ABC Website"
+
+Assign to:
+
+Manager Priya
+
+--------------------------------------------------
+
+MANAGER:
+
+Login
+
+See Founder assignment
+
+Open ABC Website
+
+Break into:
+
+Homepage Design
+SEO Setup
+Mobile Testing
+
+Assign:
+
+Homepage Design → Rahul
+
+SEO Setup → Arun
+
+Mobile Testing → Kiran
+
+--------------------------------------------------
+
+TEAM MEMBER RAHUL:
+
+Login at 9:10 AM
+
+See:
+
+Homepage Design
+
+Click:
+
+START WORK
+
+Timer starts.
+
+Work status:
+
+IN PROGRESS
+
+Rahul adds progress:
+
+50%
+
+Rahul logs time.
+
+Rahul submits:
+
+PROGRESS UPDATE
+
+Manager sees update.
+
+Rahul completes work.
+
+Click:
+
+SUBMIT FOR REVIEW
+
+--------------------------------------------------
+
+MANAGER:
+
+Receives submission.
+
+Opens work.
+
+Reviews.
+
+Clicks:
+
+REQUEST REVISION
+
+Adds:
+
+"Update the hero section and mobile spacing."
+
+Rahul receives notification.
+
+--------------------------------------------------
+
+RAHUL:
+
+Sees:
+
+REVISION REQUIRED
+
+Makes changes.
+
+Submits again.
+
+--------------------------------------------------
+
+MANAGER:
+
+Approves.
+
+Work becomes:
+
+APPROVED
+
+Manager updates parent work.
+
+--------------------------------------------------
+
+MANAGER:
+
+Creates:
+
+DAILY REPORT TO FOUNDER
+
+Completed:
+Homepage Design
+
+In progress:
+SEO Setup
+
+Blocked:
+None
+
+Team:
+3 members active
+
+Issues:
+None
+
+Submits report.
+
+--------------------------------------------------
+
+FOUNDER:
+
+Opens Command Center.
+
+Sees:
+
+Priya — Manager — Online
+
+Rahul — Team Member — Online
+Current work: ABC Website Homepage
+
+Arun — Team Member — Online
+Current work: SEO Setup
+
+Kiran — Team Member — Offline
+
+Founder opens Manager Report.
+
+Reads report.
+
+Comments:
+
+"Good progress. Continue."
+
+Everything is recorded in activity history.
+
+==================================================
+54. DEFINITION OF DONE
+==================================================
+
+Do not say the MVP is complete just because the screens exist.
+
+It is complete only when:
+
+FOUNDER
+
+can:
+
+✓ See who is online
+✓ See login/logout
+✓ See what everyone is working on
+✓ Create work
+✓ Assign to Manager
+✓ Assign directly to Team Member
+✓ See deadlines
+✓ See blocked work
+✓ See workload
+✓ Review reports
+✓ Comment
+✓ Approve
+✓ Request revision
+✓ Reassign
+✓ See operational insights
+
+MANAGER
+
+can:
+
+✓ Receive Founder assignments
+✓ Plan work
+✓ Create tasks
+✓ Assign tasks to Team Members
+✓ See Team Members
+✓ See team presence
+✓ See team work
+✓ Track deadlines
+✓ Review submissions
+✓ Approve work
+✓ Request revisions
+✓ Comment
+✓ Track workload
+✓ Receive progress reports
+✓ Create reports
+✓ Report to Founder
+✓ Escalate blockers
+
+TEAM MEMBER
+
+can:
+
+✓ Login
+✓ Logout
+✓ See login time
+✓ See assigned work
+✓ See instructions
+✓ Start work
+✓ Stop work
+✓ Log time
+✓ Update progress
+✓ Comment
+✓ Mark blocked
+✓ Submit progress report
+✓ Submit work for review
+✓ Receive revision requests
+✓ Resubmit work
+✓ See approvals
+✓ See own work history
+
+==================================================
+55. FINAL PRODUCT PRINCIPLE
+==================================================
+
+ARKA OS is a chain of responsibility.
+
+FOUNDER
+owns company visibility and decisions.
+
+MANAGER
+owns team execution and reporting.
+
+TEAM MEMBER
+owns execution of assigned work.
+
+The system must make this visible.
+
+The core flow is:
+
+FOUNDER
+↓
+ASSIGN
+↓
+MANAGER
+↓
+PLAN
+↓
+ASSIGN
+↓
+TEAM MEMBER
+↓
+LOGIN
+↓
+WORK
+↓
+TIME
+↓
+PROGRESS
+↓
+SUBMIT
+↓
+MANAGER REVIEW
+↓
+APPROVE / REVISION
+↓
+MANAGER REPORT
+↓
+FOUNDER
+↓
+REVIEW / COMMENT / DECIDE
+
+This is ARKA OS.
+
+Do not simplify this into:
+
+Dashboard → Tasks → Team → Reports.
+
+The hierarchy and responsibility model are the product.
+
+==================================================
+56. IMPLEMENTATION INSTRUCTION
+==================================================
+
+Start by inspecting the existing Replit project.
+
+Do not blindly extend the current generated marketing dashboard.
+
+If necessary, refactor the existing application.
+
+Build the role system first.
+
+Then:
+
+PHASE 1:
+Authentication + Roles + Presence
+
+PHASE 2:
+Founder → Manager → Team assignment
+
+PHASE 3:
+Team execution + Time + Progress
+
+PHASE 4:
+Manager review + Reports
+
+PHASE 5:
+Founder Command Center + Approvals + Insights
+
+After each phase:
+
+- test database
+- test permissions
+- test role-specific UI
+- test complete user flow
+- fix errors
+
+Do not use hardcoded fake operational data in production.
+
+Demo data must be clearly labelled.
+
+Every important button must perform a real action.
+
+Every important action must be persisted.
+
+Every role must see a genuinely different workspace.
+
+BUILD THE REAL ARKA OS.
