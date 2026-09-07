@@ -4,9 +4,9 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
-  ArrowLeft, ArrowRight, Bell, Check, CheckCircle2, ChevronDown, Clock3, Command,
+  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, Clock3, Command,
   FileText, Flag, Inbox, KanbanSquare, LayoutDashboard, ListFilter, LogOut, Menu,
-  MessageSquare, Plus, Search, Settings2, ShieldAlert, Timer, UserRound, Users, X, Zap
+  MessageSquare, Plus, Search, Settings2, ShieldAlert, Timer, UserPlus, UserRound, Users, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 
@@ -22,6 +22,7 @@ type Presence = 'Online' | 'Idle' | 'Offline';
 type Person = {
   id: string; name: string; role: Role; title: string; managerId: string | null;
   presence: Presence; loginAt?: string; logoutAt?: string; lastActiveAt: string;
+  sessionMinutes?: number; taskMinutes?: number;
 };
 type WorkItem = {
   id: string; title: string; description: string; client?: string; workType: WorkType;
@@ -42,14 +43,22 @@ type ManagerReport = {
   id: string; managerId: string; period: string; completed: string; inProgress: string;
   blockers: string; decisions: string; status: 'Draft' | 'Submitted' | 'Reviewed' | 'Needs revision'; createdAt: string;
 };
+type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
+type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Other';
+type LeaveRequest = {
+  id: string; userId: string; leaveType: LeaveType; startDate: string; endDate: string;
+  reason: string; note?: string; status: LeaveStatus; approvedBy?: string; createdAt: string;
+};
 
-const people: Person[] = [
-  { id: 'maya', name: 'Monika Sriniva', role: 'Founder', title: 'Founder / Admin', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now' },
-  { id: 'priya', name: 'Priya Shah', role: 'Manager', title: 'Operations Manager', managerId: null, presence: 'Online', loginAt: '8:58 AM', lastActiveAt: '2 min ago' },
-  { id: 'rahul', name: 'Rahul Mehta', role: 'Team member', title: 'Product Designer', managerId: 'priya', presence: 'Online', loginAt: '9:10 AM', lastActiveAt: 'Just now' },
-  { id: 'arun', name: 'Arun Nair', role: 'Team member', title: 'SEO Specialist', managerId: 'priya', presence: 'Online', loginAt: '9:24 AM', lastActiveAt: '4 min ago' },
-  { id: 'kiran', name: 'Kiran Rao', role: 'Team member', title: 'Developer', managerId: 'priya', presence: 'Offline', logoutAt: '6:21 PM yesterday', lastActiveAt: 'Yesterday' },
+const initialPeople: Person[] = [
+  { id: 'maya', name: 'Monika Sriniva', role: 'Founder', title: 'Founder / Admin', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now', sessionMinutes: 430, taskMinutes: 0 },
+  { id: 'priya', name: 'Priya Shah', role: 'Manager', title: 'Operations Manager', managerId: null, presence: 'Online', loginAt: '8:58 AM', lastActiveAt: '2 min ago', sessionMinutes: 398, taskMinutes: 315 },
+  { id: 'rahul', name: 'Rahul Mehta', role: 'Team member', title: 'Product Designer', managerId: 'priya', presence: 'Online', loginAt: '9:10 AM', lastActiveAt: 'Just now', sessionMinutes: 345, taskMinutes: 135 },
+  { id: 'arun', name: 'Arun Nair', role: 'Team member', title: 'SEO Specialist', managerId: 'priya', presence: 'Online', loginAt: '9:24 AM', lastActiveAt: '4 min ago', sessionMinutes: 301, taskMinutes: 285 },
+  { id: 'kiran', name: 'Kiran Rao', role: 'Team member', title: 'Developer', managerId: 'priya', presence: 'Offline', logoutAt: '6:21 PM yesterday', lastActiveAt: 'Yesterday', sessionMinutes: 0, taskMinutes: 0 },
 ];
+
+let runtimePeople = initialPeople;
 
 const initialWork: WorkItem[] = [
   { id: 'work-abc', title: 'ABC Website', description: 'Launch the new conversion-focused website for ABC Foods.', client: 'ABC Foods', workType: 'Website', priority: 'High', dueDate: '2026-09-20', founderId: 'maya', managerId: 'priya', stage: 'In Progress', progress: 42, createdAt: '2026-09-10' },
@@ -79,6 +88,11 @@ const initialReports: ManagerReport[] = [
   { id: 'report-1', managerId: 'priya', period: 'Week of Sep 15', completed: 'SEO audit submitted for review.', inProgress: 'ABC Website homepage design and SEO setup.', blockers: 'Waiting on final product photography for the website.', decisions: 'Confirm whether the launch date can move by two days.', status: 'Submitted', createdAt: 'Today, 11:05 AM' },
 ];
 
+const initialLeaves: LeaveRequest[] = [
+  { id: 'leave-1', userId: 'kiran', leaveType: 'Personal', startDate: TODAY, endDate: TODAY, reason: 'Personal appointment', status: 'Approved', approvedBy: 'maya', createdAt: 'Sep 12, 2:15 PM' },
+  { id: 'leave-2', userId: 'rahul', leaveType: 'Casual', startDate: '2026-09-22', endDate: '2026-09-23', reason: 'Family commitment', status: 'Pending', createdAt: 'Today, 9:40 AM' },
+];
+
 const stageTone: Record<Stage, string> = {
   Planning: 'border-slate-200 bg-slate-50 text-slate-700', Assigned: 'border-blue-200 bg-blue-50 text-blue-700',
   'In Progress': 'border-amber-200 bg-amber-50 text-amber-700', Review: 'border-violet-200 bg-violet-50 text-violet-700',
@@ -94,7 +108,10 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
   Founder: [
     { label: 'Command Center', path: '/dashboard', icon: Command },
     { label: 'Company Work', path: '/work', icon: Inbox },
+    { label: 'People', path: '/people', icon: UserPlus },
     { label: 'Team Presence', path: '/team', icon: Users },
+    { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
+    { label: 'Leave', path: '/leave', icon: CalendarDays },
     { label: 'Reports', path: '/reports', icon: FileText },
     { label: 'Approvals', path: '/approvals', icon: CheckCircle2 },
     { label: 'Time & Effort', path: '/time', icon: Clock3 },
@@ -106,6 +123,8 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'Founder Assignments', path: '/assignments', icon: Flag },
     { label: 'Team Tasks', path: '/team-tasks', icon: KanbanSquare },
     { label: 'My Team', path: '/team', icon: Users },
+    { label: 'Team Attendance', path: '/attendance', icon: CalendarDays },
+    { label: 'Team Leave', path: '/leave', icon: CalendarDays },
     { label: 'Reviews', path: '/reviews', icon: CheckCircle2 },
     { label: 'Report to Founder', path: '/reports', icon: FileText },
     { label: 'Time & Workload', path: '/time', icon: Clock3 },
@@ -115,6 +134,8 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'My Work', path: '/my-work', icon: Command },
     { label: 'Today', path: '/today', icon: Flag },
     { label: 'My Time', path: '/time', icon: Clock3 },
+    { label: 'My Attendance', path: '/attendance', icon: CalendarDays },
+    { label: 'My Leave', path: '/leave', icon: CalendarDays },
     { label: 'My Reports', path: '/reports', icon: FileText },
     { label: 'My Submissions', path: '/submissions', icon: CheckCircle2 },
     { label: 'Notifications', path: '/notifications', icon: Bell },
@@ -122,7 +143,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
   ],
 };
 
-function person(id: string) { return people.find((item) => item.id === id) || people[0]; }
+function person(id: string) { return runtimePeople.find((item) => item.id === id) || runtimePeople[0]; }
 function formatDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
 function isOverdue(value: string) { return value < TODAY; }
 function hours(minutes: number) { return `${Math.floor(minutes / 60)}h ${minutes % 60}m`; }

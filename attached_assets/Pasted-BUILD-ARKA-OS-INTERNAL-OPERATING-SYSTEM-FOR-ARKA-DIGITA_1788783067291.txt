@@ -1,0 +1,2273 @@
+BUILD ARKA OS — INTERNAL OPERATING SYSTEM FOR ARKA DIGITAL MEDIA
+
+IMPORTANT:
+
+This is NOT a generic task management application.
+
+This is NOT a content calendar.
+
+This is NOT a campaign management platform.
+
+This is NOT an employee surveillance application.
+
+ARKA OS is an internal operations system for Arka Digital Media.
+
+The purpose is to manage:
+
+PEOPLE
+→ ATTENDANCE / PRESENCE
+→ WORK
+→ ASSIGNMENT
+→ EXECUTION
+→ PROGRESS
+→ REVIEW
+→ APPROVAL
+→ REPORTING
+→ LEAVE
+→ TIME / EFFORT
+→ WORKLOAD
+→ FOUNDER VISIBILITY
+
+The system must have three clearly separated role experiences:
+
+1. FOUNDER / ADMIN
+2. MANAGER
+3. TEAM MEMBER
+
+DO NOT give all three roles the same dashboard.
+
+DO NOT give all three roles the same navigation.
+
+DO NOT use hardcoded people names.
+
+All users must come dynamically from the database.
+
+==================================================
+1. CRITICAL ROLE STRUCTURE
+==================================================
+
+The organizational structure is:
+
+FOUNDER / ADMIN
+        ↓
+     MANAGERS
+        ↓
+   TEAM MEMBERS
+
+Founder has organization-wide visibility.
+
+Manager has visibility over their assigned team.
+
+Team Member has visibility over their own work and own attendance/time.
+
+Founder can:
+
+- See all Managers
+- See all Team Members
+- See attendance/presence of all staff
+- See work of everyone
+- Assign work to Managers
+- Assign work directly to Team Members
+- Review reports
+- Approve work where required
+- Comment
+- See workload
+- See leave applications
+- Approve/reject leave
+- View historical attendance
+- View work time
+- View operational reports
+
+Manager can:
+
+- See their own team
+- See team attendance
+- See team login/logout
+- See team work
+- Receive work from Founder
+- Assign work to Team Members
+- Track progress
+- Review Team Member submissions
+- Request revision
+- Approve Team Member work
+- Comment
+- Receive progress reports
+- Create reports for Founder
+- Escalate issues
+- View team workload
+- View team leave information
+
+Team Member can:
+
+- Login
+- Logout
+- See own attendance
+- Apply for leave
+- See leave status
+- See assigned work
+- Start work
+- Track time
+- Update progress
+- Report progress
+- Submit work for review
+- Receive revision requests
+- Complete work
+- Comment
+- See manager feedback
+
+==================================================
+2. NO HARDCODED NAMES
+==================================================
+
+THIS IS MANDATORY.
+
+Do NOT create demo names such as:
+
+Founder
+Manager 1
+Manager 2
+Team Member 1
+Team Member 2
+Rahul
+Priya
+Arun
+Kiran
+
+as permanent users.
+
+User names must come dynamically from:
+
+users
+
+The UI must automatically display the authenticated user's real database profile.
+
+For example:
+
+If the database contains:
+
+Name: [actual user]
+
+Role: MANAGER
+
+the UI should display that actual name.
+
+If another employee is added, they should automatically appear in the correct lists.
+
+Do not require code changes to add employees.
+
+The Founder should be identified through role:
+
+FOUNDER
+
+Managers through:
+
+MANAGER
+
+Team Members through:
+
+TEAM_MEMBER
+
+==================================================
+3. USER MANAGEMENT
+==================================================
+
+Founder/Admin has a:
+
+TEAM / PEOPLE MANAGEMENT
+
+section.
+
+Founder can:
+
++ ADD EMPLOYEE
+
+Fields:
+
+Full Name
+Email
+Phone optional
+Role
+Manager optional
+Department optional
+Active/Inactive
+
+Role:
+
+MANAGER
+TEAM_MEMBER
+
+Founder account itself is not created as a normal employee.
+
+When a Team Member is created, assign a Manager.
+
+Example:
+
+User:
+[Dynamic User Name]
+
+Role:
+TEAM_MEMBER
+
+Manager:
+[Dynamic Manager Name]
+
+This creates the relationship:
+
+Team Member → Manager
+
+A Manager can have multiple Team Members.
+
+Founder can change the Manager assigned to a Team Member.
+
+==================================================
+4. FOUNDER WORKSPACE
+==================================================
+
+Founder does not use ARKA OS like an employee.
+
+Founder is responsible for company-level visibility and decisions.
+
+Founder homepage:
+
+COMMAND CENTER
+
+The Command Center should answer:
+
+WHO IS WORKING?
+
+WHO IS ONLINE?
+
+WHO IS OFFLINE?
+
+WHO HAS LOGGED IN?
+
+WHO HAS NOT LOGGED IN?
+
+WHAT IS EVERYONE WORKING ON?
+
+WHAT IS DUE?
+
+WHAT IS OVERDUE?
+
+WHAT IS BLOCKED?
+
+WHAT NEEDS APPROVAL?
+
+WHO IS ON LEAVE?
+
+WHAT DID MANAGERS REPORT?
+
+WHERE IS THE OPERATION STUCK?
+
+==================================================
+5. FOUNDER NAVIGATION
+==================================================
+
+Founder navigation:
+
+COMMAND CENTER
+
+WORK
+
+PEOPLE
+
+ATTENDANCE & TIME
+
+LEAVE
+
+REPORTS
+
+APPROVALS
+
+INSIGHTS
+
+CLIENTS
+
+NOTIFICATIONS
+
+SETTINGS
+
+Do NOT show Founder:
+
+"My Tasks"
+
+because Founder is not expected to work as a normal task-execution employee.
+
+==================================================
+6. FOUNDER COMMAND CENTER
+==================================================
+
+Top:
+
+ARKA OS
+
+Command Center
+
+Then:
+
+"Good morning, [actual logged-in user's name]."
+
+The name must come dynamically from the authenticated user's profile.
+
+Show:
+
+TODAY'S OPERATIONAL PULSE
+
+Active Work
+Due Today
+Overdue
+Blocked
+Awaiting Review
+Employees on Leave
+Employees Not Logged In
+
+All numbers must be calculated from real database records.
+
+Clicking a number opens the corresponding records.
+
+==================================================
+7. FOUNDER LIVE PEOPLE VIEW
+==================================================
+
+Create:
+
+WHO IS WORKING NOW?
+
+This is one of the most important Founder screens.
+
+Show every Manager and Team Member dynamically.
+
+Columns:
+
+NAME
+ROLE
+STATUS
+LOGIN TIME
+CURRENT WORK
+WORK STATUS
+LAST ACTIVITY
+TODAY'S WORK TIME
+
+Example structure:
+
+[Actual User Name]
+MANAGER
+ONLINE
+09:05 AM
+Team coordination
+ACTIVE
+10:42 AM
+04h 12m
+
+Another dynamically loaded user:
+
+[Actual User Name]
+TEAM MEMBER
+OFFLINE
+09:21 AM
+Website design
+IN PROGRESS
+05:45 PM
+06h 03m
+
+Do not hardcode these names.
+
+Do not hardcode these numbers.
+
+Everything comes from database records.
+
+==================================================
+8. FOUNDER ATTENDANCE & WORK TIME
+==================================================
+
+Create a dedicated:
+
+ATTENDANCE & TIME
+
+page for Founder.
+
+Founder needs date-wise information for EVERY MANAGER AND TEAM MEMBER.
+
+This is mandatory.
+
+Founder should be able to select:
+
+Today
+Yesterday
+This Week
+This Month
+Custom Date Range
+
+Then see:
+
+DATE
+EMPLOYEE
+ROLE
+LOGIN TIME
+LOGOUT TIME
+TOTAL WORK TIME
+STATUS
+LEAVE
+CURRENT/FINAL WORK
+
+Example table structure:
+
+Date
+Employee
+Role
+Login
+Logout
+Total Time
+Attendance
+Leave
+
+All values must be generated dynamically.
+
+==================================================
+9. DATE-WISE ATTENDANCE
+==================================================
+
+Founder must be able to open a specific date.
+
+Example:
+
+DATE:
+[Selected Date]
+
+Then show every employee:
+
+Employee Name
+Role
+Login Time
+Logout Time
+Total Duration
+Presence
+Leave Status
+
+Attendance states:
+
+PRESENT
+ABSENT
+ON LEAVE
+PARTIAL
+NO LOGIN
+NO LOGOUT
+
+Do not invent attendance.
+
+Calculate from actual authentication/presence records and approved leave.
+
+==================================================
+10. LOGIN / LOGOUT TRACKING
+==================================================
+
+When a user successfully logs in:
+
+Record:
+
+user_id
+login_at
+
+When they log out:
+
+Record:
+
+user_id
+logout_at
+
+Also track:
+
+last_active_at
+
+The system should calculate:
+
+total session duration
+
+If there are multiple login sessions in one day:
+
+combine them for:
+
+TOTAL WORK TIME
+
+Example:
+
+Session 1:
+09:00 → 13:00
+
+Session 2:
+14:00 → 18:00
+
+Total:
+08h 00m
+
+Do not count time when the user was logged out.
+
+==================================================
+11. MANAGER ATTENDANCE VIEW
+==================================================
+
+Manager gets:
+
+MY TEAM ATTENDANCE
+
+Manager can see only Team Members assigned to that Manager.
+
+Manager should see:
+
+Name
+Status
+Login Time
+Logout Time
+Today's Work Time
+Leave Status
+
+Manager can filter:
+
+Today
+Yesterday
+This Week
+This Month
+Custom Date
+
+Manager cannot see another Manager's team unless Founder explicitly gives permission.
+
+==================================================
+12. WORK TIME VS TASK TIME
+==================================================
+
+Keep these as separate concepts.
+
+ATTENDANCE / SESSION TIME:
+
+Time between login and logout.
+
+WORK / TASK TIME:
+
+Actual time logged against a Work Item or Task.
+
+Founder should be able to see both.
+
+Example:
+
+Employee:
+
+Login:
+09:00 AM
+
+Logout:
+06:00 PM
+
+Session duration:
+09h 00m
+
+Task time:
+06h 15m
+
+This allows the Founder to understand:
+
+Presence time
+and
+Recorded work effort
+
+without claiming that the difference represents inactivity or poor productivity.
+
+==================================================
+13. LEAVE SYSTEM
+==================================================
+
+Add a complete:
+
+LEAVE
+
+module.
+
+ALL STAFF MEMBERS must be able to apply for leave.
+
+This includes:
+
+MANAGERS
+TEAM MEMBERS
+
+Founder can view all leave applications.
+
+==================================================
+14. TEAM MEMBER LEAVE APPLICATION
+==================================================
+
+Team Member navigation includes:
+
+LEAVE
+
+Page:
+
+MY LEAVE
+
+Button:
+
++ APPLY FOR LEAVE
+
+Fields:
+
+Leave Type
+Start Date
+End Date
+Reason
+Optional Note
+
+Leave Types:
+
+CASUAL
+SICK
+PERSONAL
+OTHER
+
+After submission:
+
+Status:
+
+PENDING
+
+The application is sent to the appropriate approval authority.
+
+For MVP, Founder has final organization-level visibility and approval.
+
+Manager should also be able to see the leave application of their Team Members.
+
+==================================================
+15. MANAGER LEAVE APPLICATION
+==================================================
+
+Managers can also apply for leave.
+
+Manager:
+
+LEAVE
+→
+APPLY FOR LEAVE
+
+Fields:
+
+Leave Type
+Start Date
+End Date
+Reason
+Note
+
+Status:
+
+PENDING
+
+Founder sees the Manager's leave application.
+
+Founder can:
+
+APPROVE
+
+REJECT
+
+COMMENT
+
+==================================================
+16. FOUNDER LEAVE MANAGEMENT
+==================================================
+
+Founder navigation:
+
+LEAVE
+
+Show:
+
+PENDING
+APPROVED
+REJECTED
+CURRENTLY ON LEAVE
+UPCOMING LEAVE
+
+Founder can filter:
+
+Employee
+Role
+Date
+Leave Type
+Status
+
+Founder should immediately understand:
+
+Who is on leave today?
+
+Who will be on leave tomorrow?
+
+Who has applied?
+
+Whose leave is pending?
+
+Who is absent because of approved leave?
+
+==================================================
+17. LEAVE APPROVAL
+==================================================
+
+Founder opens:
+
+Leave Application
+
+Show:
+
+Employee
+Role
+Leave Type
+Start Date
+End Date
+Number of Days
+Reason
+Applied On
+Current Status
+
+Actions:
+
+APPROVE LEAVE
+
+REJECT LEAVE
+
+COMMENT
+
+When approved:
+
+Leave status becomes:
+
+APPROVED
+
+The attendance system must recognize those dates as:
+
+ON LEAVE
+
+The Founder Command Center should update automatically.
+
+==================================================
+18. LEAVE IMPACT ON ATTENDANCE
+==================================================
+
+If approved leave exists:
+
+Do not mark the employee as:
+
+ABSENT
+
+Instead:
+
+ON LEAVE
+
+Example:
+
+Date:
+15 September
+
+Employee:
+[Actual Name]
+
+Status:
+ON LEAVE
+
+Login:
+—
+
+Logout:
+—
+
+Work Time:
+—
+
+This prevents approved leave from appearing as absence.
+
+==================================================
+19. MANAGER TEAM LEAVE VIEW
+==================================================
+
+Manager can see leave information for their Team Members.
+
+Show:
+
+Employee
+Leave Type
+Start Date
+End Date
+Status
+
+Manager should be able to understand:
+
+Who is unavailable?
+
+When will they return?
+
+How many team members are on leave?
+
+This helps Manager plan work.
+
+==================================================
+20. TEAM MEMBER LEAVE HISTORY
+==================================================
+
+Team Member can see:
+
+My Leave
+
+Upcoming Leave
+Pending
+Approved
+Rejected
+Past Leave
+
+They cannot modify an approved leave unless a permitted cancellation/edit process exists.
+
+==================================================
+21. FOUNDER WORK ASSIGNMENT
+==================================================
+
+Founder can create Work.
+
+Button:
+
++ CREATE WORK
+
+Fields:
+
+Work Title
+Description
+Work Type
+Client optional
+Priority
+Deadline
+Estimated Effort
+
+Assignment:
+
+Assign to Manager
+
+OR
+
+Assign directly to Team Member
+
+Founder can reassign work.
+
+Every assignment creates an activity record.
+
+==================================================
+22. MANAGER WORKSPACE
+==================================================
+
+Manager gets a completely different dashboard.
+
+Manager homepage:
+
+MANAGER COMMAND CENTER
+
+The Manager's question:
+
+"WHAT DOES MY TEAM NEED TO EXECUTE?"
+
+Show:
+
+FOUNDER ASSIGNMENTS
+
+MY TEAM
+
+TEAM WORK
+
+DUE TODAY
+
+DUE SOON
+
+OVERDUE
+
+BLOCKED
+
+WAITING FOR REVIEW
+
+TEAM ATTENDANCE
+
+TEAM LEAVE
+
+REPORT TO FOUNDER
+
+==================================================
+23. MANAGER NAVIGATION
+==================================================
+
+Manager navigation:
+
+MY DASHBOARD
+
+FOUNDER ASSIGNMENTS
+
+MY WORK
+
+MY TEAM
+
+TEAM TASKS
+
+TEAM ATTENDANCE
+
+TEAM LEAVE
+
+REVIEWS
+
+REPORT TO FOUNDER
+
+TIME & WORKLOAD
+
+NOTIFICATIONS
+
+PROFILE
+
+==================================================
+24. MANAGER TEAM PAGE
+==================================================
+
+Manager gets:
+
+MY TEAM
+
+This list must dynamically show Team Members whose manager_id belongs to the logged-in Manager.
+
+For each person:
+
+Name
+Online/Offline
+Login
+Logout
+Today's Work Time
+Active Work
+Due Today
+Overdue
+Blocked
+Leave Status
+Workload
+
+Clicking a Team Member opens their operational view.
+
+==================================================
+25. MANAGER TEAM MEMBER DETAIL
+==================================================
+
+Manager can open a Team Member.
+
+Show:
+
+PROFILE
+
+ATTENDANCE
+
+TODAY'S WORK
+
+ACTIVE WORK
+
+COMPLETED WORK
+
+TIME
+
+LEAVE
+
+PROGRESS REPORTS
+
+SUBMISSIONS
+
+COMMENTS
+
+ACTIVITY
+
+Manager must only see Team Members in their scope.
+
+==================================================
+26. MANAGER ATTENDANCE
+==================================================
+
+Manager can view date-wise attendance for their Team Members.
+
+Filters:
+
+Today
+Yesterday
+This Week
+This Month
+Custom Date
+
+Columns:
+
+Date
+Name
+Login
+Logout
+Session Duration
+Task Time
+Attendance
+Leave
+
+Manager cannot see Founder attendance.
+
+Manager cannot see unrelated teams.
+
+==================================================
+27. TEAM MEMBER WORKSPACE
+==================================================
+
+Team Member gets a simple execution-focused dashboard.
+
+Home:
+
+MY WORK
+
+Show:
+
+TODAY
+
+NOW
+
+NEXT
+
+DUE SOON
+
+BLOCKED
+
+WAITING FOR REVIEW
+
+COMPLETED
+
+Also show:
+
+TODAY'S LOGIN
+
+TODAY'S WORK TIME
+
+LEAVE STATUS
+
+==================================================
+28. TEAM MEMBER NAVIGATION
+==================================================
+
+Team Member navigation:
+
+MY WORK
+
+TODAY
+
+MY TIME
+
+MY ATTENDANCE
+
+MY LEAVE
+
+MY REPORTS
+
+MY SUBMISSIONS
+
+NOTIFICATIONS
+
+PROFILE
+
+==================================================
+29. TEAM MEMBER ATTENDANCE
+==================================================
+
+Team Member can see their own:
+
+Today's login
+Today's logout
+Today's session duration
+Historical attendance
+
+Filters:
+
+Today
+This Week
+This Month
+
+They cannot see other employees' attendance.
+
+==================================================
+30. TEAM MEMBER LEAVE
+==================================================
+
+Team Member:
+
+MY LEAVE
+
+Can:
+
+Apply
+View pending
+View approved
+View rejected
+View leave history
+
+Cannot approve their own leave.
+
+==================================================
+31. WORK MANAGEMENT
+==================================================
+
+The core Work model remains:
+
+WORK
+↓
+MANAGER
+↓
+TEAM MEMBER
+↓
+TASK
+↓
+TIME
+↓
+PROGRESS
+↓
+REVIEW
+↓
+APPROVAL
+↓
+REPORT
+
+A Work Item can contain multiple tasks.
+
+Each Task:
+
+Title
+Description
+Owner
+Manager
+Priority
+Deadline
+Status
+Progress
+Estimated Time
+Actual Time
+
+==================================================
+32. WORK LIFECYCLE
+==================================================
+
+Default Work stages:
+
+INBOX
+PLANNING
+ASSIGNED
+IN PROGRESS
+REVIEW
+REVISION
+APPROVED
+COMPLETED
+BLOCKED
+
+Every stage change is recorded.
+
+Record:
+
+Previous Stage
+New Stage
+Changed By
+Timestamp
+Comment
+
+==================================================
+33. TEAM MEMBER EXECUTION
+==================================================
+
+Team Member opens assigned Task.
+
+They see:
+
+Task
+Instructions
+Manager
+Deadline
+Priority
+Progress
+Comments
+Attachments
+Time
+
+Button:
+
+START WORK
+
+Then:
+
+Timer starts.
+
+Task:
+
+IN PROGRESS
+
+Team Member can:
+
+Update Progress
+Add Comment
+Log Time
+Mark Blocked
+Submit Progress
+Submit for Review
+
+==================================================
+34. MANAGER REVIEW
+==================================================
+
+Team Member:
+
+SUBMIT FOR REVIEW
+
+Manager receives:
+
+TEAM SUBMISSIONS
+
+Manager can:
+
+APPROVE
+
+REQUEST REVISION
+
+COMMENT
+
+If revision:
+
+REVISION REQUESTED
+
+Manager must provide feedback.
+
+Team Member receives the revision.
+
+Team Member completes changes.
+
+Then:
+
+SUBMIT AGAIN
+
+Every revision is recorded.
+
+==================================================
+35. MANAGER REPORT TO FOUNDER
+==================================================
+
+Manager must report to Founder.
+
+Create:
+
+REPORT TO FOUNDER
+
+Manager can prepare:
+
+DAILY REPORT
+
+WEEKLY REPORT
+
+Report should include real data:
+
+Completed Work
+In Progress
+Pending
+Overdue
+Blocked
+Team Attendance
+Team Leave
+Team Workload
+Important Issues
+Founder Decisions Required
+
+Manager can add:
+
+Summary
+Comments
+Risks
+Escalations
+
+Then:
+
+SUBMIT TO FOUNDER
+
+==================================================
+36. FOUNDER REPORT CENTER
+==================================================
+
+Founder:
+
+REPORTS
+
+Can see:
+
+Manager Reports
+Team Work Reports
+Work Completion
+Time Reports
+Attendance Reports
+Leave Reports
+Operational Reports
+
+Founder can filter:
+
+Date
+Manager
+Team
+Employee
+Work Type
+Status
+
+==================================================
+37. FOUNDER APPROVAL CENTER
+==================================================
+
+Founder should see:
+
+Pending Leave
+Manager Reports
+Work requiring Founder approval
+Escalations
+
+Each item should clearly show:
+
+WHAT
+WHO
+WHEN
+WHY
+CURRENT STATUS
+ACTION REQUIRED
+
+Actions:
+
+APPROVE
+REJECT
+REQUEST REVISION
+COMMENT
+OPEN WORK
+
+==================================================
+38. FOUNDER COMMENT SYSTEM
+==================================================
+
+Founder can comment on:
+
+Work
+Manager Reports
+Leave Applications
+Approvals
+Escalations
+
+Manager can comment on:
+
+Team Work
+Team Reports
+Team Member Submissions
+Leave information where appropriate
+
+Team Member can comment on:
+
+Assigned Work
+Manager Feedback
+Progress
+
+All comments are persisted.
+
+==================================================
+39. OPERATIONAL INSIGHTS
+==================================================
+
+Founder gets:
+
+INSIGHTS
+
+Based on real data.
+
+Show:
+
+Active Work
+Completed Work
+Overdue
+Blocked
+Workload
+Time
+Attendance
+Leave
+Review Waiting Time
+Completion Rate
+Cycle Time
+Bottlenecks
+
+Examples:
+
+"3 work items are overdue."
+
+"2 work items are waiting for Manager review."
+
+"1 team member has high operational workload."
+
+"4 employees are currently on approved leave."
+
+"5 work items are blocked."
+
+Do not create fake AI explanations.
+
+Use transparent rule-based calculations.
+
+==================================================
+40. WORKLOAD
+==================================================
+
+Workload is operational workload.
+
+Do not call it:
+
+Employee productivity score.
+
+Use factors such as:
+
+Active assigned work
+High priority work
+Upcoming deadlines
+Estimated effort
+Overdue work
+Blocked work
+
+States:
+
+LOW
+NORMAL
+HIGH
+OVERLOADED
+
+Founder can see workload across the organization.
+
+Manager can see workload for their team.
+
+Team Member can see their own workload.
+
+==================================================
+41. TIME SYSTEM
+==================================================
+
+There are TWO separate time concepts.
+
+1. ATTENDANCE SESSION TIME
+
+Login → Logout
+
+2. TASK / WORK TIME
+
+Time manually or automatically logged against work.
+
+Founder sees both.
+
+Manager sees both for their Team Members.
+
+Team Member sees their own.
+
+==================================================
+42. DATABASE
+==================================================
+
+Use:
+
+Supabase PostgreSQL
+
+Supabase Auth
+
+Supabase Row Level Security
+
+Tables:
+
+organizations
+
+users
+
+login_logs
+
+work_items
+
+work_tasks
+
+work_assignments
+
+work_activity
+
+work_stage_history
+
+time_entries
+
+comments
+
+progress_reports
+
+manager_reports
+
+approvals
+
+notifications
+
+clients
+
+leave_requests
+
+leave_types
+
+user_presence
+
+work_dependencies
+
+==================================================
+43. USERS TABLE
+==================================================
+
+users:
+
+id
+organization_id
+name
+email
+role
+manager_id nullable
+is_active
+created_at
+updated_at
+
+Role enum:
+
+FOUNDER
+MANAGER
+TEAM_MEMBER
+
+manager_id:
+
+NULL for Founder
+
+NULL for Manager
+
+Manager's user ID for Team Member
+
+Do not store fixed employee names in code.
+
+==================================================
+44. LOGIN LOGS
+==================================================
+
+login_logs:
+
+id
+organization_id
+user_id
+login_at
+logout_at
+session_duration_minutes
+created_at
+
+Multiple sessions per day are allowed.
+
+Calculate daily total session duration.
+
+==================================================
+45. LEAVE REQUESTS
+==================================================
+
+leave_requests:
+
+id
+organization_id
+user_id
+leave_type
+start_date
+end_date
+reason
+status
+approved_by
+approved_at
+rejection_reason
+created_at
+updated_at
+
+Statuses:
+
+PENDING
+APPROVED
+REJECTED
+CANCELLED
+
+Founder has organization-wide leave visibility.
+
+Managers can view leave for their Team Members.
+
+Users can view their own leave.
+
+==================================================
+46. PRESENCE
+==================================================
+
+user_presence:
+
+user_id
+organization_id
+status
+login_at
+last_active_at
+current_work_id nullable
+updated_at
+
+States:
+
+ONLINE
+IDLE
+OFFLINE
+ON_LEAVE
+
+Do not fake presence.
+
+==================================================
+47. RLS SECURITY
+==================================================
+
+Implement real Supabase RLS.
+
+FOUNDER:
+
+Can access organization-wide operational data.
+
+MANAGER:
+
+Can access:
+
+- own profile
+- assigned Team Members
+- Team Member work
+- Team Member attendance
+- Team Member time
+- Team Member leave
+- Team Member reports
+
+TEAM MEMBER:
+
+Can access:
+
+- own profile
+- own attendance
+- own time
+- own leave
+- assigned work
+- own reports
+- own submissions
+
+A Team Member must NEVER be able to access another Team Member's private attendance or leave by manually changing URLs.
+
+A Manager must NEVER be able to access another Manager's team unless explicitly authorized.
+
+==================================================
+48. NO HARDCODED DASHBOARD DATA
+==================================================
+
+This is mandatory.
+
+Do not hardcode:
+
+employee names
+employee counts
+login times
+logout times
+work counts
+leave counts
+hours
+workload
+reports
+
+Everything must be calculated from the database.
+
+If seed data is required for development:
+
+Clearly label:
+
+DEMO DATA
+
+Use generic generated user names only for development testing, but they must still exist as database users and must NOT be hardcoded into UI components.
+
+The production interface must always load users dynamically.
+
+==================================================
+49. COMMAND CENTER LAYOUT
+==================================================
+
+Founder Command Center:
+
+ARKA OS
+Command Center
+
+Good morning, [dynamic authenticated user name].
+
+------------------------------------------------
+
+ATTENTION REQUIRED
+
+Overdue Work
+Pending Approvals
+Blocked Work
+Pending Leave
+Manager Reports
+Escalations
+
+------------------------------------------------
+
+TEAM PRESENCE
+
+Everyone currently working / offline / on leave.
+
+------------------------------------------------
+
+TODAY'S ATTENDANCE
+
+Date-wise employee attendance.
+
+------------------------------------------------
+
+WORK PULSE
+
+Inbox
+Planning
+Assigned
+In Progress
+Review
+Revision
+Approved
+Completed
+Blocked
+
+------------------------------------------------
+
+TEAM WORKLOAD
+
+Employee
+Role
+Active Work
+Due Soon
+Blocked
+Work Time
+Workload
+
+------------------------------------------------
+
+MANAGER REPORTS
+
+Latest reports from Managers.
+
+------------------------------------------------
+
+RECENT ACTIVITY
+
+Real system activity.
+
+==================================================
+50. MANAGER DASHBOARD LAYOUT
+==================================================
+
+Manager:
+
+MY DASHBOARD
+
+------------------------------------------------
+
+FOUNDER ASSIGNMENTS
+
+------------------------------------------------
+
+MY TEAM
+
+------------------------------------------------
+
+TEAM ATTENDANCE
+
+------------------------------------------------
+
+TEAM LEAVE
+
+------------------------------------------------
+
+TEAM WORK
+
+------------------------------------------------
+
+REVIEW QUEUE
+
+------------------------------------------------
+
+BLOCKERS
+
+------------------------------------------------
+
+REPORT TO FOUNDER
+
+------------------------------------------------
+
+TEAM WORKLOAD
+
+==================================================
+51. TEAM MEMBER DASHBOARD
+==================================================
+
+Team Member:
+
+MY WORK
+
+Good morning, [dynamic user name].
+
+TODAY'S WORK
+
+NOW
+
+NEXT
+
+DUE SOON
+
+BLOCKED
+
+WAITING FOR REVIEW
+
+TODAY'S ATTENDANCE
+
+LOGIN TIME
+CURRENT SESSION
+TODAY'S WORK TIME
+
+LEAVE
+
+Current Leave Status
+
+RECENT FEEDBACK
+
+Manager comments/revisions.
+
+==================================================
+52. DESIGN
+==================================================
+
+Use a premium internal SaaS design.
+
+The supplied screenshot may be used as inspiration for:
+
+- typography
+- spacing
+- hierarchy
+- polished visual design
+- navigation quality
+
+But DO NOT copy its:
+
+- Content system
+- Campaign system
+- Calendar
+- Scheduled reach
+- Marketing dashboard structure
+
+ARKA OS should visually feel like an:
+
+INTERNAL COMPANY OPERATING SYSTEM.
+
+Founder:
+
+Executive / visibility-focused.
+
+Manager:
+
+Coordination / execution-focused.
+
+Team Member:
+
+Action / work-focused.
+
+==================================================
+53. NO CONTENT CALENDAR
+==================================================
+
+Do NOT build:
+
+Content Calendar
+Campaign Pulse
+Scheduled Reach
+Content Production
+Social Publishing
+Marketing Reach Dashboard
+
+These are outside the ARKA OS MVP.
+
+==================================================
+54. NO SURVEILLANCE LANGUAGE
+==================================================
+
+Do not use language such as:
+
+"employee monitoring"
+
+"employee productivity score"
+
+"employee surveillance"
+
+Attendance exists to understand:
+
+availability
+presence
+working sessions
+leave
+
+Task time exists to understand:
+
+operational effort.
+
+Do not infer productivity solely from login duration.
+
+==================================================
+55. FULL END-TO-END TEST
+==================================================
+
+Test dynamically with database-created users.
+
+Do NOT use hardcoded names.
+
+TEST 1 — FOUNDER
+
+Founder logs in.
+
+Founder sees:
+
+Command Center
+
+Founder can see:
+
+Managers
+Team Members
+Online
+Offline
+On Leave
+
+Founder opens:
+
+Attendance & Time
+
+Selects a date.
+
+Sees:
+
+Every Manager
+Every Team Member
+Login
+Logout
+Total Session Time
+Leave Status
+
+------------------------------------------------
+
+TEST 2 — LEAVE
+
+A Team Member logs in.
+
+Opens:
+
+My Leave
+
+Applies for leave.
+
+Status:
+
+PENDING
+
+Founder sees:
+
+Pending Leave
+
+Founder approves.
+
+Leave becomes:
+
+APPROVED
+
+On the leave date:
+
+Attendance displays:
+
+ON LEAVE
+
+Not:
+
+ABSENT
+
+------------------------------------------------
+
+TEST 3 — MANAGER LEAVE
+
+A Manager applies for leave.
+
+Founder sees the request.
+
+Founder approves.
+
+Founder Attendance reflects:
+
+ON LEAVE
+
+Manager does not appear as absent.
+
+------------------------------------------------
+
+TEST 4 — MANAGER TEAM
+
+Manager logs in.
+
+Manager sees only their Team Members.
+
+Manager opens:
+
+Team Attendance
+
+Selects date.
+
+Sees:
+
+Team Member names dynamically
+Login
+Logout
+Total Session Time
+Task Time
+Leave
+
+------------------------------------------------
+
+TEST 5 — WORK ASSIGNMENT
+
+Founder creates Work.
+
+Founder assigns to Manager.
+
+Manager receives assignment.
+
+Manager creates tasks.
+
+Manager assigns tasks to Team Members.
+
+------------------------------------------------
+
+TEST 6 — TEAM EXECUTION
+
+Team Member logs in.
+
+Assigned task appears.
+
+Team Member starts work.
+
+Timer begins.
+
+Progress changes.
+
+Team Member submits progress.
+
+Manager sees it.
+
+------------------------------------------------
+
+TEST 7 — REVIEW
+
+Team Member submits work for review.
+
+Manager receives submission.
+
+Manager requests revision.
+
+Team Member sees revision request.
+
+Team Member resubmits.
+
+Manager approves.
+
+------------------------------------------------
+
+TEST 8 — MANAGER REPORT
+
+Manager creates report.
+
+Report includes:
+
+Completed
+Pending
+Blocked
+Team Attendance
+Team Leave
+Workload
+Issues
+
+Manager submits report.
+
+Founder receives report.
+
+------------------------------------------------
+
+TEST 9 — FOUNDER
+
+Founder opens Command Center.
+
+Founder can see:
+
+Current Team Presence
+Attendance
+Leave
+Work
+Workload
+Manager Reports
+Approvals
+Blockers
+
+Everything is linked to actual database records.
+
+==================================================
+56. DEFINITION OF DONE
+==================================================
+
+ARKA OS is NOT complete because:
+
+- UI looks good
+- dashboards render
+- tables exist
+- buttons exist
+
+ARKA OS is complete only when:
+
+FOUNDER
+
+✓ Sees all staff
+✓ Sees Managers
+✓ Sees Team Members
+✓ Sees online/offline
+✓ Sees login time
+✓ Sees logout time
+✓ Sees date-wise attendance
+✓ Sees total session time
+✓ Sees task/work time
+✓ Sees leave
+✓ Approves/rejects leave
+✓ Assigns work
+✓ Assigns to Managers
+✓ Assigns directly to Team Members
+✓ Reviews reports
+✓ Approves
+✓ Comments
+✓ Sees workload
+✓ Sees blockers
+✓ Sees operational insights
+
+MANAGER
+
+✓ Sees own Team
+✓ Sees Team Member attendance
+✓ Sees Team Member login/logout
+✓ Sees Team Member work time
+✓ Sees Team Member leave
+✓ Receives Founder assignments
+✓ Creates tasks
+✓ Assigns tasks
+✓ Tracks progress
+✓ Reviews submissions
+✓ Approves/rejects revisions
+✓ Comments
+✓ Creates reports
+✓ Reports to Founder
+✓ Escalates blockers
+
+TEAM MEMBER
+
+✓ Logs in
+✓ Logs out
+✓ Attendance recorded
+✓ Sees own attendance
+✓ Applies leave
+✓ Sees leave status
+✓ Sees assigned work
+✓ Starts work
+✓ Tracks time
+✓ Updates progress
+✓ Reports progress
+✓ Submits work
+✓ Receives revision
+✓ Resubmits
+✓ Sees approval
+✓ Comments
+
+==================================================
+57. MOST IMPORTANT PRODUCT RULE
+==================================================
+
+The three roles must NEVER feel like the same application.
+
+FOUNDER:
+
+"SHOW ME THE STATE OF ARKA."
+
+MANAGER:
+
+"SHOW ME THE STATE OF MY TEAM."
+
+TEAM MEMBER:
+
+"SHOW ME WHAT I NEED TO DO."
+
+That is the core experience.
+
+The hierarchy is:
+
+FOUNDER
+↓
+VISIBILITY + DECISIONS
+↓
+MANAGER
+↓
+TEAM COORDINATION + REPORTING
+↓
+TEAM MEMBER
+↓
+EXECUTION
+
+The system connects all three.
+
+==================================================
+58. FINAL PRODUCT DEFINITION
+==================================================
+
+ARKA OS is:
+
+A role-based internal operating system that allows Arka Digital Media to manage people, attendance, leave, work assignment, execution, time, review, reporting and operational visibility in one system.
+
+The Founder sees the whole organization.
+
+Managers see and manage their teams.
+
+Team Members see and execute their assigned work.
+
+Attendance and leave are integrated into operational visibility.
+
+Work flows from Founder → Manager → Team Member → Review → Report → Founder.
+
+Build this as a REAL WORKING PRODUCT.
+
+Do not create a mockup.
+
+Do not create a generic dashboard.
+
+Do not hardcode people.
+
+Do not hardcode metrics.
+
+Do not create fake functionality.
+
+Use real Supabase database operations.
+
+Use real authentication.
+
+Use real RLS.
+
+Use real attendance records.
+
+Use real leave records.
+
+Use real work records.
+
+Use real time records.
+
+Use real reports.
+
+Use real approval flows.
+
+BUILD ARKA OS.
