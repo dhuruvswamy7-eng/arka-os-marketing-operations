@@ -1,0 +1,850 @@
+You are the lead full-stack engineer and system architect for **ARKA OS**, an internal Work Intelligence & Operations System for Arka Digital Media.
+
+Your job is to build a REAL, production-quality internal web application in code — not a mockup, not a static prototype, and not a collection of disconnected screens.
+
+## 1. PRODUCT DEFINITION
+
+ARKA OS is Arka Digital Media's internal operating system for managing:
+
+* People
+* Work
+* Task ownership
+* Deadlines
+* Progress
+* Time / effort
+* Workload
+* Bottlenecks
+* Founder visibility
+* Operational intelligence
+
+Core principle:
+
+**PEOPLE → WORK → ASSIGNMENT → DEADLINE → PROGRESS → TIME / EFFORT → BOTTLENECKS → FOUNDER INSIGHT**
+
+The product is NOT primarily an attendance tracker, surveillance tool, content calendar, or CRM.
+
+The first objective is to create one reliable internal system of record for people, work and operational time.
+
+Do not introduce unnecessary modules until the core workflow is working.
+
+---
+
+# 2. TECHNOLOGY STACK
+
+Use:
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+* App Router
+* Supabase
+* PostgreSQL
+* Supabase Auth
+* PostgreSQL Row Level Security (RLS)
+* Supabase Storage only when file storage is actually required
+* Vercel-compatible deployment architecture
+
+Automation such as n8n should NOT be introduced into the core MVP unless there is a clearly proven workflow that benefits from it.
+
+AI should NOT be introduced into the core MVP.
+
+First create reliable operational data.
+
+---
+
+# 3. DEVELOPMENT PRINCIPLES
+
+Follow these rules throughout the project:
+
+1. Build one phase at a time.
+2. Build real functionality, not fake demo interactions.
+3. Keep the database model minimal.
+4. Use reusable components.
+5. Use TypeScript properly.
+6. Do not hard-code operational data.
+7. Do not create fake dashboard metrics and present them as real.
+8. Use realistic empty states when there is no data.
+9. Validate all forms.
+10. Handle loading, error and empty states.
+11. Protect authenticated routes.
+12. Enforce authorization at the database level using RLS.
+13. Never rely only on frontend hiding for security.
+14. Keep Founder/Admin visibility broader than normal team members.
+15. Do not over-engineer future features.
+16. Do not add a feature just because it looks impressive.
+17. Every feature must have a clear operational purpose.
+18. Preserve a clean architecture so later modules can be added without rebuilding the foundation.
+
+---
+
+# 4. USER ROLES
+
+Initially support:
+
+### Founder / Admin
+
+Can:
+
+* See the whole organization
+* View team activity
+* View all tasks
+* Create tasks
+* Assign tasks
+* Change task status
+* View workload
+* View time data
+* View overdue work
+* View operational dashboard
+* Manage users/roles
+
+### Manager / Team Lead
+
+Can:
+
+* View relevant team members
+* Create tasks
+* Assign tasks
+* View task progress
+* Monitor deadlines
+* View workload
+* Review operational work
+
+### Team Member
+
+Can:
+
+* Log in
+* Access My Workspace
+* View assigned tasks
+* Update task status
+* Record time
+* View own activity
+* View own workload
+
+Do not create client-facing access in the MVP.
+
+---
+
+# 5. DATABASE ARCHITECTURE
+
+Start with these tables.
+
+## users
+
+Fields:
+
+* id
+* org_id
+* role
+* name
+* email
+* created_at
+* updated_at
+
+The user should be linked appropriately to Supabase Auth.
+
+Roles:
+
+* founder_admin
+* manager
+* team_member
+
+## login_logs
+
+Fields:
+
+* id
+* user_id
+* login_at
+* logout_at
+
+Capture login/logout activity automatically where technically appropriate.
+
+## tasks
+
+Fields:
+
+* id
+* org_id
+* title
+* description
+* assignee_id
+* status
+* priority
+* due_date
+* created_by
+* created_at
+* updated_at
+* completed_at
+
+Also design:
+
+* client_id nullable
+* campaign_id nullable
+
+These should remain optional so future client/campaign relationships can be introduced without redesigning the task architecture.
+
+## task_activity
+
+Fields:
+
+* id
+* task_id
+* old_status
+* new_status
+* old_assignee_id nullable
+* new_assignee_id nullable
+* changed_by
+* changed_at
+
+Use this to create an operational history.
+
+## time_entries
+
+Fields:
+
+* id
+* task_id
+* user_id
+* start_time
+* end_time
+* duration_minutes
+* created_at
+
+Time must be attributable to an actual task.
+
+Do NOT create a generic "employee hours" system disconnected from work.
+
+---
+
+# 6. TASK STATUS
+
+Start with a simple status model:
+
+* Not Started
+* In Progress
+* Blocked
+* Review
+* Done
+
+Do not create 20 statuses.
+
+The architecture should allow future customization.
+
+Priority:
+
+* Low
+* Medium
+* High
+* Urgent
+
+---
+
+# 7. PHASE 1 — WORKFORCE FOUNDATION
+
+Build this first.
+
+## Authentication
+
+Create:
+
+* Login page
+* Protected application routes
+* Logout
+* Session persistence
+* Authentication error handling
+
+Unauthenticated users must not access internal pages.
+
+## My Workspace
+
+After login, show:
+
+### My Workspace
+
+* Welcome/user identity
+* Current status
+* My active tasks
+* Tasks due today
+* Upcoming tasks
+* Overdue tasks
+* Basic time summary
+* Recent activity
+
+Keep the first version clean and simple.
+
+## Founder/Admin view
+
+Create:
+
+### Team Overview
+
+Show:
+
+* Team members
+* Role
+* Current availability/status
+* Last activity
+* Current active work
+
+Do not frame this as surveillance.
+
+The product language should focus on:
+
+* Work visibility
+* Availability
+* Workload
+* Operational coordination
+
+---
+
+# 8. PHASE 2 — WORK MANAGEMENT
+
+Build:
+
+### Task creation
+
+Fields:
+
+* Title
+* Description
+* Assignee
+* Priority
+* Status
+* Due date
+
+Every normal task must have:
+
+* One owner
+* One status
+* One deadline
+
+## My Tasks
+
+Team member view:
+
+* All assigned tasks
+* Filter by status
+* Filter by priority
+* Due today
+* Upcoming
+* Overdue
+
+## All Tasks
+
+Founder/Manager view:
+
+* All tasks
+* Filter by person
+* Filter by status
+* Filter by priority
+* Filter overdue
+* Sort by deadline
+
+## Activity history
+
+Every important ownership/status change must create an activity record.
+
+---
+
+# 9. PHASE 3 — TIME INTELLIGENCE
+
+Build task-level time tracking.
+
+On a task:
+
+### Start Timer
+
+User starts work.
+
+System records:
+
+start_time
+
+### Stop Timer
+
+System records:
+
+end_time
+
+and calculates:
+
+duration_minutes
+
+Also support:
+
+### Manual Time Entry
+
+For work that was not timed live.
+
+## Time dashboard
+
+Team member:
+
+* Hours today
+* Hours this week
+* Time by task
+
+Manager/Founder:
+
+* Hours by person
+* Hours by period
+* Time by task
+* Active workload
+
+Core business question:
+
+**"Where is Arka's operational time being spent?"**
+
+Do not make this primarily about monitoring online hours.
+
+---
+
+# 10. PHASE 4 — FOUNDER COMMAND CENTER
+
+This is the most important screen.
+
+Create:
+
+## ARKA OS — Founder Command Center
+
+The dashboard should answer:
+
+### PEOPLE
+
+* Who is active?
+* Who is available?
+* Who has high workload?
+
+### WORK
+
+* Active tasks
+* Completed tasks
+* Due today
+* Overdue
+
+### TIME
+
+* Hours today
+* Hours this week
+* Hours by person
+
+### RISK
+
+* Overdue tasks
+* Blocked tasks
+* Urgent tasks
+* High workload
+
+### ATTENTION REQUIRED
+
+Show only important exceptions.
+
+Examples:
+
+"Task #204 — due today — not started"
+
+"Designer A — high workload — 7 active tasks"
+
+"Task #187 — overdue — no recent activity"
+
+"5 tasks awaiting review"
+
+The founder should not need to inspect every task manually.
+
+---
+
+# 11. OPERATIONAL INTELLIGENCE
+
+After the basic dashboard works, introduce simple intelligence based ONLY on real data.
+
+## Workload indicator
+
+Calculate an operational workload indicator using:
+
+* Active tasks
+* Priority
+* Upcoming deadlines
+* Overdue work
+* Logged effort
+
+Display:
+
+* Low
+* Medium
+* High
+* Overloaded
+
+Do not pretend this is an exact employee-capacity calculation.
+
+Clearly label it as an operational indicator.
+
+## Bottleneck detection
+
+Identify:
+
+* Overdue tasks
+* Blocked tasks
+* Tasks with no recent activity
+* High concentrations of work
+* Tasks approaching deadline without progress
+
+Example:
+
+### Bottleneck detected
+
+"Manager Review"
+
+8 tasks are currently waiting for review.
+
+This should be based on actual database data.
+
+---
+
+# 12. FOUNDER DASHBOARD UX
+
+The dashboard should be clean and executive-friendly.
+
+Suggested structure:
+
+HEADER
+
+ARKA OS
+Founder Command Center
+
+Top summary cards:
+
+* Team Active
+* Active Work
+* Due Today
+* Overdue
+* Hours This Week
+
+Then:
+
+### Attention Required
+
+Critical operational issues.
+
+Then:
+
+### Team Workload
+
+Person
+Active Tasks
+Due Soon
+Overdue
+Hours
+
+Then:
+
+### Work Status
+
+Not Started
+In Progress
+Blocked
+Review
+Done
+
+Then:
+
+### Recent Activity
+
+Latest meaningful system events.
+
+Do not overload the dashboard with charts.
+
+Prioritize decisions over decoration.
+
+---
+
+# 13. DESIGN DIRECTION
+
+Create a professional SaaS-style internal operations interface.
+
+Requirements:
+
+* Minimal
+* Clean
+* Modern
+* Professional
+* Fast to understand
+* Desktop-first but responsive
+* Strong typography
+* Clear hierarchy
+* Consistent spacing
+* Accessible contrast
+* Useful empty states
+* Clear status indicators
+
+Do NOT make it look like a generic employee attendance application.
+
+It should feel like an operations command center.
+
+---
+
+# 14. SECURITY
+
+Implement security from the first database migration.
+
+Use:
+
+* Supabase Auth
+* RLS
+* Organization scoping
+* Role-based access
+
+Rules:
+
+Team members should only access their permitted records.
+
+Managers should access the operational records required for their role.
+
+Founder/Admin should have broad organizational visibility.
+
+Do not rely on:
+
+if (role === "admin") hideButton()
+
+as the security mechanism.
+
+The database must enforce access.
+
+---
+
+# 15. FUTURE-READY ARCHITECTURE
+
+Do not build these now:
+
+* Full CRM
+* Content calendar
+* Client portal
+* Social publishing
+* AI agents
+* Complex automation
+* Advanced analytics integrations
+
+But design the architecture so they can be added later.
+
+Future architecture:
+
+ARKA OS
+
+PEOPLE
+Users / Roles / Availability / Workload
+
+WORK
+Tasks / Time / Status / Activity
+
+CLIENTS
+Clients / Campaigns / Services
+
+AUTOMATION
+Notifications / Escalations / Integrations
+
+INTELLIGENCE
+Reports / Recommendations / AI
+
+EXTERNAL SYSTEMS
+Publishing / Analytics / Communication
+
+Do not implement future modules unless explicitly requested.
+
+---
+
+# 16. IMPORTANT DATA PRINCIPLE
+
+Every dashboard number must come from actual database data.
+
+If there is no data:
+
+show:
+
+"No data yet"
+
+or:
+
+"No active tasks"
+
+Never invent production metrics.
+
+If demo seed data is used for development, label it clearly as:
+
+"Demo Data"
+
+---
+
+# 17. ERROR / LOADING / EMPTY STATES
+
+Every major screen must have:
+
+* Loading state
+* Empty state
+* Error state
+* Success feedback
+
+Examples:
+
+"No tasks assigned yet."
+
+"No time entries this week."
+
+"Unable to load team data. Try again."
+
+Do not leave blank screens.
+
+---
+
+# 18. DEVELOPMENT ORDER
+
+Build in this exact order:
+
+STEP 1
+Project setup.
+
+STEP 2
+Supabase connection.
+
+STEP 3
+Database migrations.
+
+STEP 4
+RLS policies.
+
+STEP 5
+Authentication.
+
+STEP 6
+User/role system.
+
+STEP 7
+Protected application shell.
+
+STEP 8
+My Workspace.
+
+STEP 9
+Founder/Admin team view.
+
+STEP 10
+Task management.
+
+STEP 11
+Task activity history.
+
+STEP 12
+Time tracking.
+
+STEP 13
+Founder Command Center.
+
+STEP 14
+Workload indicators.
+
+STEP 15
+Bottleneck detection.
+
+STEP 16
+Testing and security review.
+
+STEP 17
+Production deployment preparation.
+
+Do not jump ahead.
+
+---
+
+# 19. DEFINITION OF DONE
+
+PHASE 1 is complete when:
+
+* Users can log in.
+* Users see their workspace.
+* Roles work correctly.
+* Protected routes work.
+* Founder can see active users and activity.
+* RLS is working.
+* No major security gaps exist.
+
+PHASE 2 is complete when:
+
+* Tasks can be created.
+* Every task has owner/status/deadline.
+* Users can see their tasks.
+* Founder can see all tasks.
+* Activity history works.
+* Overdue filtering works.
+
+PHASE 3 is complete when:
+
+* Time can be started/stopped.
+* Manual time can be recorded.
+* Time is linked to tasks.
+* Users can see their own time.
+* Managers can see workload/time.
+
+PHASE 4 is complete when:
+
+* Founder has one operational dashboard.
+* Workload is visible.
+* Overdue work is visible.
+* Completion is visible.
+* Bottlenecks are visible.
+* Attention Required works.
+* Dashboard uses real database data.
+
+Only after these phases are stable should we consider Phase 5 operational intelligence.
+
+---
+
+# 20. HOW YOU SHOULD WORK WITH ME
+
+Before writing large amounts of code:
+
+1. Inspect the existing project.
+2. Understand the current architecture.
+3. Tell me what already exists.
+4. Identify the next smallest implementation step.
+5. Implement it.
+6. Run/type-check/lint/test it.
+7. Fix errors.
+8. Show me what changed.
+9. Do not silently redesign unrelated parts.
+
+When a decision is ambiguous, choose the simplest architecture that preserves future extensibility.
+
+Do not create unnecessary dependencies.
+
+Do not rewrite working code without a reason.
+
+Do not move to the next phase until the current phase passes its Definition of Done.
+
+---
+
+# 21. FIRST ACTION
+
+Start with **Phase 1 only**.
+
+First inspect the current project directory and determine whether this is:
+
+* a new project
+* an existing ARKA OS project
+* or an incomplete implementation
+
+Then report:
+
+1. Current project structure
+2. Existing dependencies
+3. Existing Supabase configuration
+4. Existing database/schema
+5. Existing authentication
+6. Existing pages/components
+7. What is missing for Phase 1
+8. Exact files you intend to create/change
+
+Do NOT start building Phase 2.
+
+After inspection, implement Phase 1 in small, testable steps.
+
+The goal is to produce a real working ARKA OS foundation that can be used internally, not a visual demonstration.
