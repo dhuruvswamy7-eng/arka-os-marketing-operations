@@ -1,0 +1,19 @@
+kind = "design-system"
+previewPath = "/arka-media-design-system/"
+title = "Arka Media Design System"
+description = "The black, gold, ivory visual language for ARKA OS and Arka Digital Media operations."
+version = "1.0.0"
+id = "artifacts/arka-media-design-system"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/arka-media-design-system/" ]
+localPort = 24047
+
+[services.development]
+run = "pnpm --filter @workspace/arka-media-design-system run dev"
+
+[services.env]
+PORT = "24047"
+BASE_PATH = "/arka-media-design-system/"
