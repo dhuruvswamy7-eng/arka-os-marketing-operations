@@ -1,0 +1,640 @@
+==================================================
+FOUNDER — COMPLETE LOGIN / LOGOUT & ATTENDANCE
+==================================================
+
+THIS IS A MANDATORY FOUNDER FEATURE.
+
+The Founder must have a dedicated:
+
+ATTENDANCE & WORK TIME
+
+page.
+
+The Founder must be able to see the login and logout
+records of EVERY employee in the organization.
+
+This includes:
+
+- All Managers
+- All Team Members
+
+Do NOT show only "Online / Offline".
+
+Do NOT show only "Last active".
+
+The Founder must see the ACTUAL LOGIN TIME and ACTUAL
+LOGOUT TIME for every employee for every selected date.
+
+==================================================
+FOUNDER ATTENDANCE TABLE
+==================================================
+
+Create a detailed table:
+
+DATE
+EMPLOYEE
+ROLE
+LOGIN TIME
+LOGOUT TIME
+TOTAL SESSION TIME
+TASK / WORK TIME
+ATTENDANCE STATUS
+LEAVE STATUS
+
+Example structure:
+
+15 Sep 2026 | [Actual Employee Name] | Manager
+Login: 09:02 AM
+Logout: 06:14 PM
+Session: 09h 12m
+Work Time: 07h 08m
+Status: PRESENT
+Leave: —
+
+15 Sep 2026 | [Actual Employee Name] | Team Member
+Login: 09:18 AM
+Logout: 05:52 PM
+Session: 08h 34m
+Work Time: 06h 41m
+Status: PRESENT
+Leave: —
+
+15 Sep 2026 | [Actual Employee Name] | Team Member
+Login: —
+Logout: —
+Session: 0h
+Work Time: 0h
+Status: ON LEAVE
+Leave: APPROVED
+
+IMPORTANT:
+
+The names above are ONLY examples of the table structure.
+
+NEVER hardcode employee names.
+
+Load every employee dynamically from the users table.
+
+==================================================
+DATE FILTER
+==================================================
+
+Founder must be able to select:
+
+TODAY
+YESTERDAY
+THIS WEEK
+THIS MONTH
+CUSTOM DATE
+
+When Founder selects a date, show the complete
+attendance record for that date.
+
+Example:
+
+ATTENDANCE — 15 SEPTEMBER 2026
+
+Then show EVERY Manager and Team Member.
+
+No employee should disappear from the table simply
+because they did not log in.
+
+If an employee has no login record:
+
+Login: —
+Logout: —
+Total Session: 0h
+Status: NO LOGIN
+
+If an employee has approved leave:
+
+Login: —
+Logout: —
+Total Session: 0h
+Status: ON LEAVE
+
+If an employee logged in but did not log out:
+
+Login: 09:12 AM
+Logout: —
+Total Session: calculate current/open session
+Status: ACTIVE
+
+==================================================
+MULTIPLE LOGIN / LOGOUT SESSIONS
+==================================================
+
+An employee may log in and log out multiple times
+during the same day.
+
+Example:
+
+Session 1:
+09:00 AM → 01:00 PM
+
+Session 2:
+02:00 PM → 06:00 PM
+
+Founder must be able to see:
+
+TOTAL SESSION TIME:
+08h 00m
+
+Also allow Founder to expand the employee row and
+see the individual sessions:
+
+09:00 AM → 01:00 PM = 04h 00m
+
+02:00 PM → 06:00 PM = 04h 00m
+
+TOTAL = 08h 00m
+
+Do NOT overwrite previous login/logout sessions.
+
+Every login session must be stored separately.
+
+==================================================
+EMPLOYEE ATTENDANCE DETAIL
+==================================================
+
+When Founder clicks an employee, open:
+
+EMPLOYEE ATTENDANCE DETAIL
+
+Show:
+
+Employee Name
+Role
+Manager
+Selected Date
+
+LOGIN / LOGOUT HISTORY
+
+Session 1
+Login: [actual timestamp]
+Logout: [actual timestamp]
+Duration: [calculated duration]
+
+Session 2
+Login: [actual timestamp]
+Logout: [actual timestamp]
+Duration: [calculated duration]
+
+TOTAL SESSION TIME
+
+Then:
+
+TASK / WORK TIME
+
+Work Item
+Task
+Start
+End
+Duration
+
+TOTAL TASK TIME
+
+Then:
+
+LEAVE
+
+Leave status
+Leave type
+Leave dates
+Reason
+Approval status
+
+Then:
+
+DAILY SUMMARY
+
+First Login
+Last Logout
+Total Session Time
+Total Task Time
+Number of Work Items
+Completed
+Pending
+Blocked
+
+==================================================
+FOUNDER ATTENDANCE SUMMARY
+==================================================
+
+At the top of the Founder Attendance page show:
+
+TOTAL EMPLOYEES
+
+LOGGED IN TODAY
+
+NOT LOGGED IN
+
+ON LEAVE
+
+CURRENTLY ONLINE
+
+TOTAL SESSION HOURS
+
+TOTAL TASK HOURS
+
+These values must be calculated from real database data.
+
+No hardcoded numbers.
+
+==================================================
+LIVE STATUS
+==================================================
+
+If Founder opens the attendance page while employees
+are working, the system should show live status.
+
+For example:
+
+ONLINE
+Login: 09:04 AM
+Current session: 05h 22m
+
+OFFLINE
+Last logout: 06:12 PM
+
+ON LEAVE
+Approved leave
+
+NO LOGIN
+No login record for selected date
+
+Do not confuse:
+
+ONLINE
+with
+
+PRESENT.
+
+An employee may have logged in earlier and currently be
+offline.
+
+==================================================
+FOUNDER — ALL EMPLOYEE ATTENDANCE
+==================================================
+
+The Founder must be able to see:
+
+ALL MANAGERS
+
+AND
+
+ALL TEAM MEMBERS
+
+in one attendance system.
+
+The Founder must NOT need to open each Manager separately
+to find their team's login/logout information.
+
+Founder can filter:
+
+ALL
+MANAGERS
+TEAM MEMBERS
+
+and:
+
+DATE
+DATE RANGE
+
+==================================================
+MANAGER ATTENDANCE
+==================================================
+
+Managers have a separate version of the same system.
+
+Manager can see:
+
+ONLY THEIR TEAM MEMBERS.
+
+Manager can select:
+
+TODAY
+YESTERDAY
+THIS WEEK
+THIS MONTH
+CUSTOM DATE
+
+and see:
+
+Employee
+Login
+Logout
+Session Duration
+Task Time
+Attendance
+Leave
+
+Manager cannot see another Manager's team.
+
+==================================================
+TEAM MEMBER ATTENDANCE
+==================================================
+
+Team Members can see ONLY their own attendance.
+
+Show:
+
+Today's Login
+Today's Logout
+Current Session
+Today's Total Session Time
+Today's Task Time
+
+Historical:
+
+Date
+Login
+Logout
+Session Duration
+Task Time
+Attendance
+Leave
+
+==================================================
+LOGIN EVENT
+==================================================
+
+Every successful authentication must create a login record.
+
+Store:
+
+id
+organization_id
+user_id
+login_at
+logout_at
+session_duration_minutes
+created_at
+
+When the user logs in:
+
+login_at = current timestamp
+
+logout_at = NULL
+
+When the user logs out:
+
+logout_at = current timestamp
+
+session_duration_minutes = calculated duration
+
+==================================================
+IMPORTANT LOGOUT BEHAVIOR
+==================================================
+
+Logout must be handled properly.
+
+When the user clicks Logout:
+
+1. Find the user's currently open login session.
+2. Set logout_at.
+3. Calculate session duration.
+4. Save the session.
+5. Then terminate the authentication session.
+
+Do not simply terminate authentication without recording
+the logout timestamp.
+
+==================================================
+ABANDONED SESSION HANDLING
+==================================================
+
+If a browser is closed or the user loses connection,
+do not falsely create a logout time.
+
+The system should distinguish:
+
+LOGGED OUT
+
+from:
+
+SESSION STILL OPEN
+
+Founder should see:
+
+LOGIN:
+09:05 AM
+
+LOGOUT:
+—
+
+STATUS:
+ACTIVE SESSION
+
+For stale sessions, implement a safe session-presence
+mechanism using last_active_at.
+
+Do NOT invent a fake logout timestamp.
+
+==================================================
+DATE-WISE FOUNDER VIEW
+==================================================
+
+The Founder must be able to answer this question
+without opening another page:
+
+"Who logged in today, what time did they log in,
+what time did they log out, and how long were they
+logged in?"
+
+The Founder attendance table must therefore contain
+the complete daily record for EVERY employee.
+
+Required columns:
+
+Employee
+Role
+First Login
+Last Logout
+Total Session Time
+Task Time
+Attendance
+Leave
+Current Status
+
+Clicking a row opens the complete session history.
+
+==================================================
+NO HARDCODED PEOPLE
+==================================================
+
+ABSOLUTELY DO NOT use:
+
+Founder Name
+Manager 1
+Manager 2
+Team Member 1
+Team Member 2
+Rahul
+Priya
+Arun
+Kiran
+
+in application code.
+
+All employees must come dynamically from:
+
+users
+
+The currently authenticated Founder name must come from
+the authenticated user's profile.
+
+The Manager's team must come from:
+
+users.manager_id
+
+==================================================
+FOUNDER DAILY ATTENDANCE REPORT
+==================================================
+
+Add:
+
+EXPORT / REPORT
+
+Founder can generate a date-wise attendance report.
+
+Report contains:
+
+Date
+Employee
+Role
+First Login
+Last Logout
+Individual Sessions
+Total Session Time
+Task Time
+Attendance
+Leave
+
+Allow:
+
+CSV export
+Print-friendly view
+
+Do not create fake report data.
+
+==================================================
+ATTENDANCE VS WORK TIME
+==================================================
+
+IMPORTANT:
+
+Do not combine attendance session time and task time.
+
+ATTENDANCE SESSION TIME:
+
+Login → Logout
+
+TASK / WORK TIME:
+
+Time actually recorded against Work Items / Tasks.
+
+Founder must see BOTH.
+
+Example:
+
+Employee:
+
+Login:
+09:05 AM
+
+Logout:
+06:10 PM
+
+Session Time:
+09h 05m
+
+Task Time:
+06h 42m
+
+These are separate measurements.
+
+Do not automatically call the difference "idle time"
+or "unproductive time".
+
+==================================================
+FOUNDER COMMAND CENTER
+==================================================
+
+The Founder Command Center should also contain a
+compact version of this information:
+
+TODAY'S PEOPLE
+
+Employee
+Role
+Status
+Login
+Current Work
+Current Session
+Today's Work Time
+
+The Founder can click:
+
+"View full attendance"
+
+to open the detailed Attendance & Work Time page.
+
+==================================================
+ACCEPTANCE TEST — ATTENDANCE
+==================================================
+
+Test with dynamically created users.
+
+Create several Managers and Team Members through the
+database.
+
+Do NOT hardcode their names.
+
+Test:
+
+1. Employee logs in at 09:00.
+2. login_at is recorded.
+3. Founder opens Attendance.
+4. Founder sees that employee.
+5. Employee starts work.
+6. Task time is recorded separately.
+7. Employee logs out at 06:00.
+8. logout_at is recorded.
+9. Founder refreshes Attendance.
+10. Founder sees:
+    Login 09:00
+    Logout 06:00
+    Session 09h 00m
+    Task Time [actual calculated time]
+
+Then test:
+
+Employee logs in twice.
+
+Founder must see both sessions and the combined total.
+
+Then test:
+
+Employee applies for leave.
+
+Founder approves.
+
+On that date:
+
+Attendance = ON LEAVE
+
+not ABSENT.
+
+Then test:
+
+Employee does not log in.
+
+Founder must still see the employee:
+
+Login —
+Logout —
+Status NO LOGIN
+
+The Founder attendance system must always represent
+the complete organization for the selected date.

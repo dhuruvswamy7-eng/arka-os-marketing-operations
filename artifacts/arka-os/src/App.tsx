@@ -49,6 +49,9 @@ type LeaveRequest = {
   id: string; userId: string; leaveType: LeaveType; startDate: string; endDate: string;
   reason: string; note?: string; status: LeaveStatus; approvedBy?: string; createdAt: string;
 };
+type SessionRecord = {
+  id: string; userId: string; date: string; loginAt: string; logoutAt?: string; durationMinutes: number;
+};
 
 const initialPeople: Person[] = [
   { id: 'maya', name: 'Founder', role: 'Founder', title: 'Founder', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now', sessionMinutes: 430, taskMinutes: 0 },
@@ -91,6 +94,14 @@ const initialReports: ManagerReport[] = [
 const initialLeaves: LeaveRequest[] = [
   { id: 'leave-1', userId: 'kiran', leaveType: 'Personal', startDate: TODAY, endDate: TODAY, reason: 'Personal appointment', status: 'Approved', approvedBy: 'maya', createdAt: 'Sep 12, 2:15 PM' },
   { id: 'leave-2', userId: 'rahul', leaveType: 'Casual', startDate: '2026-09-22', endDate: '2026-09-23', reason: 'Family commitment', status: 'Pending', createdAt: 'Today, 9:40 AM' },
+];
+
+const initialSessions: SessionRecord[] = [
+  { id: 'session-priya-1', userId: 'priya', date: TODAY, loginAt: '08:58 AM', logoutAt: '01:10 PM', durationMinutes: 252 },
+  { id: 'session-priya-2', userId: 'priya', date: TODAY, loginAt: '02:05 PM', logoutAt: undefined, durationMinutes: 146 },
+  { id: 'session-rahul-1', userId: 'rahul', date: TODAY, loginAt: '09:10 AM', logoutAt: '12:45 PM', durationMinutes: 215 },
+  { id: 'session-rahul-2', userId: 'rahul', date: TODAY, loginAt: '01:20 PM', logoutAt: undefined, durationMinutes: 110 },
+  { id: 'session-arun-1', userId: 'arun', date: TODAY, loginAt: '09:24 AM', logoutAt: '02:25 PM', durationMinutes: 301 },
 ];
 
 const stageTone: Record<Stage, string> = {
