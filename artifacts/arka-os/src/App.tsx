@@ -51,11 +51,11 @@ type LeaveRequest = {
 };
 
 const initialPeople: Person[] = [
-  { id: 'maya', name: 'Monika Sriniva', role: 'Founder', title: 'Founder / Admin', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now', sessionMinutes: 430, taskMinutes: 0 },
-  { id: 'priya', name: 'Priya Shah', role: 'Manager', title: 'Operations Manager', managerId: null, presence: 'Online', loginAt: '8:58 AM', lastActiveAt: '2 min ago', sessionMinutes: 398, taskMinutes: 315 },
-  { id: 'rahul', name: 'Rahul Mehta', role: 'Team member', title: 'Product Designer', managerId: 'priya', presence: 'Online', loginAt: '9:10 AM', lastActiveAt: 'Just now', sessionMinutes: 345, taskMinutes: 135 },
-  { id: 'arun', name: 'Arun Nair', role: 'Team member', title: 'SEO Specialist', managerId: 'priya', presence: 'Online', loginAt: '9:24 AM', lastActiveAt: '4 min ago', sessionMinutes: 301, taskMinutes: 285 },
-  { id: 'kiran', name: 'Kiran Rao', role: 'Team member', title: 'Developer', managerId: 'priya', presence: 'Offline', logoutAt: '6:21 PM yesterday', lastActiveAt: 'Yesterday', sessionMinutes: 0, taskMinutes: 0 },
+  { id: 'maya', name: 'Founder', role: 'Founder', title: 'Founder', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now', sessionMinutes: 430, taskMinutes: 0 },
+  { id: 'priya', name: 'Manager', role: 'Manager', title: 'Manager', managerId: null, presence: 'Online', loginAt: '8:58 AM', lastActiveAt: '2 min ago', sessionMinutes: 398, taskMinutes: 315 },
+  { id: 'rahul', name: 'Team Member 1', role: 'Team member', title: 'Team Member', managerId: 'priya', presence: 'Online', loginAt: '9:10 AM', lastActiveAt: 'Just now', sessionMinutes: 345, taskMinutes: 135 },
+  { id: 'arun', name: 'Team Member 2', role: 'Team member', title: 'Team Member', managerId: 'priya', presence: 'Online', loginAt: '9:24 AM', lastActiveAt: '4 min ago', sessionMinutes: 301, taskMinutes: 285 },
+  { id: 'kiran', name: 'Team Member 3', role: 'Team member', title: 'Team Member', managerId: 'priya', presence: 'Offline', logoutAt: '6:21 PM yesterday', lastActiveAt: 'Yesterday', sessionMinutes: 0, taskMinutes: 0 },
 ];
 
 let runtimePeople = initialPeople;
@@ -74,8 +74,8 @@ const initialTasks: WorkTask[] = [
 ];
 
 const initialActivities: Activity[] = [
-  { id: 'activity-1', workId: 'work-abc', actorId: 'maya', message: 'created ABC Website and assigned it to Priya', createdAt: 'Sep 10, 9:12 AM' },
-  { id: 'activity-2', workId: 'work-abc', actorId: 'priya', message: 'assigned Homepage design to Rahul', createdAt: 'Sep 10, 10:32 AM' },
+  { id: 'activity-1', workId: 'work-abc', actorId: 'maya', message: 'created ABC Website and assigned it to Manager', createdAt: 'Sep 10, 9:12 AM' },
+  { id: 'activity-2', workId: 'work-abc', actorId: 'priya', message: 'assigned Homepage design to Team Member 1', createdAt: 'Sep 10, 10:32 AM' },
   { id: 'activity-3', workId: 'work-abc', actorId: 'rahul', message: 'started work on Homepage design', createdAt: 'Today, 9:10 AM', tone: 'success' },
   { id: 'activity-4', workId: 'work-northstar', actorId: 'arun', message: 'submitted Technical SEO findings for review', createdAt: 'Today, 10:12 AM', tone: 'success' },
 ];
