@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ARKA OS"
+description = "A polished marketing operations CRM and automation platform prototype for ARKA Digital Media, with founder dashboards, client workspaces, content production workflows, approvals, team workload, assets, analytics, reports, and automation demonstrations."
+version = "1.0.0"
+id = "artifacts/arka-os"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20651
+
+[services.development]
+run = "pnpm --filter @workspace/arka-os run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/arka-os", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/arka-os/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20651"
+BASE_PATH = "/"
