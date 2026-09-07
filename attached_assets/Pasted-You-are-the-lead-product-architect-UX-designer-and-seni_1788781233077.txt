@@ -1,0 +1,1910 @@
+You are the lead product architect, UX designer, and senior full-stack engineer for ARKA OS.
+
+IMPORTANT:
+Do NOT build another generic project-management dashboard.
+Do NOT recreate the existing marketing/content-management style application.
+Do NOT make ARKA OS primarily about campaigns, content calendars, scheduled reach, content production, approvals, or social media.
+
+The existing generated app is conceptually wrong.
+
+ARKA OS is an INTERNAL OPERATING SYSTEM for Arka Digital Media.
+
+Its purpose is to give the founder and management a live operational understanding of:
+
+PEOPLE
+→ WORK
+→ ASSIGNMENT
+→ DEADLINE
+→ EXECUTION
+→ PROGRESS
+→ TIME / EFFORT
+→ WORKLOAD
+→ BOTTLENECKS
+→ FOUNDER INSIGHT
+
+The central question is:
+
+"WHAT IS HAPPENING INSIDE ARKA RIGHT NOW?"
+
+The application must feel like an internal company operating system, not a task-management SaaS template and not a content-management platform.
+
+==================================================
+1. FIRST: INSPECT THE EXISTING APPLICATION
+==================================================
+
+Before changing anything:
+
+1. Inspect the existing repository.
+2. Understand the current architecture.
+3. Inspect the existing routes, components, database configuration, authentication, and styling.
+4. Identify what can be reused.
+5. Identify what is conceptually wrong.
+6. Do not preserve wrong product concepts simply because they already exist.
+
+If the existing application is primarily built around:
+- Campaigns
+- Content
+- Calendar
+- Scheduled reach
+- Content production
+- Marketing approvals
+
+then refactor/rebuild those areas around the ARKA OS operating model.
+
+Do not merely rename the old screens.
+
+The underlying data model and user experience must change.
+
+==================================================
+2. PRODUCT DEFINITION
+==================================================
+
+Product name:
+
+ARKA OS
+
+Subtitle:
+
+ARKA DIGITAL MEDIA
+OPERATING SYSTEM
+
+Product definition:
+
+"ARKA OS turns Arka's daily work into live operational intelligence — showing the founder what is happening, who is responsible, where time is going, what is getting stuck, and what needs attention."
+
+This is an internal-first system.
+
+It is not initially a CRM.
+It is not initially a content calendar.
+It is not an employee surveillance system.
+It is not a generic project-management application.
+
+It is a Work Intelligence & Operations System.
+
+==================================================
+3. CORE PRODUCT MODEL
+==================================================
+
+The most important design decision:
+
+WORK is the central business object.
+
+People interact with WORK.
+
+Every important operational record should connect back to work.
+
+The system should understand:
+
+WHO
+WHAT
+FOR WHOM
+WHY
+WHEN
+CURRENT STAGE
+WHO OWNS IT
+WHO IS RESPONSIBLE FOR REVIEW
+HOW MUCH EFFORT IT REQUIRES
+HOW MUCH TIME HAS BEEN SPENT
+WHAT IS BLOCKING IT
+WHAT HAPPENED BEFORE
+WHAT NEEDS TO HAPPEN NEXT
+
+Do not make a dashboard full of disconnected metrics.
+
+Everything shown on the Command Center must be drillable back to actual work records.
+
+==================================================
+4. WORK MODEL
+==================================================
+
+Create a first-class WORK entity.
+
+A Work Item should contain:
+
+- id
+- organization_id
+- title
+- description
+- work_type
+- client_id nullable
+- owner_id
+- manager_id nullable
+- priority
+- status
+- current_stage
+- due_date
+- start_date nullable
+- estimated_minutes nullable
+- actual_minutes calculated from time entries
+- progress_percent
+- blocked_reason nullable
+- created_by
+- created_at
+- updated_at
+- completed_at nullable
+
+Work types should initially support examples such as:
+
+- Website
+- SEO
+- Social Media
+- Graphic Design
+- Meta Ads
+- Google Ads
+- Photography
+- Videography
+- Influencer Marketing
+- Google Business
+- Analytics
+- Internal
+- Other
+
+These are examples for the Arka Digital Media operating environment.
+
+Do not make the product dependent on one service.
+
+==================================================
+5. WORK LIFECYCLE
+==================================================
+
+The work lifecycle is one of the most important parts of ARKA OS.
+
+Default lifecycle:
+
+1. INBOX
+2. PLANNING
+3. ASSIGNED
+4. IN PROGRESS
+5. REVIEW
+6. REVISION
+7. APPROVED
+8. COMPLETED
+9. BLOCKED
+
+A work item can move between stages.
+
+Every stage transition must be recorded.
+
+For every transition capture:
+
+- previous stage
+- new stage
+- changed by
+- timestamp
+- optional note
+
+This creates a real operational history.
+
+Example:
+
+Website Landing Page
+
+INBOX
+↓
+PLANNING
+↓
+ASSIGNED
+↓
+IN PROGRESS
+↓
+REVIEW
+↓
+REVISION
+↓
+APPROVED
+↓
+COMPLETED
+
+The system should be able to later calculate:
+
+- time spent in each stage
+- total cycle time
+- number of revisions
+- time waiting for review
+- time blocked
+- actual effort
+- delay against deadline
+
+This is what makes ARKA OS an operating system rather than a checklist application.
+
+==================================================
+6. WORK CAN CONTAIN SUB-WORK
+==================================================
+
+A large Work Item can contain smaller tasks.
+
+Example:
+
+WORK:
+"ABC Company Website"
+
+Sub-work:
+
+- Collect requirements
+- Sitemap
+- UI design
+- Copy
+- Development
+- Mobile optimization
+- QA
+- Client review
+- Revisions
+- Final deployment
+
+Each sub-task must have:
+
+- title
+- owner
+- status
+- priority
+- due date
+- time
+- activity
+
+But the parent Work Item remains the primary operational object.
+
+Do not make the entire application revolve around isolated tasks.
+
+==================================================
+7. WORK INBOX
+==================================================
+
+Create a Work Inbox.
+
+Purpose:
+
+All new operational work first enters one controlled location.
+
+The Work Inbox should show:
+
+- New work
+- Unassigned work
+- Missing information
+- High-priority work
+- Work approaching deadline
+- Work waiting for planning
+
+Managers/founder can open a work request and convert it into an active Work Item.
+
+Create Work flow:
+
++ New Work
+
+Fields:
+
+- Work title
+- Description
+- Work type
+- Client (optional in MVP)
+- Priority
+- Requested date
+- Deadline
+- Owner
+- Manager
+- Estimated effort
+- Notes
+
+After creation:
+
+INBOX → PLANNING → ASSIGNED
+
+==================================================
+8. COMMAND CENTER
+==================================================
+
+The Command Center is the most important screen.
+
+Do not make it a generic analytics dashboard.
+
+Its purpose is:
+
+"Tell me what I need to know about Arka right now."
+
+The founder should be able to open one screen and understand the operational state without asking employees for updates.
+
+Top section:
+
+ARKA OS
+Command Center
+
+"Good morning, [Founder Name]."
+
+Then:
+
+"Here's what needs your attention today."
+
+Do not use fake business data.
+
+If demo data is included, clearly label it as DEMO DATA.
+
+==================================================
+9. COMMAND CENTER STRUCTURE
+==================================================
+
+SECTION A — OPERATIONAL PULSE
+
+Show:
+
+- Active Work
+- Due Today
+- Due This Week
+- Overdue
+- Blocked
+- Awaiting Review
+
+Every number is clickable.
+
+Example:
+
+ACTIVE WORK
+24
+
+Clicking it opens the actual work records.
+
+--------------------------------------------------
+
+SECTION B — ATTENTION REQUIRED
+
+This is more important than vanity metrics.
+
+Show exception-based alerts such as:
+
+OVERDUE
+"Website redesign — 2 days overdue"
+
+BLOCKED
+"SEO audit — waiting for client information"
+
+REVIEW STUCK
+"Brand identity — waiting for review for 3 days"
+
+DEADLINE RISK
+"Google Ads setup — deadline tomorrow"
+
+WORKLOAD RISK
+"Team member has 8 active items and 4 due this week"
+
+Each item should have:
+
+- severity
+- work title
+- owner
+- deadline
+- reason
+- action
+
+Example action:
+
+"Open Work"
+
+--------------------------------------------------
+
+SECTION C — WORK PULSE
+
+Show actual work moving through stages.
+
+Example:
+
+INBOX       4
+PLANNING    6
+ASSIGNED    8
+IN PROGRESS 15
+REVIEW      4
+REVISION    3
+BLOCKED     2
+COMPLETED   12
+
+Clicking a stage opens filtered work.
+
+--------------------------------------------------
+
+SECTION D — TEAM PULSE
+
+Show:
+
+Person
+Active Work
+Due Soon
+Blocked
+Hours
+Workload
+
+Example:
+
+Rahul
+5 active
+2 due soon
+1 blocked
+31h
+High
+
+Priya
+3 active
+0 blocked
+24h
+Normal
+
+Do NOT frame this as surveillance.
+
+The purpose is workload visibility and operational planning.
+
+--------------------------------------------------
+
+SECTION E — RECENT ACTIVITY
+
+Show actual operational events:
+
+"Rahul moved Website redesign to Review"
+
+"Priya completed SEO audit"
+
+"Founder assigned Meta Ads setup to Arun"
+
+"Arun logged 1h 20m on Google Ads setup"
+
+"Website redesign became blocked"
+
+Every event links to its source Work Item.
+
+==================================================
+10. FOUNDER EXPERIENCE
+==================================================
+
+The founder should not need to ask:
+
+"What is everyone doing?"
+
+"What is pending?"
+
+"Why is this delayed?"
+
+"Who is overloaded?"
+
+"What's blocked?"
+
+"What's due tomorrow?"
+
+ARKA OS should answer these questions.
+
+The founder experience should be:
+
+OPEN ARKA OS
+↓
+SEE WHAT NEEDS ATTENTION
+↓
+UNDERSTAND WHY
+↓
+OPEN THE WORK
+↓
+TAKE ACTION
+
+The Command Center should prioritize exceptions over vanity metrics.
+
+==================================================
+11. MY WORK
+==================================================
+
+Create a dedicated My Work page.
+
+It should not look like a generic task list.
+
+Organize the employee's work into:
+
+NOW
+What I should focus on now.
+
+NEXT
+What comes after.
+
+DUE SOON
+Items approaching deadline.
+
+BLOCKED
+Work that cannot continue.
+
+WAITING
+Work waiting on another person/reviewer/client.
+
+COMPLETED
+Recently completed work.
+
+Each Work Item should clearly show:
+
+- title
+- client
+- work type
+- stage
+- priority
+- deadline
+- progress
+- current blocker
+- time spent
+- next action
+
+==================================================
+12. WORK BOARD
+==================================================
+
+Create a Work Board.
+
+Columns:
+
+INBOX
+PLANNING
+ASSIGNED
+IN PROGRESS
+REVIEW
+REVISION
+APPROVED
+COMPLETED
+BLOCKED
+
+Cards should show:
+
+- Work title
+- Work type
+- Owner
+- Priority
+- Deadline
+- Progress
+- Time spent
+
+Support filtering by:
+
+- owner
+- work type
+- priority
+- deadline
+- status
+- client
+
+Dragging between stages should update the database and create an activity record.
+
+==================================================
+13. WORK DETAIL PAGE
+==================================================
+
+This is a critical screen.
+
+When a user opens a Work Item, show:
+
+HEADER
+
+Work title
+Work type
+Client
+Priority
+Deadline
+Owner
+Manager
+Current stage
+Progress
+
+Then:
+
+---------------------------------
+WORK OVERVIEW
+---------------------------------
+
+Description
+Requirements
+Expected outcome
+Notes
+
+---------------------------------
+WORK FLOW
+---------------------------------
+
+Show the lifecycle visually:
+
+Inbox
+↓
+Planning
+↓
+Assigned
+↓
+In Progress
+↓
+Review
+↓
+Revision
+↓
+Approved
+↓
+Completed
+
+Highlight the current stage.
+
+Show duration spent in each stage.
+
+---------------------------------
+SUB-WORK
+---------------------------------
+
+List child tasks.
+
+---------------------------------
+TIME / EFFORT
+---------------------------------
+
+Show:
+
+Estimated effort
+Actual effort
+Time today
+Total time
+
+Timer:
+
+START TIMER
+
+When running:
+
+STOP TIMER
+
+Also allow:
+
++ Add manual time
+
+All time must be associated with a Work Item or sub-task.
+
+---------------------------------
+ACTIVITY
+---------------------------------
+
+Show chronological history:
+
+Created
+Assigned
+Priority changed
+Stage changed
+Comment added
+Time logged
+Blocked
+Unblocked
+Completed
+
+---------------------------------
+BLOCKERS
+---------------------------------
+
+If blocked:
+
+Blocked because:
+[reason]
+
+Blocked since:
+[date]
+
+Waiting for:
+[person]
+
+---------------------------------
+NEXT ACTION
+---------------------------------
+
+Show what needs to happen next.
+
+==================================================
+14. TIME & EFFORT
+==================================================
+
+Time tracking is not attendance surveillance.
+
+The business question is:
+
+"WHERE IS ARKA'S OPERATIONAL TIME BEING SPENT?"
+
+Implement:
+
+Start timer
+Stop timer
+Manual time entry
+
+Each time entry:
+
+- user_id
+- work_id
+- task_id nullable
+- start_time
+- end_time
+- duration_minutes
+- note
+
+Show:
+
+Today
+This week
+By work
+By person
+By work type
+
+For managers:
+
+Team hours
+Hours by work
+Hours by person
+Workload indicators
+
+The existing ARKA OS build plan explicitly requires time to be attributable to real work rather than only a general clock-in number. :contentReference[oaicite:2]{index=2}
+
+==================================================
+15. TEAM PAGE
+==================================================
+
+The Team page should represent operational capacity.
+
+For each person show:
+
+- Name
+- Role
+- Active
+- Available
+- Active Work
+- Due Soon
+- Overdue
+- Blocked
+- Hours this week
+- Workload indicator
+
+Workload should be calculated from actual assigned work and effort data.
+
+Use simple states:
+
+LOW
+NORMAL
+HIGH
+OVERLOADED
+
+Do not claim productivity solely from hours.
+
+This is operational workload intelligence.
+
+==================================================
+16. PEOPLE / ROLES
+==================================================
+
+Roles:
+
+FOUNDER / ADMIN
+MANAGER
+TEAM MEMBER
+
+Founder/Admin:
+
+- Full organization visibility
+- Manage users
+- Create/assign work
+- View all work
+- View time
+- View reports
+- View activity
+- Manage settings
+
+Manager:
+
+- View team
+- Create work
+- Assign work
+- Manage team work
+- Review work
+- View workload
+- View time for relevant team
+
+Team Member:
+
+- View own work
+- Update assigned work
+- Log time
+- Add comments
+- Move work through permitted stages
+- View relevant team context
+
+Use Supabase Auth.
+
+Use Row Level Security.
+
+Never rely only on frontend checks for security.
+
+The existing ARKA architecture specifically calls for role/data controls through RLS from day one. :contentReference[oaicite:3]{index=3}
+
+==================================================
+17. AUTHENTICATION & PRESENCE
+==================================================
+
+Create:
+
+/login
+
+Use Supabase email/password authentication.
+
+Create:
+
+users
+login_logs
+
+Capture:
+
+login_at
+logout_at
+last_active_at
+
+Founder can see:
+
+WHO IS ACTIVE
+WHO WAS RECENTLY ACTIVE
+LOGIN HISTORY
+
+But do not turn this into invasive employee monitoring.
+
+Presence exists to establish operational availability.
+
+==================================================
+18. CLIENTS
+==================================================
+
+Do NOT build a full CRM in this MVP.
+
+However, design the database so Work Items can optionally reference a client.
+
+Create a lightweight client relationship only if required for work context:
+
+clients
+
+- id
+- organization_id
+- name
+- contact_email nullable
+- owner_id nullable
+- status
+
+The full CRM/client operations layer should remain expandable later.
+
+The original build plan intentionally places CRM after the people/work/time/founder foundation. :contentReference[oaicite:4]{index=4}
+
+==================================================
+19. REPORTS / INSIGHTS
+==================================================
+
+Create an operational Insights page.
+
+Do not fill it with meaningless charts.
+
+Answer real questions:
+
+1. What work is overdue?
+2. What work is blocked?
+3. What is the team working on?
+4. Where is time being spent?
+5. Which work types consume the most effort?
+6. Which people have high workload?
+7. How quickly is work moving?
+8. Where is work getting stuck?
+9. How much work was completed?
+10. What is the current operational bottleneck?
+
+Metrics:
+
+- Completion rate
+- Overdue rate
+- Average cycle time
+- Average stage duration
+- Blocked work
+- Review waiting time
+- Revision count
+- Hours by work type
+- Hours by person
+- Active work
+- Completed work
+
+Every metric must be calculated from real database records.
+
+Never hardcode fake numbers.
+
+==================================================
+20. BOTTLENECK INTELLIGENCE
+==================================================
+
+Build rule-based bottleneck detection.
+
+Do NOT use AI yet.
+
+Examples:
+
+If work has been in REVIEW > 2 days:
+"Review bottleneck"
+
+If work is overdue:
+"Deadline risk"
+
+If work is BLOCKED:
+"Blocked"
+
+If a person has too many active items:
+"Workload risk"
+
+If many Work Items accumulate in the same stage:
+"Stage bottleneck"
+
+If actual effort significantly exceeds estimated effort:
+"Effort variance"
+
+Show:
+
+Problem
+Evidence
+Affected work
+Owner
+Suggested action
+
+Example:
+
+REVIEW BOTTLENECK
+
+4 work items have remained in Review
+for more than 2 days.
+
+[View affected work]
+
+This is operational intelligence.
+
+==================================================
+21. NOTIFICATION ARCHITECTURE
+==================================================
+
+Do not add n8n yet.
+
+However, create an architecture that can support future automation.
+
+Potential future events:
+
+- Work assigned
+- Deadline approaching
+- Work overdue
+- Work blocked
+- Review required
+- Work completed
+
+For MVP, in-app notifications are enough.
+
+n8n can be integrated later after the underlying operational data is proven.
+
+The build guide explicitly defers automation until the core task/time data exists. :contentReference[oaicite:5]{index=5}
+
+==================================================
+22. DATABASE
+==================================================
+
+Use Supabase PostgreSQL.
+
+Create a clean relational schema.
+
+Minimum tables:
+
+organizations
+
+users
+
+login_logs
+
+work_items
+
+work_tasks
+
+work_activity
+
+work_stage_history
+
+time_entries
+
+clients
+
+notifications
+
+Optional:
+
+comments
+
+attachments
+
+work_dependencies
+
+Do not create a giant enterprise schema.
+
+Keep it understandable.
+
+Important relationships:
+
+organization
+→ users
+
+organization
+→ work_items
+
+work_item
+→ owner
+
+work_item
+→ manager
+
+work_item
+→ client nullable
+
+work_item
+→ work_tasks
+
+work_item
+→ work_activity
+
+work_item
+→ work_stage_history
+
+work_item
+→ time_entries
+
+user
+→ time_entries
+
+==================================================
+23. DATABASE RULES
+==================================================
+
+Every organization-owned record must contain:
+
+organization_id
+
+Use UUIDs.
+
+Add:
+
+created_at
+updated_at
+
+where appropriate.
+
+Use foreign keys.
+
+Use indexes on:
+
+organization_id
+owner_id
+status
+current_stage
+due_date
+client_id
+
+Enable Row Level Security.
+
+Ensure users can only access records permitted by their organization and role.
+
+==================================================
+24. ROUTES
+==================================================
+
+Use this application structure:
+
+/login
+
+/app
+
+/app/command-center
+
+/app/work
+
+/app/work/inbox
+
+/app/work/board
+
+/app/work/[id]
+
+/app/my-work
+
+/app/team
+
+/app/time
+
+/app/insights
+
+/app/clients
+
+/app/notifications
+
+/app/settings
+
+Do NOT create:
+
+/calendar
+
+/content
+
+/campaigns
+
+/marketing-analytics
+
+as core product sections.
+
+Those belong to other possible systems, not the core ARKA OS MVP.
+
+==================================================
+25. NAVIGATION
+==================================================
+
+Left sidebar:
+
+ARKA
+OPERATING SYSTEM
+
+Workspace:
+
+Command Center
+Work
+My Work
+Team
+Time
+Insights
+
+Relationships:
+
+Clients
+
+System:
+
+Notifications
+Settings
+
+At the bottom:
+
+Current user
+Role
+Logout
+
+Use a clean collapsible sidebar.
+
+==================================================
+26. UI / UX DIRECTION
+==================================================
+
+The screenshot I provided is visually polished, but its PRODUCT MODEL is wrong.
+
+You can take inspiration from its visual quality, spacing, typography, hierarchy and premium SaaS feel.
+
+Do NOT copy its marketing/content concepts.
+
+ARKA OS should look like:
+
+A premium internal operations platform.
+
+Visual characteristics:
+
+- sophisticated
+- minimal
+- professional
+- operational
+- calm
+- information-dense but readable
+- excellent typography
+- strong hierarchy
+- subtle borders
+- restrained use of accent colors
+- responsive
+- fast
+
+Avoid:
+
+- generic admin template appearance
+- excessive charts
+- excessive cards
+- fake marketing metrics
+- fake social media metrics
+- fake campaign metrics
+- giant colorful dashboards
+- unnecessary animations
+- unnecessary gradients
+- "AI-powered" decoration everywhere
+
+The UI should communicate:
+
+CONTROL
+CLARITY
+MOVEMENT
+ACCOUNTABILITY
+INTELLIGENCE
+
+==================================================
+27. COMMAND CENTER VISUAL HIERARCHY
+==================================================
+
+Do NOT simply make:
+
+4 cards
++
+2 charts
++
+table
+
+Instead:
+
+Header
+↓
+"Good morning..."
+↓
+ATTENTION REQUIRED
+↓
+Operational Pulse
+↓
+Work Flow
+↓
+Team Workload
+↓
+Recent Activity
+
+The most important information should be what requires action.
+
+==================================================
+28. REAL DATA FIRST
+==================================================
+
+Do not fabricate Arka business metrics.
+
+If seed data is needed for development, create clearly marked:
+
+DEMO WORKSPACE
+
+Use realistic but fictional records.
+
+Example:
+
+Client:
+"Northstar Health"
+
+Work:
+"Website Landing Page"
+
+Owner:
+"Rahul"
+
+Stage:
+"Review"
+
+But visually indicate demo/sample data when appropriate.
+
+Once real users enter the application, all metrics must come from actual database records.
+
+The ARKA build guide explicitly requires illustrative/demo dashboard numbers to be clearly labeled until real data exists. :contentReference[oaicite:6]{index=6}
+
+==================================================
+29. IMPORTANT: DO NOT OVERBUILD
+==================================================
+
+MVP DOES NOT INCLUDE:
+
+- Content Calendar
+- Social media publishing
+- Campaign publishing
+- Scheduled reach
+- Influencer database
+- Full CRM
+- Client portal
+- AI agents
+- AI chatbot
+- AI content generation
+- Automated marketing reports
+- Meta API integration
+- Google Ads API
+- Instagram API
+- WhatsApp automation
+- n8n workflows
+
+Those can come later.
+
+MVP focuses on:
+
+PEOPLE
+WORK
+ASSIGNMENT
+DEADLINES
+EXECUTION
+TIME
+WORKLOAD
+BOTTLENECKS
+FOUNDER VISIBILITY
+
+==================================================
+30. BUILD PHASES
+==================================================
+
+Build the MVP in phases.
+
+PHASE 1
+Workforce Foundation
+
+Build:
+
+- Supabase Auth
+- Users
+- Roles
+- Organization
+- Login logs
+- Presence
+- Protected app
+- My Work basic view
+- Founder team visibility
+
+Done when:
+
+Every team member can log in.
+
+Founder can see who is active and login history.
+
+This matches the original ARKA foundation requirement. :contentReference[oaicite:7]{index=7}
+
+PHASE 2
+Work Management
+
+Build:
+
+- Work Inbox
+- Work creation
+- Assignment
+- Work Board
+- Work Detail
+- Work stages
+- Sub-work/tasks
+- Deadlines
+- Priorities
+- Activity history
+
+Done when:
+
+Every active Work Item has:
+
+one owner
+one current stage
+one priority
+one deadline
+
+Founder can see all open work.
+
+PHASE 3
+Time & Effort
+
+Build:
+
+- Timer
+- Manual time
+- Time history
+- Hours by work
+- Hours by person
+- Workload indicators
+
+PHASE 4
+Founder Command Center
+
+Build:
+
+- Operational pulse
+- Attention queue
+- Team workload
+- Work pipeline
+- Overdue
+- Blocked
+- Review bottlenecks
+- Completion metrics
+- Operational insights
+
+PHASE 5
+Light Client Layer
+
+Only after the core work system works:
+
+- Clients
+- Client-work relationship
+- Client-level effort
+- Client-level reporting
+
+==================================================
+31. IMPORTANT PRODUCT BEHAVIOR
+==================================================
+
+The system must behave differently depending on role.
+
+FOUNDER:
+
+When founder opens ARKA OS:
+
+"What needs my attention?"
+
+MANAGER:
+
+When manager opens ARKA OS:
+
+"What does my team need to execute?"
+
+TEAM MEMBER:
+
+When team member opens ARKA OS:
+
+"What should I work on now?"
+
+This distinction is critical.
+
+==================================================
+32. WORK STATUS VS WORK STAGE
+==================================================
+
+Do not confuse these.
+
+STAGE represents where the work is in its lifecycle:
+
+Inbox
+Planning
+Assigned
+In Progress
+Review
+Revision
+Approved
+Completed
+
+STATUS represents operational condition:
+
+Active
+Blocked
+Completed
+Cancelled
+
+A work item can therefore be:
+
+Stage = In Progress
+Status = Active
+
+or:
+
+Stage = In Progress
+Status = Blocked
+
+This distinction is important for meaningful reporting.
+
+==================================================
+33. DEADLINE INTELLIGENCE
+==================================================
+
+Every Work Item should automatically calculate:
+
+Days remaining
+
+or:
+
+Due today
+
+or:
+
+Overdue by X days
+
+Visual states:
+
+On track
+Due soon
+Due today
+Overdue
+Blocked
+
+Do not require users to manually calculate these.
+
+==================================================
+34. WORKLOAD LOGIC
+==================================================
+
+Create a simple transparent workload score.
+
+Use factors such as:
+
+- number of active Work Items
+- number of urgent/high-priority items
+- deadlines approaching
+- estimated effort
+- overdue work
+- blocked work
+
+Do not claim this represents employee productivity.
+
+Label it:
+
+Operational Workload
+
+Provide a tooltip explaining how it is calculated.
+
+==================================================
+35. ACTIVITY LOG
+==================================================
+
+Every important action creates an activity event.
+
+Examples:
+
+WORK_CREATED
+WORK_ASSIGNED
+WORK_REASSIGNED
+STAGE_CHANGED
+STATUS_CHANGED
+PRIORITY_CHANGED
+DEADLINE_CHANGED
+WORK_BLOCKED
+WORK_UNBLOCKED
+TIME_LOGGED
+COMMENT_ADDED
+WORK_COMPLETED
+
+The activity feed is part of the operational record.
+
+==================================================
+36. SEARCH
+==================================================
+
+Implement global search.
+
+Search across:
+
+- Work
+- People
+- Clients
+- Work types
+
+Example:
+
+Search:
+"website"
+
+Results:
+
+Website redesign
+Website landing page
+Website QA
+
+Search should be fast.
+
+==================================================
+37. EMPTY STATES
+==================================================
+
+Do not leave empty pages blank.
+
+Examples:
+
+No overdue work:
+
+"Nothing is overdue.
+The team is clear on deadlines."
+
+No blocked work:
+
+"No blockers right now."
+
+No work:
+
+"No active work yet.
+Create the first Work Item."
+
+==================================================
+38. ERROR STATES
+==================================================
+
+Handle:
+
+- failed login
+- database failure
+- unauthorized access
+- missing work
+- invalid forms
+- timer conflicts
+- network errors
+
+Use clear human-readable messages.
+
+==================================================
+39. PERFORMANCE
+==================================================
+
+Use:
+
+- server-side data fetching where appropriate
+- indexed queries
+- pagination
+- optimistic updates where safe
+- loading states
+- skeletons
+- error boundaries
+
+Do not load the entire database into the browser.
+
+==================================================
+40. SECURITY
+==================================================
+
+Security is mandatory.
+
+Use:
+
+Supabase Auth
+
+RLS
+
+Organization isolation
+
+Role-based authorization
+
+Never expose service-role keys to the browser.
+
+Never trust frontend role checks alone.
+
+Users must only see data they are allowed to see.
+
+==================================================
+41. RESPONSIVE DESIGN
+==================================================
+
+Desktop is the primary experience.
+
+But make it usable on:
+
+- laptop
+- tablet
+- mobile
+
+The Command Center should remain useful on smaller screens.
+
+==================================================
+42. SEED DATA
+==================================================
+
+Create a development seed dataset.
+
+Example organization:
+
+Arka Digital Media
+
+Users:
+
+Founder
+Manager
+Designer
+Developer
+SEO Specialist
+Ads Specialist
+Video Editor
+
+Create realistic demo Work Items across:
+
+Website
+SEO
+Design
+Ads
+Social Media
+Photography
+Video
+Internal
+
+Include different stages:
+
+Inbox
+Planning
+Assigned
+In Progress
+Review
+Revision
+Blocked
+Completed
+
+Include:
+
+- some overdue
+- some due today
+- some due soon
+- some blocked
+- some high priority
+- different workloads
+- realistic time entries
+
+Clearly mark this as DEMO DATA.
+
+==================================================
+43. ACCEPTANCE TEST
+==================================================
+
+Before considering the application complete, test this complete journey:
+
+1. Founder logs in.
+2. Founder sees Command Center.
+3. Founder creates new Work Item.
+4. Founder selects work type.
+5. Founder sets deadline.
+6. Founder assigns owner.
+7. Work appears in Work Inbox / Board.
+8. Team member logs in.
+9. Team member sees work in My Work.
+10. Team member starts work.
+11. Timer starts.
+12. Team member changes stage to In Progress.
+13. Activity is recorded.
+14. Team member logs time.
+15. Team member moves work to Review.
+16. Manager sees Review item.
+17. Manager requests revision.
+18. Work moves to Revision.
+19. Team member completes revision.
+20. Manager approves.
+21. Work moves to Approved.
+22. Work is completed.
+23. Actual time is calculated.
+24. Founder Command Center updates.
+25. Workload updates.
+26. Bottleneck indicators update.
+27. Activity history contains the entire lifecycle.
+
+If this flow does not work end-to-end, the MVP is NOT complete.
+
+==================================================
+44. CRITICAL DEFINITION OF DONE
+==================================================
+
+ARKA OS is NOT DONE because:
+
+- pages exist
+- cards look good
+- navigation works
+- fake charts render
+- buttons exist
+
+ARKA OS is DONE only when real operational data flows through the system.
+
+The complete loop must work:
+
+PERSON
+↓
+WORK
+↓
+ASSIGNMENT
+↓
+DEADLINE
+↓
+EXECUTION
+↓
+STAGE CHANGE
+↓
+TIME / EFFORT
+↓
+REVIEW
+↓
+COMPLETION
+↓
+COMMAND CENTER
+↓
+WORKLOAD / BOTTLENECK INSIGHT
+
+==================================================
+45. FINAL DESIGN PRINCIPLE
+==================================================
+
+Build ARKA OS as if you are building the internal operating system of a growing digital agency.
+
+Not a project management clone.
+
+Not Asana clone.
+
+Not Trello clone.
+
+Not Monday clone.
+
+Not a content calendar.
+
+Not a marketing dashboard.
+
+Not a CRM.
+
+The product should make the founder feel:
+
+"I can open ARKA OS and understand the state of my company."
+
+The team member should feel:
+
+"I know exactly what I need to work on."
+
+The manager should feel:
+
+"I know what my team is doing and where execution is getting stuck."
+
+The system should feel like:
+
+THE OPERATING LAYER OF ARKA DIGITAL MEDIA.
+
+==================================================
+46. IMPLEMENTATION RULE
+==================================================
+
+Do not ask me to approve every small decision.
+
+Make sensible engineering decisions while preserving the product model above.
+
+However:
+
+If an existing feature conflicts with this specification, this specification wins.
+
+If the current generated app is based on the wrong content/campaign model, refactor it rather than extending the wrong architecture.
+
+Build real database functionality.
+
+Build real authentication.
+
+Build real CRUD.
+
+Build real role permissions.
+
+Build real time tracking.
+
+Build real activity history.
+
+Build real calculations.
+
+Build real operational intelligence.
+
+Do not create a static prototype.
+
+Do not hardcode dashboard numbers.
+
+Do not use fake functionality behind buttons.
+
+Every primary action must actually work.
+
+==================================================
+47. START NOW
+==================================================
+
+Start by:
+
+1. Inspecting the current repository.
+2. Producing a short internal architecture assessment.
+3. Identifying which existing pieces can be reused.
+4. Designing the database schema.
+5. Implementing the database and RLS.
+6. Implementing authentication.
+7. Implementing the Work model.
+8. Implementing Work Inbox.
+9. Implementing Work Board.
+10. Implementing Work Detail.
+11. Implementing My Work.
+12. Implementing Team.
+13. Implementing Time & Effort.
+14. Implementing Command Center.
+15. Implementing Insights.
+16. Testing the full end-to-end workflow.
+17. Fixing all broken flows.
+18. Only then polishing visual details.
+
+Do not stop at UI generation.
+
+The final result must be a working ARKA OS MVP.
+
+Remember:
+
+THE PRODUCT IS NOT THE DASHBOARD.
+
+THE PRODUCT IS THE OPERATIONAL SYSTEM BEHIND THE DASHBOARD.
