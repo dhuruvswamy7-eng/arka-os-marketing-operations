@@ -5,14 +5,105 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, Clock3, Command,
-  FileText, Flag, Inbox, KanbanSquare, LayoutDashboard, ListFilter, LogOut, Menu,
-  MessageSquare, Plus, Search, Settings2, ShieldAlert, Timer, UserPlus, UserRound, Users, X, Zap
+  FileText, Flag, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
+  MessageSquare, Plus, Search, Settings2, ShieldAlert, Timer, Trash2, UserPlus, UserRound, Users, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
+import { ChatWidget } from './components/ChatWidget';
+import { DocumentHub } from './components/DocumentHub';
 
 const queryClient = new QueryClient();
 const TODAY = '2026-09-15';
 const LOGO_SRC = `${import.meta.env.BASE_URL}assets/arkamedia-logo.png`;
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api';
+
+async function apiGet<T>(path: string): Promise<T> {
+  const token = localStorage.getItem('arka_token');
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`API ${path} responded with ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+async function apiPost<T>(path: string, body: any): Promise<T> {
+  const token = localStorage.getItem('arka_token');
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(`API ${path} responded with ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
+async function apiPatch<T>(path: string, body: any): Promise<T> {
+  const token = localStorage.getItem('arka_token');
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(`API ${path} responded with ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
+async function apiDelete<T>(path: string): Promise<T> {
+  const token = localStorage.getItem('arka_token');
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!response.ok) throw new Error(`API ${path} responded with ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
+async function hydrateFromApi(
+  setPeople: (people: Person[]) => void, 
+  setWork: (work: WorkItem[]) => void, 
+  setTasks: (tasks: WorkTask[]) => void,
+  setActivities: (activities: Activity[]) => void,
+  setComments: (comments: Comment[]) => void,
+  setReports: (reports: ManagerReport[]) => void,
+  setLeaves: (leaves: LeaveRequest[]) => void,
+  setSessions?: (sessions: SessionRecord[]) => void
+) {
+  try {
+    const [peoplePayload, workPayload, taskPayload, actPayload, commentPayload, reportPayload, leavePayload, sessionPayload] = await Promise.all([
+      apiGet<{ items: Person[] }>('/people'),
+      apiGet<{ items: WorkItem[] }>('/work'),
+      apiGet<{ items: WorkTask[] }>('/tasks'),
+      apiGet<{ items: Activity[] }>('/activities'),
+      apiGet<{ items: Comment[] }>('/comments'),
+      apiGet<{ items: ManagerReport[] }>('/reports'),
+      apiGet<{ items: LeaveRequest[] }>('/leaves'),
+      apiGet<{ items: SessionRecord[] }>('/sessions').catch(() => ({ items: [] as SessionRecord[] })),
+    ]);
+
+    if (Array.isArray(peoplePayload.items)) setPeople(peoplePayload.items);
+    if (Array.isArray(workPayload.items)) setWork(workPayload.items);
+    if (Array.isArray(taskPayload.items)) setTasks(taskPayload.items);
+    if (Array.isArray(actPayload.items)) setActivities(actPayload.items);
+    if (Array.isArray(commentPayload.items)) setComments(commentPayload.items);
+    if (Array.isArray(reportPayload.items)) setReports(reportPayload.items);
+    if (Array.isArray(leavePayload.items)) setLeaves(leavePayload.items);
+    if (setSessions && Array.isArray(sessionPayload.items)) setSessions(sessionPayload.items);
+  } catch {
+    // Keep the existing mock in-memory UI data if the API is unreachable.
+  }
+}
 
 type Role = 'Founder' | 'Manager' | 'Team member';
 type Stage = 'Planning' | 'Assigned' | 'In Progress' | 'Review' | 'Revision' | 'Approved' | 'Completed' | 'Blocked';
@@ -21,7 +112,7 @@ type WorkType = 'Website' | 'SEO' | 'Graphic Design' | 'Internal' | 'Other';
 type Presence = 'Online' | 'Idle' | 'Offline';
 
 type Person = {
-  id: string; name: string; role: Role; title: string; managerId: string | null;
+  id: string; name: string; email?: string; password?: string; role: Role; title: string; managerId: string | null;
   presence: Presence; loginAt?: string; logoutAt?: string; lastActiveAt: string;
   sessionMinutes?: number; taskMinutes?: number;
 };
@@ -55,55 +146,20 @@ type SessionRecord = {
 };
 
 const initialPeople: Person[] = [
-  { id: 'maya', name: 'Founder', role: 'Founder', title: 'Founder', managerId: null, presence: 'Online', loginAt: '8:42 AM', lastActiveAt: 'Just now', sessionMinutes: 430, taskMinutes: 0 },
-  { id: 'priya', name: 'Manager', role: 'Manager', title: 'Manager', managerId: null, presence: 'Online', loginAt: '8:58 AM', lastActiveAt: '2 min ago', sessionMinutes: 398, taskMinutes: 315 },
-  { id: 'rahul', name: 'Team Member 1', role: 'Team member', title: 'Team Member', managerId: 'priya', presence: 'Online', loginAt: '9:10 AM', lastActiveAt: 'Just now', sessionMinutes: 345, taskMinutes: 135 },
-  { id: 'arun', name: 'Team Member 2', role: 'Team member', title: 'Team Member', managerId: 'priya', presence: 'Online', loginAt: '9:24 AM', lastActiveAt: '4 min ago', sessionMinutes: 301, taskMinutes: 285 },
-  { id: 'kiran', name: 'Team Member 3', role: 'Team member', title: 'Team Member', managerId: 'priya', presence: 'Offline', logoutAt: '6:21 PM yesterday', lastActiveAt: 'Yesterday', sessionMinutes: 0, taskMinutes: 0 },
+  { id: 'usr_founder', name: 'Arka Founder', role: 'Founder', title: 'Founder / CEO', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
 ];
 
 let runtimePeople = initialPeople;
 
-const initialWork: WorkItem[] = [
-  { id: 'work-abc', title: 'ABC Website', description: 'Launch the new conversion-focused website for ABC Foods.', client: 'ABC Foods', workType: 'Website', priority: 'High', dueDate: '2026-09-20', founderId: 'maya', managerId: 'priya', stage: 'In Progress', progress: 42, createdAt: '2026-09-10' },
-  { id: 'work-northstar', title: 'Northstar SEO audit', description: 'Audit technical SEO and prepare the prioritized fix list.', client: 'Northstar Health', workType: 'SEO', priority: 'Urgent', dueDate: '2026-09-16', founderId: 'maya', managerId: 'priya', stage: 'Review', progress: 78, createdAt: '2026-09-08' },
-  { id: 'work-internal', title: 'Q4 operating rhythm', description: 'Document the weekly planning and reporting rhythm for the studio.', workType: 'Internal', priority: 'Medium', dueDate: '2026-09-24', founderId: 'maya', managerId: 'priya', stage: 'Planning', progress: 15, createdAt: '2026-09-13' },
-];
+const initialWork: WorkItem[] = [];
+const initialTasks: WorkTask[] = [];
+const initialActivities: Activity[] = [];
+const initialComments: Comment[] = [];
+const initialReports: ManagerReport[] = [];
+const initialLeaves: LeaveRequest[] = [];
+const initialSessions: SessionRecord[] = [];
 
-const initialTasks: WorkTask[] = [
-  { id: 'task-home', workId: 'work-abc', title: 'Homepage design', instructions: 'Complete the desktop homepage first and submit it for review.', assigneeId: 'rahul', dueDate: '2026-09-18', priority: 'High', stage: 'In Progress', progress: 50, timeMinutes: 135, estimatedMinutes: 360 },
-  { id: 'task-seo', workId: 'work-abc', title: 'SEO setup', instructions: 'Prepare metadata, redirect requirements, and technical checks.', assigneeId: 'arun', dueDate: '2026-09-19', priority: 'Medium', stage: 'Assigned', progress: 10, timeMinutes: 0, estimatedMinutes: 240 },
-  { id: 'task-mobile', workId: 'work-abc', title: 'Mobile testing', instructions: 'Test the responsive layouts on the agreed device set.', assigneeId: 'kiran', dueDate: '2026-09-20', priority: 'Medium', stage: 'Assigned', progress: 0, timeMinutes: 0, estimatedMinutes: 180 },
-  { id: 'task-audit', workId: 'work-northstar', title: 'Technical SEO findings', instructions: 'Submit the prioritized audit findings with evidence.', assigneeId: 'arun', dueDate: '2026-09-16', priority: 'Urgent', stage: 'Review', progress: 100, timeMinutes: 285, estimatedMinutes: 300, submittedAt: 'Today, 10:12 AM' },
-];
 
-const initialActivities: Activity[] = [
-  { id: 'activity-1', workId: 'work-abc', actorId: 'maya', message: 'created ABC Website and assigned it to Manager', createdAt: 'Sep 10, 9:12 AM' },
-  { id: 'activity-2', workId: 'work-abc', actorId: 'priya', message: 'assigned Homepage design to Team Member 1', createdAt: 'Sep 10, 10:32 AM' },
-  { id: 'activity-3', workId: 'work-abc', actorId: 'rahul', message: 'started work on Homepage design', createdAt: 'Today, 9:10 AM', tone: 'success' },
-  { id: 'activity-4', workId: 'work-northstar', actorId: 'arun', message: 'submitted Technical SEO findings for review', createdAt: 'Today, 10:12 AM', tone: 'success' },
-];
-
-const initialComments: Comment[] = [
-  { id: 'comment-1', workId: 'work-abc', authorId: 'priya', message: 'Keep the hero section focused on one conversion path.', createdAt: 'Yesterday, 4:20 PM' },
-];
-
-const initialReports: ManagerReport[] = [
-  { id: 'report-1', managerId: 'priya', period: 'Week of Sep 15', completed: 'SEO audit submitted for review.', inProgress: 'ABC Website homepage design and SEO setup.', blockers: 'Waiting on final product photography for the website.', decisions: 'Confirm whether the launch date can move by two days.', status: 'Submitted', createdAt: 'Today, 11:05 AM' },
-];
-
-const initialLeaves: LeaveRequest[] = [
-  { id: 'leave-1', userId: 'kiran', leaveType: 'Personal', startDate: TODAY, endDate: TODAY, reason: 'Personal appointment', status: 'Approved', approvedBy: 'maya', createdAt: 'Sep 12, 2:15 PM' },
-  { id: 'leave-2', userId: 'rahul', leaveType: 'Casual', startDate: '2026-09-22', endDate: '2026-09-23', reason: 'Family commitment', status: 'Pending', createdAt: 'Today, 9:40 AM' },
-];
-
-const initialSessions: SessionRecord[] = [
-  { id: 'session-priya-1', userId: 'priya', date: TODAY, loginAt: '08:58 AM', logoutAt: '01:10 PM', durationMinutes: 252 },
-  { id: 'session-priya-2', userId: 'priya', date: TODAY, loginAt: '02:05 PM', logoutAt: undefined, durationMinutes: 146 },
-  { id: 'session-rahul-1', userId: 'rahul', date: TODAY, loginAt: '09:10 AM', logoutAt: '12:45 PM', durationMinutes: 215 },
-  { id: 'session-rahul-2', userId: 'rahul', date: TODAY, loginAt: '01:20 PM', logoutAt: undefined, durationMinutes: 110 },
-  { id: 'session-arun-1', userId: 'arun', date: TODAY, loginAt: '09:24 AM', logoutAt: '02:25 PM', durationMinutes: 301 },
-];
 
 const stageTone: Record<Stage, string> = {
   Planning: 'border-slate-200 bg-slate-50 text-slate-700', Assigned: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -159,6 +215,19 @@ function person(id: string) { return runtimePeople.find((item) => item.id === id
 function formatDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
 function isOverdue(value: string) { return value < TODAY; }
 function hours(minutes: number) { return `${Math.floor(minutes / 60)}h ${minutes % 60}m`; }
+function formatTimestamp(isoString?: string | null) {
+  if (!isoString) return '—';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return isToday ? `Today at ${timeStr}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+  } catch {
+    return isoString;
+  }
+}
 
 export function getVisiblePeopleForRole(actor: Pick<Person, 'id' | 'role'>, people: Person[]) {
   if (actor.role === 'Founder') return people;
@@ -186,6 +255,16 @@ export function updateLeaveStatus(leaves: LeaveRequest[], id: string, status: Le
     : leave);
 }
 
+export function authenticateDemoUser(email: string, pass: string) {
+  if (email === 'admin@arka.com' && pass === 'admin1234') {
+    return { id: 'usr_founder', role: 'Founder' as const, name: 'Arka Founder' };
+  }
+  if (email === 'arka@founder' && pass === '1234') {
+    return { id: 'usr_founder', role: 'Founder' as const, name: 'Founder' };
+  }
+  return null;
+}
+
 function Button({ children, variant = 'primary', onClick, type = 'button', disabled = false }: { children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'danger'; onClick?: () => void; type?: 'button' | 'submit'; disabled?: boolean }) {
   const styles = {
     primary: 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:brightness-105',
@@ -208,7 +287,7 @@ function SectionTitle({ eyebrow, title, description, action }: { eyebrow?: strin
   return <div className="mb-6 flex items-end justify-between gap-4"><div>{eyebrow && <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(var(--primary))]">{eyebrow}</div>}<h1 className="text-2xl font-black tracking-[-0.04em] md:text-3xl">{title}</h1>{description && <p className="mt-2 max-w-2xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{description}</p>}</div>{action}</div>;
 }
 
-function Shell({ actor, onLogout, children }: { actor: Person; onLogout: () => void; children: ReactNode }) {
+function Shell({ actor, onLogout, onUpdatePresence, children }: { actor: Person; onLogout: () => void; onUpdatePresence: (p: Presence) => void; children: ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = roleNavigation[actor.role];
@@ -216,12 +295,34 @@ function Shell({ actor, onLogout, children }: { actor: Person; onLogout: () => v
     <aside className={`fixed inset-y-0 left-0 z-30 flex w-[260px] flex-col border-r border-[hsl(var(--border))] bg-[#101010] p-5 text-white transition-transform lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex items-center gap-3 px-2"><img src={LOGO_SRC} alt="Arka Media" className="h-12 w-auto max-w-[190px] object-contain object-left" /></div>
       <div className="mt-10 rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[#f8c329]">{actor.role} workspace</div><div className="mt-1 text-sm font-bold">{actor.name}</div><div className="mt-1 text-xs text-white/45">{actor.title}</div></div>
-      <nav className="mt-7 flex-1 space-y-1">{nav.map(({ label, path, icon: Icon }) => <Link key={path} href={path} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${location === path || (path === '/work' && location.startsWith('/work/')) ? 'bg-[#f8c329] text-black' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}><Icon className="size-4" />{label}</Link>)}</nav>
-      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/45"><div className="flex items-center gap-2 text-white/80"><span className="size-2 rounded-full bg-emerald-400" /> Presence active</div><p className="mt-2 leading-5">Demo session. Presence and activity are not persisted without a database connection.</p></div>
+      <nav className="mt-7 flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar">
+        {nav.map(({ label, path, icon: Icon }) => (
+          <Link key={path} href={path} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${location === path || (path === '/work' && location.startsWith('/work/')) ? 'bg-[#f8c329] text-black' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
+            <Icon className="size-4" />{label}
+          </Link>
+        ))}
+        <Link href="/documents" onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${location === '/documents' ? 'bg-[#f8c329] text-black' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
+          <FileText className="size-4" />Documents
+        </Link>
+      </nav>
       <button onClick={onLogout} className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-white/55 hover:bg-white/10 hover:text-white"><LogOut className="size-4" />Log out</button><div className="mt-3 border-t border-white/10 pt-3 text-[10px] uppercase tracking-[0.12em] text-white/35">Designed and developed by Dhuruv</div>
     </aside>
     {mobileOpen && <button aria-label="Close navigation" className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />}
-    <main className="min-h-screen lg:pl-[260px]"><header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[hsl(var(--border))] bg-[#f7f7f5]/90 px-5 backdrop-blur md:px-8"><button className="rounded-lg p-2 hover:bg-white lg:hidden" onClick={() => setMobileOpen(true)}><Menu className="size-5" /></button><div className="hidden items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] md:flex"><span className="size-2 rounded-full bg-emerald-500" /> Demo workspace <span className="text-black/20">/</span> {actor.role}</div><div className="ml-auto flex items-center gap-2"><button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Search className="size-4" /></button><button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Bell className="size-4" /></button><div className="ml-2 grid size-8 place-items-center rounded-full bg-[#111] text-xs font-bold text-[#f8c329]">{actor.name.split(' ').map((part) => part[0]).join('')}</div></div></header><div className="mx-auto max-w-[1500px] p-5 md:p-8">{children}</div></main>
+    <main className="min-h-screen lg:pl-[260px]"><header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[hsl(var(--border))] bg-[#f7f7f5]/90 px-5 backdrop-blur md:px-8"><button className="rounded-lg p-2 hover:bg-white lg:hidden" onClick={() => setMobileOpen(true)}><Menu className="size-5" /></button><div className="hidden items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] md:flex"><span className="size-2 rounded-full bg-emerald-500" /> Workspace <span className="text-black/20">/</span> {actor.role}</div><div className="ml-auto flex items-center gap-4">
+      <div className="flex items-center gap-2 rounded-full bg-white border border-[hsl(var(--border))] px-3 py-1 shadow-sm">
+        <span className={`size-2 rounded-full ${actor.presence === 'Online' ? 'bg-emerald-400' : actor.presence === 'Break' || actor.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-400'}`} /> 
+        <select 
+          className="bg-transparent text-xs font-semibold outline-none cursor-pointer text-[hsl(var(--foreground))]"
+          value={actor.presence}
+          onChange={(e) => onUpdatePresence(e.target.value as Presence)}
+        >
+          <option value="Online">Online</option>
+          <option value="Break">On Break</option>
+          <option value="Lunch">At Lunch</option>
+          <option value="Idle">Idle</option>
+        </select>
+      </div>
+      <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Search className="size-4" /></button><button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Bell className="size-4" /></button><div className="grid size-8 place-items-center rounded-full bg-[#111] text-xs font-bold text-[#f8c329]">{actor.name.split(' ').map((part) => part[0]).join('')}</div></div></header><div className="mx-auto max-w-[1500px] p-5 md:p-8">{children}</div></main>
   </div>;
 }
 
@@ -230,22 +331,23 @@ function Metric({ label, value, detail, tone = 'default', onClick }: { label: st
   return <button onClick={onClick} className={`rounded-2xl border border-[hsl(var(--border))] bg-white p-5 text-left shadow-[0_10px_30px_rgba(20,20,20,0.03)] transition hover:-translate-y-0.5 hover:shadow-md ${onClick ? 'cursor-pointer' : 'cursor-default'}`}><div className="text-xs font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mt-3 text-3xl font-black tracking-[-0.06em] ${color}`}>{value}</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{detail}</div></button>;
 }
 
-function PersonRow({ item, currentWork, onOpen }: { item: Person; currentWork?: WorkItem; onOpen?: (id: string) => void }) {
-  return <div className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-4 last:border-0"><div className={`size-2.5 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : item.presence === 'Idle' ? 'bg-amber-400' : 'bg-slate-300'}`} /><div className="min-w-[160px] flex-1"><div className="font-bold">{item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{item.title}</div></div><div className="w-24 text-xs font-semibold">{item.presence}</div><div className="w-28 text-xs text-[hsl(var(--muted-foreground))]">{item.loginAt ? `In ${item.loginAt}` : item.logoutAt ? `Out ${item.logoutAt}` : 'No session'}</div><div className="min-w-[200px] flex-1 text-sm">{currentWork ? <button className="text-left font-semibold hover:text-[hsl(var(--primary))]" onClick={() => onOpen?.(currentWork.id)}>{currentWork.title}<div className="mt-0.5 text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div></div>;
+function PersonRow({ item, currentWork, onOpen, onDelete }: { item: Person; currentWork?: WorkItem; onOpen?: (id: string) => void; onDelete?: () => void }) {
+  return <div className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-4 last:border-0"><div className={`size-2.5 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : item.presence === 'Idle' ? 'bg-amber-400' : 'bg-slate-300'}`} /><div className="min-w-[160px] flex-1"><div className="font-bold">{item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{item.title}</div></div><div className="w-20 text-xs font-semibold">{item.presence}</div><div className="w-40 text-xs text-[hsl(var(--muted-foreground))]">{item.presence === 'Online' ? (item.loginAt ? `In: ${formatTimestamp(item.loginAt)}` : 'Online') : (item.logoutAt ? `Out: ${formatTimestamp(item.logoutAt)}` : item.loginAt ? `Last: ${formatTimestamp(item.loginAt)}` : 'No session')}</div><div className="min-w-[180px] flex-1 text-sm">{currentWork ? <button className="text-left font-semibold hover:text-[hsl(var(--primary))]" onClick={() => onOpen?.(currentWork.id)}>{currentWork.title}<div className="mt-0.5 text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div>{onDelete && item.role !== 'Founder' && <button type="button" title={`Delete ${item.name}`} onClick={onDelete} className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 transition"><Trash2 className="size-4" /></button>}</div>;
 }
 
 function WorkRow({ item, tasks, onOpen }: { item: WorkItem; tasks: WorkTask[]; onOpen: (id: string) => void }) {
   return <button onClick={() => onOpen(item.id)} className="group grid w-full grid-cols-[1fr_auto] items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-4 text-left last:border-0 hover:bg-[#fafaf8] md:grid-cols-[1.4fr_0.6fr_0.65fr_0.7fr_auto]"><div><div className="font-bold group-hover:text-[hsl(var(--primary))]">{item.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{item.client || 'Internal'} · {tasks.length} task{tasks.length === 1 ? '' : 's'}</div></div><div className="hidden text-sm md:block">{item.managerId ? person(item.managerId).name : item.directAssigneeId ? person(item.directAssigneeId).name : 'Unassigned'}</div><div className={`hidden text-sm font-bold md:block ${priorityTone[item.priority]}`}>{item.priority}</div><div className="hidden text-sm text-[hsl(var(--muted-foreground))] md:block">{formatDate(item.dueDate)}</div><Badge className={stageTone[item.stage]}>{item.stage}</Badge></button>;
 }
 
-function Dashboard({ actor, work, tasks, peopleInScope, reports, onOpen, onCreate, onNavigate }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; peopleInScope: Person[]; reports: ManagerReport[]; onOpen: (id: string) => void; onCreate: () => void; onNavigate: (path: string) => void }) {
+function Dashboard({ actor, work, tasks, peopleInScope, reports, onOpen, onCreate, onNavigate, onDeletePerson }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; peopleInScope: Person[]; reports: ManagerReport[]; onOpen: (id: string) => void; onCreate: () => void; onNavigate: (path: string) => void; onDeletePerson?: (id: string) => Promise<void> | void }) {
+  const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
   const active = work.filter((item) => item.stage !== 'Completed');
   const dueToday = active.filter((item) => item.dueDate === TODAY);
   const overdue = active.filter((item) => isOverdue(item.dueDate));
   const blocked = active.filter((item) => item.stage === 'Blocked');
   const reviews = tasks.filter((task) => task.stage === 'Review');
-  if (actor.role === 'Founder') return <><SectionTitle eyebrow="Founder command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here's the current state of Arka. Exception-focused visibility for decisions, not employee surveillance." action={<Button onClick={onCreate}><Plus className="size-4" />Assign work</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Active work" value={active.length} detail="Across the operation" onClick={() => onNavigate('/work')} /><Metric label="Due today" value={dueToday.length} detail="Needs a decision" tone="warning" /><Metric label="Overdue" value={overdue.length} detail="Requires intervention" tone="danger" onClick={() => onNavigate('/work')} /><Metric label="Blocked" value={blocked.length} detail="Waiting on a path forward" tone="danger" /><Metric label="Waiting approval" value={reviews.length} detail="Submitted for review" tone="warning" onClick={() => onNavigate('/approvals')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]"><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Where is everyone?</div><h2 className="mt-1 text-lg font-black">Team presence</h2></div><Button variant="ghost" onClick={() => onNavigate('/team')}>Open full view <ArrowRight className="size-4" /></Button></div>{peopleInScope.map((item) => <PersonRow key={item.id} item={item} currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)} onOpen={onOpen} />)}</Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Attention required</div><h2 className="mt-1 text-lg font-black">Founder decisions</h2><div className="mt-5 space-y-3">{[...overdue.slice(0, 2).map((item) => ({ label: 'Overdue work', item })), ...blocked.slice(0, 2).map((item) => ({ label: 'Blocked work', item }))].map(({ label, item }) => <button key={item.id} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><ShieldAlert className="mt-0.5 size-4 text-red-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-red-700">{label}</span><span className="mt-1 block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.managerId ? `Manager: ${person(item.managerId).name}` : 'Direct assignment'}</span></span></button>)}{reports.filter((report) => report.status === 'Submitted').map((report) => <button key={report.id} onClick={() => onNavigate('/reports')} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><FileText className="mt-0.5 size-4 text-[hsl(var(--primary))]" /><span><span className="block text-xs font-bold uppercase tracking-wide text-[hsl(var(--primary))]">Manager report</span><span className="mt-1 block text-sm font-semibold">{report.period} is ready to review</span></span></button>)}{overdue.length + blocked.length + reports.filter((report) => report.status === 'Submitted').length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No founder intervention required.</p>}</div></Card></div></>;
-  if (actor.role === 'Manager') return <><SectionTitle eyebrow="Manager command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="What does your team need to execute today?" action={<Button onClick={() => onNavigate('/team-tasks')}><Plus className="size-4" />Assign task</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Founder assignments" value={work.filter((item) => item.managerId === actor.id && item.stage === 'Planning').length} detail="Waiting to be planned" onClick={() => onNavigate('/assignments')} /><Metric label="Team work" value={tasks.filter((task) => person(task.assigneeId).managerId === actor.id && task.stage !== 'Completed').length} detail="Active team tasks" /><Metric label="Due today" value={dueToday.length} detail="Deadline today" tone="warning" /><Metric label="Blocked" value={blocked.length} detail="Needs resolution" tone="danger" /><Metric label="My reviews" value={reviews.length} detail="Waiting for your review" tone="warning" onClick={() => onNavigate('/reviews')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Manager attention</div><h2 className="mt-1 text-lg font-black">Keep execution moving</h2></div><div className="p-5 space-y-3">{[...reviews.map((task) => ({ label: 'Waiting for review', title: task.title, detail: `${person(task.assigneeId).name} submitted this task`, id: task.workId })), ...blocked.map((item) => ({ label: 'Blocked', title: item.title, detail: 'Resolve or escalate the blocker', id: item.id }))].map((item) => <button key={`${item.label}-${item.id}`} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left hover:bg-[#fafaf8]"><Flag className="mt-0.5 size-4 text-amber-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-amber-700">{item.label}</span><span className="mt-1 block font-bold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.detail}</span></span></button>)}{reviews.length + blocked.length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Your team is clear.</p>}</div></Card><TeamWorkload peopleInScope={peopleInScope} tasks={tasks} /></div></>;
+  if (actor.role === 'Founder') return <><SectionTitle eyebrow="Founder command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here's the current state of Arka. Exception-focused visibility for decisions, not employee surveillance." action={<Button onClick={onCreate}><Plus className="size-4" />Assign work</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Active work" value={active.length} detail="Across the operation" onClick={() => onNavigate('/work')} /><Metric label="Due today" value={dueToday.length} detail="Needs a decision" tone="warning" /><Metric label="Overdue" value={overdue.length} detail="Requires intervention" tone="danger" onClick={() => onNavigate('/work')} /><Metric label="Blocked" value={blocked.length} detail="Waiting on a path forward" tone="danger" /><Metric label="Waiting approval" value={reviews.length} detail="Submitted for review" tone="warning" onClick={() => onNavigate('/approvals')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]"><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Where is everyone?</div><h2 className="mt-1 text-lg font-black">Team presence</h2></div><Button variant="ghost" onClick={() => onNavigate('/people')}>Manage people <ArrowRight className="size-4" /></Button></div>{peopleInScope.map((item) => <PersonRow key={item.id} item={item} currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)} onOpen={onOpen} onDelete={onDeletePerson && item.role !== 'Founder' ? () => setDeleteTarget(item) : undefined} />)}</Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Attention required</div><h2 className="mt-1 text-lg font-black">Founder decisions</h2><div className="mt-5 space-y-3">{[...overdue.slice(0, 2).map((item) => ({ label: 'Overdue work', item })), ...blocked.slice(0, 2).map((item) => ({ label: 'Blocked work', item }))].map(({ label, item }) => <button key={item.id} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><ShieldAlert className="mt-0.5 size-4 text-red-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-red-700">{label}</span><span className="mt-1 block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.managerId ? `Manager: ${person(item.managerId).name}` : 'Direct assignment'}</span></span></button>)}{reports.filter((report) => report.status === 'Submitted').map((report) => <button key={report.id} onClick={() => onNavigate('/reports')} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><FileText className="mt-0.5 size-4 text-[hsl(var(--primary))]" /><span><span className="block text-xs font-bold uppercase tracking-wide text-[hsl(var(--primary))]">Manager report</span><span className="mt-1 block text-sm font-semibold">{report.period} is ready to review</span></span></button>)}{overdue.length + blocked.length + reports.filter((report) => report.status === 'Submitted').length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No founder intervention required.</p>}</div></Card></div>{deleteTarget && <ConfirmDeleteModal targetPerson={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={async () => { if (onDeletePerson) await onDeletePerson(deleteTarget.id); }} />}</>;
+  if (actor.role === 'Manager') return <><SectionTitle eyebrow="Manager command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="What does your team need to execute today?" action={<Button onClick={onCreate}><Plus className="size-4" />Assign task</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Founder assignments" value={work.filter((item) => item.managerId === actor.id && item.stage === 'Planning').length} detail="Waiting to be planned" onClick={() => onNavigate('/assignments')} /><Metric label="Team work" value={tasks.filter((task) => person(task.assigneeId).managerId === actor.id && task.stage !== 'Completed').length} detail="Active team tasks" /><Metric label="Due today" value={dueToday.length} detail="Deadline today" tone="warning" /><Metric label="Blocked" value={blocked.length} detail="Needs resolution" tone="danger" /><Metric label="My reviews" value={reviews.length} detail="Waiting for your review" tone="warning" onClick={() => onNavigate('/reviews')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Manager attention</div><h2 className="mt-1 text-lg font-black">Keep execution moving</h2></div><div className="p-5 space-y-3">{[...reviews.map((task) => ({ label: 'Waiting for review', title: task.title, detail: `${person(task.assigneeId).name} submitted this task`, id: task.workId })), ...blocked.map((item) => ({ label: 'Blocked', title: item.title, detail: 'Resolve or escalate the blocker', id: item.id }))].map((item) => <button key={`${item.label}-${item.id}`} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left hover:bg-[#fafaf8]"><Flag className="mt-0.5 size-4 text-amber-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-amber-700">{item.label}</span><span className="mt-1 block font-bold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.detail}</span></span></button>)}{reviews.length + blocked.length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Your team is clear.</p>}</div></Card><TeamWorkload peopleInScope={peopleInScope} tasks={tasks} /></div></>;
   const ownTasks = tasks.filter((task) => task.assigneeId === actor.id);
   const today = ownTasks.filter((task) => task.dueDate === TODAY);
   const next = ownTasks.filter((task) => task.dueDate > TODAY && task.stage !== 'Completed');
@@ -261,23 +363,23 @@ function TaskColumn({ title, tasks, work, onOpen, empty }: { title: string; task
   return <Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><h2 className="text-lg font-black">{title}</h2></div><div>{tasks.map((task) => <button key={task.id} onClick={() => onOpen(task.workId)} className="flex w-full items-start gap-3 border-b border-[hsl(var(--border))] px-5 py-4 text-left last:border-0 hover:bg-[#fafaf8]"><div className="mt-1 size-2 rounded-full bg-[#f8c329]" /><span className="min-w-0 flex-1"><span className="block font-bold">{task.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{work.find((item) => item.id === task.workId)?.title} · due {formatDate(task.dueDate)}</span></span><Badge className={stageTone[task.stage]}>{task.stage}</Badge></button>)}{tasks.length === 0 && <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">{empty}</p>}</div></Card>;
 }
 
-function WorkListPage({ title, description, work, tasks, onOpen, onCreate, filter }: { title: string; description: string; work: WorkItem[]; tasks: WorkTask[]; onOpen: (id: string) => void; onCreate?: () => void; filter?: (item: WorkItem) => boolean }) {
+function WorkListPage({ title, description, work, tasks, onOpen, onCreate, createButtonLabel = 'Assign work', filter }: { title: string; description: string; work: WorkItem[]; tasks: WorkTask[]; onOpen: (id: string) => void; onCreate?: () => void; createButtonLabel?: string; filter?: (item: WorkItem) => boolean }) {
   const [query, setQuery] = useState('');
   const visible = work.filter(filter || (() => true)).filter((item) => `${item.title} ${item.client || ''}`.toLowerCase().includes(query.toLowerCase()));
-  return <><SectionTitle eyebrow="Work" title={title} description={description} action={onCreate && <Button onClick={onCreate}><Plus className="size-4" />Assign work</Button>} /><Card><div className="flex flex-wrap items-center gap-3 border-b border-[hsl(var(--border))] p-4"><div className="relative min-w-[240px] flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search work..." className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[hsl(var(--primary))]" /></div><Button variant="secondary"><ListFilter className="size-4" />Filter</Button></div><div className="grid grid-cols-[1.4fr_0.6fr_0.65fr_0.7fr_auto] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Work</span><span>Owner</span><span>Priority</span><span>Deadline</span><span>Stage</span></div>{visible.map((item) => <WorkRow key={item.id} item={item} tasks={tasks.filter((task) => task.workId === item.id)} onOpen={onOpen} />)}{visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No work matches this view.</p>}</Card></>;
+  return <><SectionTitle eyebrow="Work" title={title} description={description} action={onCreate && <Button onClick={onCreate}><Plus className="size-4" />{createButtonLabel}</Button>} /><Card><div className="flex flex-wrap items-center gap-3 border-b border-[hsl(var(--border))] p-4"><div className="relative min-w-[240px] flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search work..." className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[hsl(var(--primary))]" /></div><Button variant="secondary"><ListFilter className="size-4" />Filter</Button></div><div className="grid grid-cols-[1.4fr_0.6fr_0.65fr_0.7fr_auto] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Work</span><span>Owner</span><span>Priority</span><span>Deadline</span><span>Stage</span></div>{visible.map((item) => <WorkRow key={item.id} item={item} tasks={tasks.filter((task) => task.workId === item.id)} onOpen={onOpen} />)}{visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No work matches this view.</p>}</Card></>;
 }
 
 function TeamPage({ actor, work, tasks, onOpen }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; onOpen: (id: string) => void }) {
   const scope = actor.role === 'Founder' ? runtimePeople : runtimePeople.filter((item) => item.managerId === actor.id || item.id === actor.id);
-  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder operational view' : 'My team'} title={actor.role === 'Founder' ? 'Where is everyone?' : 'Team execution'} description="Presence exists to establish availability, work state, and operational visibility—not to judge productivity by hours." /><Card><div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_1.2fr_0.9fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Person</span><span>Presence</span><span>Login</span><span>Current work</span><span>Workload</span></div>{scope.map((member) => { const currentTask = tasks.find((task) => task.assigneeId === member.id && task.stage !== 'Completed'); const currentWork = currentTask ? work.find((item) => item.id === currentTask.workId) : work.find((item) => item.managerId === member.id && item.stage !== 'Completed'); const count = tasks.filter((task) => task.assigneeId === member.id && task.stage !== 'Completed').length; return <div key={member.id} className="grid grid-cols-[1.2fr_0.7fr_0.7fr_1.2fr_0.9fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><div><div className="font-bold">{member.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div></div><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />{member.presence}</div><div className="text-xs text-[hsl(var(--muted-foreground))">{member.loginAt || member.logoutAt || '—'}</div><div>{currentWork ? <button onClick={() => onOpen(currentWork.id)} className="text-left font-semibold hover:text-[hsl(var(--primary))]">{currentTask?.title || currentWork.title}<div className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div><Badge className={count >= 3 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>{count >= 3 ? 'High' : `${count} active`}</Badge></div>; })}</Card></>;
+  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder operational view' : 'My team'} title={actor.role === 'Founder' ? 'Where is everyone?' : 'Team execution'} description="Presence exists to establish availability, work state, and operational visibility—not to judge productivity by hours." /><Card><div className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Person</span><span>Presence</span><span>Login Timestamp</span><span>Current work</span><span>Workload</span></div>{scope.map((member) => { const currentTask = tasks.find((task) => task.assigneeId === member.id && task.stage !== 'Completed'); const currentWork = currentTask ? work.find((item) => item.id === currentTask.workId) : work.find((item) => item.managerId === member.id && item.stage !== 'Completed'); const count = tasks.filter((task) => task.assigneeId === member.id && task.stage !== 'Completed').length; return <div key={member.id} className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><div><div className="font-bold">{member.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div></div><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />{member.presence}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimestamp(member.loginAt) || (member.logoutAt ? `Out: ${formatTimestamp(member.logoutAt)}` : '—')}</div><div>{currentWork ? <button onClick={() => onOpen(currentWork.id)} className="text-left font-semibold hover:text-[hsl(var(--primary))]">{currentTask?.title || currentWork.title}<div className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div><Badge className={count >= 3 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>{count >= 3 ? 'High' : `${count} active`}</Badge></div>; })}</Card></>;
 }
 
 function WorkDetail({ actor, item, tasks, activities, comments, onBack, onOpen, onUpdateTask, onAddTask, onComment, onStartTimer }: { actor: Person; item: WorkItem; tasks: WorkTask[]; activities: Activity[]; comments: Comment[]; onBack: () => void; onOpen: (id: string) => void; onUpdateTask: (taskId: string, patch: Partial<WorkTask>, message: string) => void; onAddTask: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void; onComment: (message: string) => void; onStartTimer: (taskId: string) => void }) {
   const [comment, setComment] = useState('');
   const [taskOpen, setTaskOpen] = useState(false);
-  const relatedTasks = tasks.filter((task) => task.workId === item.id);
+  const relatedTasks = tasks.filter((task) => task.workId === item.id && (actor.role !== 'Team member' || task.assigneeId === actor.id));
   const canManage = actor.role === 'Founder' || actor.role === 'Manager';
-  return <><button onClick={onBack} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><ArrowLeft className="size-4" />Back</button><SectionTitle eyebrow="Work detail" title={item.title} description={item.description} action={<Badge className={stageTone[item.stage]}>{item.stage}</Badge>} /><div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]"><div className="space-y-6"><Card><div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4"><Info label="Client" value={item.client || 'Internal'} /><Info label="Work type" value={item.workType} /><Info label="Deadline" value={formatDate(item.dueDate)} valueClass={isOverdue(item.dueDate) ? 'text-red-700' : ''} /><Info label="Manager" value={item.managerId ? person(item.managerId).name : item.directAssigneeId ? `Direct · ${person(item.directAssigneeId).name}` : 'Unassigned'} /></div><div className="border-t border-[hsl(var(--border))] px-5 py-4"><div className="mb-2 flex justify-between text-xs font-bold"><span>Overall progress</span><span>{item.progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#f8c329]" style={{ width: `${item.progress}%` }} /></div></div></Card><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Work hierarchy</div><h2 className="mt-1 text-lg font-black">Tasks and execution</h2></div>{canManage && <Button onClick={() => setTaskOpen(true)}><Plus className="size-4" />Assign task</Button>}</div><div>{relatedTasks.map((task) => <TaskRow key={task.id} actor={actor} task={task} onOpen={() => onOpen(item.id)} onUpdate={onUpdateTask} onStartTimer={onStartTimer} />)}{relatedTasks.length === 0 && <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No tasks yet. A manager can break this work into team tasks.</p>}</div></Card><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Conversation</div><h2 className="mt-1 text-lg font-black">Comments</h2></div><div className="divide-y divide-[hsl(var(--border))]">{comments.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="px-5 py-4"><div className="text-sm font-bold">{person(entry.authorId).name} <span className="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">{entry.createdAt}</span></div><p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{entry.message}</p></div>)}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) { onComment(comment.trim()); setComment(''); } }} className="flex gap-2 p-5"><input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add an operational comment..." className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none" /><Button type="submit" disabled={!comment.trim()}>Comment</Button></form></div></Card></div><div className="space-y-6"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Activity</div><h2 className="mt-1 text-lg font-black">History</h2></div><div className="p-5 space-y-4">{activities.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="flex gap-3"><div className={`mt-1 size-2 rounded-full ${entry.tone === 'warning' ? 'bg-red-500' : entry.tone === 'success' ? 'bg-emerald-500' : 'bg-[#f8c329]'}`} /><div><div className="text-sm"><span className="font-bold">{person(entry.actorId).name}</span> {entry.message}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{entry.createdAt}</div></div></div>)}</div></Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Responsibility chain</div><div className="mt-4 space-y-3 text-sm"><Chain label="Founder" value={person(item.founderId).name} /><Chain label="Manager" value={item.managerId ? person(item.managerId).name : 'Direct assignment'} /><Chain label="Team tasks" value={`${relatedTasks.length} assigned`} /><Chain label="Time logged" value={hours(relatedTasks.reduce((sum, task) => sum + task.timeMinutes, 0))} /></div></Card></div></div>{taskOpen && <CreateTaskModal workId={item.id} onClose={() => setTaskOpen(false)} onCreate={(task) => { onAddTask(task); setTaskOpen(false); }} />}</>;
+  return <><button onClick={onBack} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><ArrowLeft className="size-4" />Back</button><SectionTitle eyebrow="Work detail" title={item.title} description={item.description} action={<Badge className={stageTone[item.stage]}>{item.stage}</Badge>} /><div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]"><div className="space-y-6"><Card><div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4"><Info label="Client" value={item.client || 'Internal'} /><Info label="Work type" value={item.workType} /><Info label="Deadline" value={formatDate(item.dueDate)} valueClass={isOverdue(item.dueDate) ? 'text-red-700' : ''} /><Info label="Manager" value={item.managerId ? person(item.managerId).name : item.directAssigneeId ? `Direct · ${person(item.directAssigneeId).name}` : 'Unassigned'} /></div><div className="border-t border-[hsl(var(--border))] px-5 py-4"><div className="mb-2 flex justify-between text-xs font-bold"><span>Overall progress</span><span>{item.progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#f8c329]" style={{ width: `${item.progress}%` }} /></div></div></Card><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Work hierarchy</div><h2 className="mt-1 text-lg font-black">Tasks and execution</h2></div>{canManage && <Button onClick={() => setTaskOpen(true)}><Plus className="size-4" />Assign task</Button>}</div><div>{relatedTasks.map((task) => <TaskRow key={task.id} actor={actor} task={task} onOpen={() => onOpen(item.id)} onUpdate={onUpdateTask} onStartTimer={onStartTimer} />)}{relatedTasks.length === 0 && <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No tasks assigned to you for this work item.</p>}</div></Card><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Conversation</div><h2 className="mt-1 text-lg font-black">Comments</h2></div><div className="divide-y divide-[hsl(var(--border))]">{comments.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="px-5 py-4"><div className="text-sm font-bold">{person(entry.authorId).name} <span className="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">{entry.createdAt}</span></div><p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{entry.message}</p></div>)}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) { onComment(comment.trim()); setComment(''); } }} className="flex gap-2 p-5"><input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add an operational comment..." className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none" /><Button type="submit" disabled={!comment.trim()}>Comment</Button></form></div></Card></div><div className="space-y-6"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Activity</div><h2 className="mt-1 text-lg font-black">History</h2></div><div className="p-5 space-y-4">{activities.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="flex gap-3"><div className={`mt-1 size-2 rounded-full ${entry.tone === 'warning' ? 'bg-red-500' : entry.tone === 'success' ? 'bg-emerald-500' : 'bg-[#f8c329]'}`} /><div><div className="text-sm"><span className="font-bold">{person(entry.actorId).name}</span> {entry.message}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{entry.createdAt}</div></div></div>)}</div></Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Responsibility chain</div><div className="mt-4 space-y-3 text-sm"><Chain label="Founder" value={person(item.founderId).name} /><Chain label="Manager" value={item.managerId ? person(item.managerId).name : 'Direct assignment'} /><Chain label="Team tasks" value={actor.role === 'Team member' ? `${relatedTasks.length} assigned to you` : `${relatedTasks.length} assigned`} /><Chain label="Time logged" value={hours(relatedTasks.reduce((sum, task) => sum + task.timeMinutes, 0))} /></div></Card></div></div>{taskOpen && <CreateTaskModal workId={item.id} onClose={() => setTaskOpen(false)} onCreate={(task) => { onAddTask(task); setTaskOpen(false); }} />}</>;
 }
 
 function TaskRow({ actor, task, onUpdate, onStartTimer }: { actor: Person; task: WorkTask; onOpen: () => void; onUpdate: (taskId: string, patch: Partial<WorkTask>, message: string) => void; onStartTimer: (taskId: string) => void }) {
@@ -309,9 +411,21 @@ function InsightsPage({ work, tasks }: { work: WorkItem[]; tasks: WorkTask[] }) 
   return <><SectionTitle eyebrow="Operational insights" title="Where is the team stuck?" description="Minimal, decision-oriented signals from work state, review flow, deadlines, and effort." /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Completion rate" value={`${Math.round((work.filter((item) => item.stage === 'Completed').length / Math.max(work.length, 1)) * 100)}%`} detail="Work items completed" tone="success" /><Metric label="In review" value={review} detail="Time waiting for review" tone="warning" /><Metric label="In revision" value={revision} detail="Revision loop active" tone="danger" /><Metric label="Overdue work" value={work.filter((item) => isOverdue(item.dueDate) && item.stage !== 'Completed').length} detail="Deadline has passed" tone="danger" /></div><Card className="mt-6 p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Stage flow</div><div className="mt-5 space-y-4">{(['Planning', 'Assigned', 'In Progress', 'Review', 'Revision', 'Approved', 'Completed', 'Blocked'] as Stage[]).map((stage) => { const count = work.filter((item) => item.stage === stage).length + tasks.filter((task) => task.stage === stage).length; return <div key={stage} className="flex items-center gap-3"><div className="w-28 text-sm font-semibold">{stage}</div><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#f8c329]" style={{ width: `${Math.min(100, count * 18)}%` }} /></div><div className="w-8 text-right text-sm font-bold">{count}</div></div>; })}</div></Card></>;
 }
 
-function Login({ onEnter }: { onEnter: (id: string) => void }) {
-  const [id, setId] = useState('maya');
-  return <div className="min-h-screen bg-[#101010] text-white"><div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]"><div className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '32px 32px' }} /><div className="relative flex items-center gap-3"><img src={LOGO_SRC} alt="Arka Media" className="h-16 w-auto max-w-[280px] object-contain object-left" /></div><div className="relative my-auto max-w-xl"><Badge className="border-white/20 bg-white/5 text-white/60">INTERNAL OPERATING SYSTEM</Badge><h1 className="mt-7 text-6xl font-black leading-[0.96] tracking-[-0.07em]">See the work.<br /><span className="text-[#f8c329]">Move Arka forward.</span></h1><p className="mt-8 max-w-lg text-lg leading-8 text-white/55">A role-based operating view of ownership, deadlines, effort, workload, review, and what needs attention.</p></div><div className="relative flex justify-between text-[10px] uppercase tracking-[0.12em] text-white/35"><span>Arka Digital Media · Demo</span><span>Designed and developed by Dhuruv</span></div></div><div className="flex items-center bg-[#f7f7f5] p-6 text-[#111] md:p-12"><div className="mx-auto w-full max-w-md"><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">Welcome to ARKA OS</div><h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.06em]">Enter your workspace.</h2><p className="mt-5 text-sm leading-6 text-black/55">Choose a demo identity to experience the distinct Founder, Manager, or Team Member operating view.</p><label className="mt-9 block text-xs font-bold uppercase tracking-wide text-black/55">Explore as<select value={id} onChange={(event) => setId(event.target.value)} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]">{runtimePeople.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.role}</option>)}</select></label><Button onClick={() => onEnter(id)}><span>Enter ARKA OS</span><ArrowRight className="size-4" /></Button><div className="mt-10 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.16em] text-black/35"><span className="h-px flex-1 bg-black/10" />Demo data<span className="h-px flex-1 bg-black/10" /></div><p className="mt-6 text-center text-xs leading-5 text-black/45">This preview uses local in-browser data. Supabase Auth, persistence, and RLS require a connected database.</p></div></div></div></div>;
+function Login({ onEnter }: { onEnter: (email: string, password: string) => Promise<boolean> }) {
+  const [email, setEmail] = useState('admin@arka.com');
+  const [password, setPassword] = useState('admin1234');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    const ok = await onEnter(email, password);
+    setLoading(false);
+    if (!ok) setError('Invalid email or password.');
+  };
+
+  return <div className="min-h-screen bg-[#101010] text-white"><div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]"><div className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '32px 32px' }} /><div className="relative flex items-center gap-3"><img src={LOGO_SRC} alt="Arka Media" className="h-16 w-auto max-w-[280px] object-contain object-left" /></div><div className="relative my-auto max-w-xl"><Badge className="border-white/20 bg-white/5 text-white/60">INTERNAL OPERATING SYSTEM</Badge><h1 className="mt-7 text-6xl font-black leading-[0.96] tracking-[-0.07em]">See the work.<br /><span className="text-[#f8c329]">Move Arka forward.</span></h1><p className="mt-8 max-w-lg text-lg leading-8 text-white/55">A role-based operating view of ownership, deadlines, effort, workload, review, and what needs attention.</p></div><div className="relative flex justify-between text-[10px] uppercase tracking-[0.12em] text-white/35"><span>Arka Digital Media</span><span>Designed and developed by Dhuruv</span></div></div><div className="flex items-center bg-[#f7f7f5] p-6 text-[#111] md:p-12"><div className="mx-auto w-full max-w-md"><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">Welcome to ARKA OS</div><h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.06em]">Enter your workspace.</h2><form className="mt-9 space-y-4" onSubmit={submit}><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Email<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="admin@arka.com" required /></label><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Password<input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="admin1234" required /></label>{error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</div>}<Button type="submit" disabled={loading}><span>{loading ? 'Entering...' : 'Enter ARKA OS'}</span><ArrowRight className="size-4" /></Button></form></div></div></div></div>;
 }
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
@@ -323,13 +437,132 @@ function Field({ label, value, onChange, placeholder, type = 'text', required = 
 }
 
 function AssignWorkModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: { title: string; description: string; client: string; workType: WorkType; priority: Priority; dueDate: string; assigneeId: string }) => void }) {
-  const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [client, setClient] = useState(''); const [workType, setWorkType] = useState<WorkType>('Website'); const [priority, setPriority] = useState<Priority>('Medium'); const [dueDate, setDueDate] = useState('2026-09-25'); const [assigneeId, setAssigneeId] = useState('priya');
-  return <Modal title="Assign new work" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ title, description, client, workType, priority, dueDate, assigneeId }); }} className="space-y-4"><Field label="Work title" value={title} onChange={setTitle} placeholder="e.g. ABC Website" required /><Field label="Description" value={description} onChange={setDescription} placeholder="What outcome is needed?" /><div className="grid gap-3 sm:grid-cols-2"><Field label="Client (optional)" value={client} onChange={setClient} placeholder="Client name" /><Field label="Deadline" type="date" value={dueDate} onChange={setDueDate} required /></div><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Work type" value={workType} onChange={(value) => setWorkType(value as WorkType)} options={['Website', 'SEO', 'Graphic Design', 'Internal', 'Other']} /><SelectField label="Priority" value={priority} onChange={(value) => setPriority(value as Priority)} options={['Low', 'Medium', 'High', 'Urgent']} /></div><SelectField label="Assign to Manager or Team Member" value={assigneeId} onChange={setAssigneeId} options={getAssignablePeople(runtimePeople).map((item) => item.id)} labels={Object.fromEntries(runtimePeople.map((item) => [item.id, `${item.name} · ${item.role}`]))} /><div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!title.trim()}>Create assignment</Button></div></form></Modal>;
+  const assignable = getAssignablePeople(runtimePeople);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [client, setClient] = useState('');
+  const [workType, setWorkType] = useState<WorkType>('Website');
+  const [priority, setPriority] = useState<Priority>('Medium');
+  const [dueDate, setDueDate] = useState('2026-09-25');
+  const [assigneeId, setAssigneeId] = useState(() => assignable[0]?.id || '');
+
+  useEffect(() => {
+    if (!assigneeId && assignable.length > 0) {
+      setAssigneeId(assignable[0].id);
+    }
+  }, [assignable, assigneeId]);
+
+  return (
+    <Modal title="Assign new work (Founder)" onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!assigneeId) return;
+          onCreate({ title, description, client, workType, priority, dueDate, assigneeId });
+        }}
+        className="space-y-4"
+      >
+        <Field label="Work title" value={title} onChange={setTitle} placeholder="e.g. ABC Website Redesign" required />
+        <Field label="Description" value={description} onChange={setDescription} placeholder="What outcome is needed?" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Client (optional)" value={client} onChange={setClient} placeholder="Client name" />
+          <Field label="Deadline" type="date" value={dueDate} onChange={setDueDate} required />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SelectField label="Work type" value={workType} onChange={(value) => setWorkType(value as WorkType)} options={['Website', 'SEO', 'Graphic Design', 'Internal', 'Other']} />
+          <SelectField label="Priority" value={priority} onChange={(value) => setPriority(value as Priority)} options={['Low', 'Medium', 'High', 'Urgent']} />
+        </div>
+        {assignable.length === 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <strong>No employees found:</strong> Add a Manager or Team member in the People directory first.
+          </div>
+        ) : (
+          <SelectField
+            label="Assign to Manager or Team Member"
+            value={assigneeId}
+            onChange={setAssigneeId}
+            options={assignable.map((item) => item.id)}
+            labels={Object.fromEntries(assignable.map((item) => [item.id, `${item.name} (${item.role})`]))}
+          />
+        )}
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!title.trim() || !assigneeId}>Create assignment</Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
-function CreateTaskModal({ workId: _workId, onClose, onCreate }: { workId: string; onClose: () => void; onCreate: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void }) {
-  const [title, setTitle] = useState(''); const [instructions, setInstructions] = useState(''); const [assigneeId, setAssigneeId] = useState('rahul'); const [dueDate, setDueDate] = useState('2026-09-20'); const [priority, setPriority] = useState<Priority>('Medium'); const [estimatedMinutes, setEstimatedMinutes] = useState('240');
-  return <Modal title="Assign task to team" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ workId: _workId, title, instructions, assigneeId, dueDate, priority, estimatedMinutes: Number(estimatedMinutes) || 0 }); }} className="space-y-4"><Field label="Task" value={title} onChange={setTitle} placeholder="e.g. Mobile optimization" required /><Field label="Instructions" value={instructions} onChange={setInstructions} placeholder="What should the team member deliver?" /><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Team member" value={assigneeId} onChange={setAssigneeId} options={getAssignablePeople(runtimePeople, 'Team member').map((item) => item.id)} labels={Object.fromEntries(runtimePeople.map((item) => [item.id, item.name]))} /><Field label="Deadline" type="date" value={dueDate} onChange={setDueDate} required /></div><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Priority" value={priority} onChange={(value) => setPriority(value as Priority)} options={['Low', 'Medium', 'High', 'Urgent']} /><Field label="Estimated minutes" type="number" value={estimatedMinutes} onChange={setEstimatedMinutes} /></div><div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!title.trim()}>Assign task</Button></div></form></Modal>;
+function CreateTaskModal({ workId: initialWorkId, workList = [], onClose, onCreate }: { workId?: string; workList?: WorkItem[]; onClose: () => void; onCreate: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void }) {
+  const [workId, setWorkId] = useState(initialWorkId || workList[0]?.id || '');
+  const [title, setTitle] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const assignable = getAssignablePeople(runtimePeople);
+  const [assigneeId, setAssigneeId] = useState(() => assignable[0]?.id || '');
+  const [dueDate, setDueDate] = useState('2026-09-20');
+  const [priority, setPriority] = useState<Priority>('Medium');
+  const [estimatedMinutes, setEstimatedMinutes] = useState('240');
+
+  useEffect(() => {
+    if (!assigneeId && assignable.length > 0) setAssigneeId(assignable[0].id);
+    if (!workId && workList.length > 0) setWorkId(workList[0].id);
+  }, [assignable, assigneeId, workId, workList]);
+
+  return (
+    <Modal title="Assign task to team member" onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!workId || !assigneeId) return;
+          onCreate({ workId, title, instructions, assigneeId, dueDate, priority, estimatedMinutes: Number(estimatedMinutes) || 0 });
+          onClose();
+        }}
+        className="space-y-4"
+      >
+        {!initialWorkId && workList.length > 0 && (
+          <SelectField
+            label="Work Item / Project"
+            value={workId}
+            onChange={setWorkId}
+            options={workList.map((w) => w.id)}
+            labels={Object.fromEntries(workList.map((w) => [w.id, `${w.title} (${w.workType})`]))}
+          />
+        )}
+        {!initialWorkId && workList.length === 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <strong>No active work projects:</strong> Create a work assignment first from Company Work / Dashboard before assigning tasks.
+          </div>
+        )}
+        <Field label="Task title" value={title} onChange={setTitle} placeholder="e.g. Mobile optimization & CSS" required />
+        <Field label="Instructions" value={instructions} onChange={setInstructions} placeholder="What should the team member deliver?" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {assignable.length === 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              No team members available. Add a team member in the People directory first.
+            </div>
+          ) : (
+            <SelectField
+              label="Team member"
+              value={assigneeId}
+              onChange={setAssigneeId}
+              options={assignable.map((item) => item.id)}
+              labels={Object.fromEntries(assignable.map((item) => [item.id, `${item.name} (${item.role})`]))}
+            />
+          )}
+          <Field label="Deadline" type="date" value={dueDate} onChange={setDueDate} required />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SelectField label="Priority" value={priority} onChange={(value) => setPriority(value as Priority)} options={['Low', 'Medium', 'High', 'Urgent']} />
+          <Field label="Estimated minutes" type="number" value={estimatedMinutes} onChange={setEstimatedMinutes} />
+        </div>
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!title.trim() || !assigneeId || !workId}>Assign task</Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function ReportModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: Omit<ManagerReport, 'id' | 'managerId' | 'status' | 'createdAt'>) => void }) {
@@ -345,31 +578,183 @@ function Info({ label, value, valueClass = '' }: { label: string; value: string;
 function Chain({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] pb-3 last:border-0 last:pb-0"><span className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{label}</span><span className="text-right text-sm font-bold">{value}</span></div>; }
 function ReportBlock({ title, value }: { title: string; value: string }) { return <div className="rounded-xl bg-[#fafaf8] p-4"><div className="text-xs font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{title}</div><p className="mt-2 text-sm leading-6">{value || 'Not provided'}</p></div>; }
 
-function PeoplePage({ people, onAdd }: { people: Person[]; onAdd: (data: { name: string; email: string; role: Role; managerId: string | null; department: string }) => void }) {
-  const [open, setOpen] = useState(false);
-  return <><SectionTitle eyebrow="Team / people management" title="People" description="The Founder manages the organization directory and reporting relationships. New people are immediately available for work assignment in this demo." action={<Button onClick={() => setOpen(true)}><UserPlus className="size-4" />Add employee</Button>} /><Card><div className="grid grid-cols-[1.4fr_0.8fr_0.9fr_1fr_0.6fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Person</span><span>Role</span><span>Manager</span><span>Presence</span><span>Status</span></div>{people.filter((item) => item.role !== 'Founder').map((item) => <div key={item.id} className="grid grid-cols-[1.4fr_0.8fr_0.9fr_1fr_0.6fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><div><div className="font-bold">{item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{item.title}</div></div><span>{item.role}</span><span>{item.managerId ? person(item.managerId).name : 'Organization'}</span><span className="flex items-center gap-2"><span className={`size-2 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />{item.presence}</span><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">Active</Badge></div>)}</Card>{open && <EmployeeModal people={people} onClose={() => setOpen(false)} onCreate={(data) => { onAdd(data); setOpen(false); }} />}</>;
+function ChangePasswordModal({ targetPerson, onClose, onSave }: { targetPerson: Person; onClose: () => void; onSave: (newPassword: string) => void }) {
+  const [newPassword, setNewPassword] = useState('');
+  return (
+    <Modal title={`Set Password for ${targetPerson.name}`} onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); if (newPassword.trim()) { onSave(newPassword.trim()); onClose(); } }} className="space-y-4">
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[#fafaf8] p-3 text-xs text-[hsl(var(--muted-foreground))]">
+          <strong>Employee:</strong> {targetPerson.name} ({targetPerson.email || targetPerson.id})
+        </div>
+        <Field label="New Login Password" value={newPassword} onChange={setNewPassword} placeholder="Enter new password (e.g. employee123)" required />
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!newPassword.trim()}>Save Password</Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
-function AttendancePage({ actor, people, tasks, leaves }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[] }) {
+function ConfirmDeleteModal({ targetPerson, onClose, onConfirm }: { targetPerson: Person; onClose: () => void; onConfirm: () => Promise<void> | void }) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <Modal title={`Delete Employee: ${targetPerson.name}`} onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+          Are you sure you want to permanently delete <strong className="text-[hsl(var(--foreground))]">{targetPerson.name}</strong> ({targetPerson.email || targetPerson.id})?
+        </p>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 leading-relaxed">
+          <strong>Database Removal:</strong> This employee's user record, login access, attendance sessions, and task assignments will be deleted from the database.
+        </div>
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition disabled:opacity-50"
+            onClick={async () => {
+              setLoading(true);
+              await onConfirm();
+              setLoading(false);
+              onClose();
+            }}
+            disabled={loading}
+          >
+            {loading ? 'Deleting...' : 'Delete Employee'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function PeoplePage({ people, onAdd, onUpdatePassword, onDeletePerson }: { people: Person[]; onAdd: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void; onUpdatePassword: (personId: string, newPass: string) => void; onDeletePerson?: (personId: string) => Promise<void> | void }) {
+  const [open, setOpen] = useState(false);
+  const [passwordTarget, setPasswordTarget] = useState<Person | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
+
+  return (
+    <>
+      <SectionTitle
+        eyebrow="Team / people management"
+        title="People"
+        description="The Founder manages the organization directory, reporting relationships, employee login credentials, and removals."
+        action={<Button onClick={() => setOpen(true)}><UserPlus className="size-4" />Add employee</Button>}
+      />
+      <Card>
+        <div className="grid grid-cols-[1.1fr_0.6fr_0.6fr_0.9fr_0.5fr_1.3fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
+          <span>Person / Email</span>
+          <span>Role</span>
+          <span>Manager</span>
+          <span>Last Login</span>
+          <span>Presence</span>
+          <span className="text-right">Action</span>
+        </div>
+        {people.map((item) => (
+          <div key={item.id} className="grid grid-cols-[1.1fr_0.6fr_0.6fr_0.9fr_0.5fr_1.3fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0">
+            <div>
+              <div className="font-bold">{item.name}</div>
+              <div className="text-xs text-[hsl(var(--muted-foreground))] font-mono">{item.email || item.id}</div>
+            </div>
+            <span><Badge className={item.role === 'Founder' ? 'border-amber-200 bg-amber-50 text-amber-800' : item.role === 'Manager' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-700'}>{item.role}</Badge></span>
+            <span>{item.managerId ? person(item.managerId).name : (item.role === 'Founder' ? 'Head of Organization' : 'Organization')}</span>
+            <div>
+              <div className="text-xs font-semibold text-[hsl(var(--foreground))]">{formatTimestamp(item.loginAt)}</div>
+              {item.logoutAt && <div className="text-[10px] text-[hsl(var(--muted-foreground))]">Out: {formatTimestamp(item.logoutAt)}</div>}
+            </div>
+            <span className="flex items-center gap-2">
+              <span className={`size-2 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : item.presence === 'Break' || item.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-300'}`} />
+              {item.presence}
+            </span>
+            <div className="flex justify-end items-center gap-2">
+              <Button variant="secondary" onClick={() => setPasswordTarget(item)}>
+                <Lock className="size-3.5" />
+                Change Password
+              </Button>
+              {item.role !== 'Founder' && onDeletePerson && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(item)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/60 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition"
+                  title="Delete employee from database"
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </Card>
+      {open && <EmployeeModal people={people} onClose={() => setOpen(false)} onCreate={(data) => { onAdd(data); setOpen(false); }} />}
+      {passwordTarget && <ChangePasswordModal targetPerson={passwordTarget} onClose={() => setPasswordTarget(null)} onSave={(newPass) => onUpdatePassword(passwordTarget.id, newPass)} />}
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          targetPerson={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={async () => {
+            if (onDeletePerson) await onDeletePerson(deleteTarget.id);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function AttendancePage({ actor, people, tasks, leaves, sessions = [] }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[]; sessions?: SessionRecord[] }) {
   const [period, setPeriod] = useState('Today');
   const [selectedDate, setSelectedDate] = useState(TODAY);
   const [roleFilter, setRoleFilter] = useState<'All' | 'Manager' | 'Team member'>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const navigateDate = (dir: -1 | 1) => { const d = new Date(`${selectedDate}T12:00:00`); d.setDate(d.getDate() + dir); setSelectedDate(d.toISOString().slice(0, 10)); setPeriod('Custom date'); setExpandedId(null); };
   const scope = getAttendanceScope(actor, people);
   const filteredPeople = scope.filter((item) => roleFilter === 'All' || item.role === roleFilter);
-  const sessionsFor = (userId: string) => initialSessions.filter((session) => session.userId === userId && session.date === selectedDate);
+  const sessionsFor = (userId: string) => sessions.filter((session) => session.userId === userId && session.date === selectedDate);
   const leaveFor = (userId: string) => leaves.find((leave) => leave.userId === userId && isApprovedLeaveActiveOnDate(leave, selectedDate));
   const taskMinutesFor = (item: Person) => { const taskRows = tasks.filter((task) => task.assigneeId === item.id); return taskRows.length ? taskRows.reduce((sum, task) => sum + task.timeMinutes, 0) : item.taskMinutes || 0; };
-  const rows = filteredPeople.map((item) => { const sessions = sessionsFor(item.id); const leave = leaveFor(item.id); const total = sessions.reduce((sum, session) => sum + session.durationMinutes, 0); const open = sessions.some((session) => !session.logoutAt); return { item, sessions, leave, total, taskMinutes: taskMinutesFor(item), status: leave ? 'ON LEAVE' : sessions.length === 0 ? 'NO LOGIN' : open ? 'ACTIVE' : 'PRESENT' }; });
+  const rows = filteredPeople.map((item) => { const sess = sessionsFor(item.id); const leave = leaveFor(item.id); const total = sess.reduce((sum, s) => sum + s.durationMinutes, 0); const open = sess.some((s) => !s.logoutAt); return { item, sessions: sess, leave, total, taskMinutes: taskMinutesFor(item), status: leave ? 'ON LEAVE' : sess.length === 0 ? 'NO LOGIN' : open ? 'ACTIVE' : 'PRESENT' }; });
   const totalSession = rows.reduce((sum, row) => sum + row.total, 0);
   const totalTask = rows.reduce((sum, row) => sum + row.taskMinutes, 0);
   const exportCsv = () => { const header = 'Date,Employee,Role,First Login,Last Logout,Total Session Time,Task Time,Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
   const changePeriod = (value: string) => { setPeriod(value); if (value === 'Yesterday') setSelectedDate('2026-09-14'); else setSelectedDate(TODAY); };
-  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'} title={`Attendance — ${formatDate(selectedDate)}`} description="Session presence and task time are separate signals. Every visible employee remains in the table, including no-login and approved leave records." action={<div className="flex flex-wrap gap-2"><select value={period} onChange={(event) => changePeriod(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm font-semibold outline-none"><option>Today</option><option>Yesterday</option><option>This Week</option><option>This Month</option><option>Custom date</option></select>{period === 'Custom date' && <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm outline-none" />}<Button variant="secondary" onClick={exportCsv}>Export CSV</Button><Button variant="secondary" onClick={() => window.print()}>Print</Button></div>} /><div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Total employees" value={rows.length} detail="Complete visible scope" /><Metric label="Logged in" value={rows.filter((row) => row.sessions.length > 0).length} detail="Have a session record" /><Metric label="Not logged in" value={rows.filter((row) => row.sessions.length === 0 && !row.leave).length} detail="Still represented in table" /><Metric label="On leave" value={rows.filter((row) => row.leave).length} detail="Approved leave" tone="warning" /><Metric label="Session / task time" value={`${hours(totalSession)} / ${hours(totalTask)}`} detail="Separate measurements" /></div><div className="mb-4 flex flex-wrap gap-2"><Button variant={roleFilter === 'All' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('All')}>All</Button><Button variant={roleFilter === 'Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Manager')}>Managers</Button><Button variant={roleFilter === 'Team member' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Team member')}>Team Members</Button></div><Card><div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid"><span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span></div>{rows.map((row) => <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0"><button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]"><div><div className="font-bold">{row.item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div></div><span className="text-sm">{row.item.role}</span><span className="text-sm">{row.leave ? '—' : row.sessions[0]?.loginAt || '—'}</span><span className="text-sm">{row.leave ? '—' : row.sessions.at(-1)?.logoutAt || '—'}</span><span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span><span className="text-sm">{hours(row.taskMinutes)}</span><Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>{row.status}</Badge></button>{expandedId === row.item.id && <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />}</div>)}{rows.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No employees in this scope.</p>}</Card></>;
+  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'} title={`Attendance — ${formatDate(selectedDate)}`} description="Session presence and task time are separate signals. Every visible employee remains in the table, including no-login and approved leave records." action={<div className="flex flex-wrap items-center gap-2"><button onClick={() => navigateDate(-1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowLeft className="size-4" /></button><button onClick={() => navigateDate(1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowRight className="size-4" /></button><select value={period} onChange={(event) => changePeriod(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm font-semibold outline-none"><option>Today</option><option>Yesterday</option><option>This Week</option><option>This Month</option><option>Custom date</option></select>{period === 'Custom date' && <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm outline-none" />}<Button variant="secondary" onClick={exportCsv}>Export CSV</Button><Button variant="secondary" onClick={() => window.print()}>Print</Button></div>} /><div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Total employees" value={rows.length} detail="Complete visible scope" /><Metric label="Logged in" value={rows.filter((row) => row.sessions.length > 0).length} detail="Have a session record" /><Metric label="Not logged in" value={rows.filter((row) => row.sessions.length === 0 && !row.leave).length} detail="Still represented in table" /><Metric label="On leave" value={rows.filter((row) => row.leave).length} detail="Approved leave" tone="warning" /><Metric label="Session / task time" value={`${hours(totalSession)} / ${hours(totalTask)}`} detail="Separate measurements" /></div><div className="mb-4 flex flex-wrap gap-2"><Button variant={roleFilter === 'All' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('All')}>All</Button><Button variant={roleFilter === 'Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Manager')}>Managers</Button><Button variant={roleFilter === 'Team member' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Team member')}>Team Members</Button></div><Card><div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid"><span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span></div>{rows.map((row) => <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0"><button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]"><div><div className="font-bold">{row.item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div></div><span className="text-sm">{row.item.role}</span><span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span><span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions.at(-1)?.logoutAt)}</span><span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span><span className="text-sm">{hours(row.taskMinutes)}</span><Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>{row.status}</Badge></button>{expandedId === row.item.id && <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />}</div>)}{rows.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No employees in this scope.</p>}</Card><WeeklyAttendanceGrid filteredPeople={filteredPeople} onSelectDate={(d: string) => { setSelectedDate(d); setPeriod('Custom date'); setExpandedId(null); }} leaves={leaves} sessions={sessions} /></>;
 }
 
 function AttendanceDetail({ item, sessions, tasks, leave, selectedDate, total, taskMinutes }: { item: Person; sessions: SessionRecord[]; tasks: WorkTask[]; leave?: LeaveRequest; selectedDate: string; total: number; taskMinutes: number }) {
-  return <div className="grid gap-5 border-t border-[hsl(var(--border))] bg-[#fafaf8] p-5 lg:grid-cols-[1fr_1fr_0.8fr]"><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Session history</div><div className="mt-3 space-y-2">{sessions.length ? sessions.map((session) => <div key={session.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm"><div className="flex justify-between gap-3 font-semibold"><span>{session.loginAt} → {session.logoutAt || 'Open session'}</span><span>{hours(session.durationMinutes)}</span></div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{selectedDate}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No login record for this date.</p>}</div><div className="mt-3 text-sm font-bold">Total session time: {hours(total)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Task / work time</div><div className="mt-3 space-y-2">{tasks.length ? tasks.map((task) => <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3"><div className="text-sm font-semibold">{task.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{task.stage} · {hours(task.timeMinutes)}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No task time recorded.</p>}</div><div className="mt-3 text-sm font-bold">Total task time: {hours(taskMinutes)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Daily summary</div><div className="mt-3 space-y-3"><Chain label="Employee" value={item.name} /><Chain label="Role" value={item.role} /><Chain label="Leave" value={leave ? `${leave.status} · ${leave.leaveType}` : '—'} /><Chain label="Last activity" value={item.lastActiveAt} /></div></div></div>;
+  return <div className="grid gap-5 border-t border-[hsl(var(--border))] bg-[#fafaf8] p-5 lg:grid-cols-[1fr_1fr_0.8fr]"><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Session history</div><div className="mt-3 space-y-2">{sessions.length ? sessions.map((session) => <div key={session.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm"><div className="flex justify-between gap-3 font-semibold"><span>{formatTimestamp(session.loginAt)} → {session.logoutAt ? formatTimestamp(session.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</span><span>{hours(session.durationMinutes)}</span></div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{selectedDate}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No login record for this date.</p>}</div><div className="mt-3 text-sm font-bold">Total session time: {hours(total)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Task / work time</div><div className="mt-3 space-y-2">{tasks.length ? tasks.map((task) => <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3"><div className="text-sm font-semibold">{task.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{task.stage} · {hours(task.timeMinutes)}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No task time recorded.</p>}</div><div className="mt-3 text-sm font-bold">Total task time: {hours(taskMinutes)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Daily summary</div><div className="mt-3 space-y-3"><Chain label="Employee" value={item.name} /><Chain label="Role" value={item.role} /><Chain label="Leave" value={leave ? `${leave.status} · ${leave.leaveType}` : '—'} /><Chain label="Last activity" value={item.lastActiveAt} /></div></div></div>;
+}
+
+function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions = [] }: { filteredPeople: Person[]; onSelectDate: (date: string) => void; leaves: LeaveRequest[]; sessions?: SessionRecord[] }) {
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weekStart = (() => { const d = new Date(`${TODAY}T12:00:00`); const dow = d.getDay(); d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1)); return d; })();
+  const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d.toISOString().slice(0, 10); });
+  return <Card className="mt-6">
+    <div className="border-b border-[hsl(var(--border))] px-5 py-4">
+      <div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Weekly breakdown</div>
+      <h2 className="mt-1 text-lg font-black">Daily Time Log — Week of {formatDate(dates[0])}</h2>
+      <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Click any cell to view that day's detailed attendance. Each session login → logout is shown.</p>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[hsl(var(--border))]">
+            <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))]">Employee</th>
+            {dates.map((d) => { const dt = new Date(`${d}T12:00:00`); const isCurrent = d === TODAY; return <th key={d} onClick={() => onSelectDate(d)} className={`px-2 py-3 text-center text-[10px] font-bold uppercase tracking-[0.1em] cursor-pointer hover:text-[hsl(var(--primary))] transition ${isCurrent ? 'bg-amber-50 text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`}><div>{dayLabels[dt.getDay()]}</div><div className="mt-0.5 text-xs font-black">{dt.getDate()}</div></th>; })}
+            <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--primary))]">Week Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[hsl(var(--border))]">
+          {filteredPeople.map((p) => { let weekTotal = 0; return <tr key={p.id} className="hover:bg-[#fafaf8]">
+            <td className="px-4 py-3"><div className="font-bold">{p.name}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">{p.role}</div></td>
+            {dates.map((d) => { const daySessions = sessions.filter((s) => s.userId === p.id && s.date === d); const dayTotal = daySessions.reduce((sum, s) => sum + s.durationMinutes, 0); weekTotal += dayTotal; const leave = leaves.find((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, d)); const isWeekend = [0, 6].includes(new Date(`${d}T12:00:00`).getDay()); const isCurrent = d === TODAY; return <td key={d} onClick={() => onSelectDate(d)} className={`px-2 py-2 text-center cursor-pointer transition hover:bg-amber-50/60 ${isCurrent ? 'bg-amber-50/40' : ''}`}>{leave ? <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">Leave</span> : dayTotal > 0 ? <div><div className="text-sm font-black">{hours(dayTotal)}</div><div className="mt-1 space-y-0.5">{daySessions.map((s) => <div key={s.id} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">{formatTimestamp(s.loginAt)} → {s.logoutAt ? formatTimestamp(s.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</div>)}</div></div> : isWeekend ? <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Weekend</span> : <span className="text-[10px] font-bold text-red-400">No Login</span>}</td>; })}
+            <td className="px-4 py-3 text-center"><div className="text-lg font-black text-[hsl(var(--primary))]">{hours(weekTotal)}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">{Math.round(weekTotal / 60 * 10) / 10} hrs</div></td>
+          </tr>; })}
+        </tbody>
+      </table>
+    </div>
+  </Card>;
 }
 
 function LeavePage({ actor, people, leaves, onApply, onDecision }: { actor: Person; people: Person[]; leaves: LeaveRequest[]; onApply: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void; onDecision: (id: string, status: LeaveStatus) => void }) {
@@ -377,12 +762,46 @@ function LeavePage({ actor, people, leaves, onApply, onDecision }: { actor: Pers
   const visiblePeople = getVisiblePeopleForRole(actor, people);
   const visible = leaves.filter((leave) => visiblePeople.some((item) => item.id === leave.userId));
   const pending = visible.filter((leave) => leave.status === 'Pending').length;
-  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'} title={actor.role === 'Founder' ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'} description={actor.role === 'Founder' ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'} action={actor.role !== 'Founder' && <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave</Button>} /><div className="mb-5 grid gap-3 sm:grid-cols-3"><Metric label="Pending" value={pending} detail="Awaiting Founder decision" tone={pending ? 'warning' : 'default'} /><Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" /><Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future leave" /></div><Card>{visible.map((leave) => { const employee = person(leave.userId); return <div key={leave.id} className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0"><div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CalendarDays className="size-5" /></div><div className="min-w-[200px] flex-1"><div className="font-bold">{employee.name}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{employee.role} · {leave.leaveType} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}</div></div><div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--muted-foreground))]">{leave.reason}</div><Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>{leave.status}</Badge>{actor.role === 'Founder' && leave.status === 'Pending' && <div className="flex gap-2"><Button onClick={() => onDecision(leave.id, 'Approved')}><Check className="size-4" />Approve</Button><Button variant="secondary" onClick={() => onDecision(leave.id, 'Rejected')}>Reject</Button></div>}</div>; })}{visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No leave applications in this scope.</p>}</Card>{open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}</>;
+  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'} title={actor.role === 'Founder' ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'} description={actor.role === 'Founder' ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'} action={actor.role !== 'Founder' && <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave</Button>} /><div className="mb-5 grid gap-3 sm:grid-cols-3"><Metric label="Pending" value={pending} detail="Awaiting Founder decision" tone={pending ? 'warning' : 'default'} /><Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" /><Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future leave" /></div><Card>{visible.map((leave) => { const employee = person(leave.userId); return <div key={leave.id} className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0"><div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CalendarDays className="size-5" /></div><div className="min-w-[200px] flex-1"><div className="font-bold">{employee.name}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{employee.role} · {leave.leaveType} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}</div></div><div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--muted-foreground))]">{leave.reason}</div><Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>{leave.status}</Badge>{(actor.role === 'Founder' || (actor.role === 'Manager' && person(leave.userId).managerId === actor.id)) && leave.status === 'Pending' && <div className="flex gap-2"><Button onClick={() => onDecision(leave.id, 'Approved')}><Check className="size-4" />Approve</Button><Button variant="secondary" onClick={() => onDecision(leave.id, 'Rejected')}>Reject</Button></div>}</div>; })}{visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No leave applications in this scope.</p>}</Card>{open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}</>;
 }
 
-function EmployeeModal({ people, onClose, onCreate }: { people: Person[]; onClose: () => void; onCreate: (data: { name: string; email: string; role: Role; managerId: string | null; department: string }) => void }) {
-  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [role, setRole] = useState<Role>('Team member'); const [managerId, setManagerId] = useState('priya'); const [department, setDepartment] = useState('');
-  return <Modal title="Add employee" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ name, email, role, managerId: role === 'Team member' ? managerId : null, department }); }} className="space-y-4"><Field label="Full name" value={name} onChange={setName} placeholder="Employee name" required /><Field label="Email" value={email} onChange={setEmail} type="email" placeholder="name@arkadigitalmedia.com" required /><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Role" value={role} onChange={(value) => setRole(value as Role)} options={['Manager', 'Team member']} /><Field label="Department" value={department} onChange={setDepartment} placeholder="e.g. Design" /></div>{role === 'Team member' && <SelectField label="Manager" value={managerId} onChange={setManagerId} options={people.filter((item) => item.role === 'Manager').map((item) => item.id)} labels={Object.fromEntries(people.map((item) => [item.id, item.name]))} /> }<div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!name.trim() || !email.trim()}>Add employee</Button></div></form></Modal>;
+function EmployeeModal({ people, onClose, onCreate }: { people: Person[]; onClose: () => void; onCreate: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>('Team member');
+  const [managerId, setManagerId] = useState(() => people.find((item) => item.role === 'Manager')?.id || people.find((item) => item.role === 'Founder')?.id || '');
+  const [department, setDepartment] = useState('');
+
+  return (
+    <Modal title="Add employee" onClose={onClose}>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        onCreate({ name, email, password: password.trim() || '1234', role, managerId: role === 'Team member' ? (managerId || null) : null, department });
+      }} className="space-y-4">
+        <Field label="Full name" value={name} onChange={setName} placeholder="Employee name (e.g. Dhuruv)" required />
+        <Field label="Email (Login ID)" value={email} onChange={setEmail} type="email" placeholder="name@arkamedia.com" required />
+        <Field label="Login Password" value={password} onChange={setPassword} placeholder="Set login password for this employee" required />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SelectField label="Role" value={role} onChange={(value) => setRole(value as Role)} options={['Manager', 'Team member']} />
+          <Field label="Department" value={department} onChange={setDepartment} placeholder="e.g. Design, Operations" />
+        </div>
+        {role === 'Team member' && (
+          <SelectField
+            label="Manager"
+            value={managerId}
+            onChange={setManagerId}
+            options={people.filter((item) => item.role === 'Manager' || item.role === 'Founder').map((item) => item.id)}
+            labels={Object.fromEntries(people.map((item) => [item.id, `${item.name} (${item.role})`]))}
+          />
+        )}
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!name.trim() || !email.trim() || !password.trim()}>Add employee</Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function LeaveModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void }) {
@@ -393,7 +812,7 @@ function LeaveModal({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
 function AppRouter() {
   const [location, setLocation] = useLocation();
   const [signedIn, setSignedIn] = useState(false);
-  const [actorId, setActorId] = useState('maya');
+  const [actorId, setActorId] = useState('usr_founder');
   const [directory, setDirectory] = useState(initialPeople);
   const [work, setWork] = useState(initialWork);
   const [tasks, setTasks] = useState(initialTasks);
@@ -401,27 +820,278 @@ function AppRouter() {
   const [comments, setComments] = useState(initialComments);
   const [reports, setReports] = useState(initialReports);
   const [leaves, setLeaves] = useState(initialLeaves);
+  const [sessions, setSessions] = useState<SessionRecord[]>(initialSessions);
   const [createOpen, setCreateOpen] = useState(false);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions);
+    void refresh();
+    const timer = setInterval(refresh, 1500);
+    const heartbeatTimer = setInterval(() => { if (signedIn) apiPost('/auth/heartbeat', {}).catch(() => {}); }, 60000);
+    return () => { clearInterval(timer); clearInterval(heartbeatTimer); };
+  }, [signedIn]);
+
   runtimePeople = directory;
   const actor = person(actorId);
   const selectedId = location.startsWith('/work/') ? location.split('/')[2] : null;
   const selected = selectedId ? work.find((item) => item.id === selectedId) : null;
   const scopeWork = useMemo(() => actor.role === 'Founder' ? work : actor.role === 'Manager' ? work.filter((item) => item.managerId === actor.id || tasks.some((task) => task.workId === item.id && person(task.assigneeId).managerId === actor.id)) : work.filter((item) => tasks.some((task) => task.workId === item.id && task.assigneeId === actor.id) || item.directAssigneeId === actor.id), [actor, work, tasks]);
   const scopePeople = actor.role === 'Founder' ? runtimePeople : actor.role === 'Manager' ? runtimePeople.filter((item) => item.id === actor.id || item.managerId === actor.id) : [actor];
-  const addActivity = (workId: string, message: string, tone: Activity['tone'] = 'normal') => setActivities((all) => [{ id: `activity-${Date.now()}`, workId, actorId: actor.id, message, createdAt: 'Just now', tone }, ...all]);
+  const scopeTasks = useMemo(() => {
+    if (actor.role === 'Founder') return tasks;
+    if (actor.role === 'Manager') {
+      return tasks.filter((task) => {
+        const assignee = person(task.assigneeId);
+        return task.assigneeId === actor.id || assignee.managerId === actor.id;
+      });
+    }
+    // Team member strictly only sees tasks assigned to themselves
+    return tasks.filter((task) => task.assigneeId === actor.id);
+  }, [actor, tasks]);
+  const addActivity = async (workId: string, message: string, tone: Activity['tone'] = 'normal') => { 
+    try {
+      const res = await apiPost<{item: Activity}>('/activities', { workId, actorId: actor.id, message, tone });
+      setActivities((all) => [res.item, ...all]);
+    } catch (err) { console.error(err); }
+  };
   const openWork = (id: string) => setLocation(`/work/${id}`);
-  const updateTask = (taskId: string, patch: Partial<WorkTask>, message: string) => { const existing = tasks.find((task) => task.id === taskId); if (!existing) return; setTasks((all) => all.map((task) => task.id === taskId ? { ...task, ...patch } : task)); addActivity(existing.workId, `${message} on ${existing.title}`, patch.stage === 'Revision' ? 'warning' : patch.stage === 'Approved' ? 'success' : 'normal'); };
-  const addTask = (data: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => { const task: WorkTask = { ...data, id: `task-${Date.now()}`, stage: 'Assigned', progress: 0, timeMinutes: 0 }; setTasks((all) => [...all, task]); addActivity(data.workId, `assigned ${data.title} to ${person(data.assigneeId).name}`); };
-  const addComment = (workId: string, message: string) => setComments((all) => [...all, { id: `comment-${Date.now()}`, workId, authorId: actor.id, message, createdAt: 'Just now' }]);
-  const createWork = (data: { title: string; description: string; client: string; workType: WorkType; priority: Priority; dueDate: string; assigneeId: string }) => { const assignee = person(data.assigneeId); const id = `work-${Date.now()}`; const item: WorkItem = { id, title: data.title, description: data.description || 'New operational work assigned from the command center.', client: data.client || undefined, workType: data.workType, priority: data.priority, dueDate: data.dueDate, founderId: actor.id, managerId: assignee.role === 'Manager' ? assignee.id : assignee.managerId, directAssigneeId: assignee.role === 'Team member' ? assignee.id : undefined, stage: assignee.role === 'Manager' ? 'Planning' : 'Assigned', progress: 5, createdAt: TODAY }; setWork((all) => [item, ...all]); if (assignee.role === 'Team member') setTasks((all) => [...all, { id: `task-${Date.now() + 1}`, workId: id, title: data.title, instructions: data.description || 'Complete the assigned work and submit it for review.', assigneeId: assignee.id, dueDate: data.dueDate, priority: data.priority, stage: 'Assigned', progress: 0, timeMinutes: 0, estimatedMinutes: 240 }]); setCreateOpen(false); addActivity(id, `assigned ${data.title} to ${assignee.name}`, 'success'); openWork(id); };
-  const submitReport = (data: Omit<ManagerReport, 'id' | 'managerId' | 'status' | 'createdAt'>) => setReports((all) => [{ ...data, id: `report-${Date.now()}`, managerId: actor.id, status: 'Submitted', createdAt: 'Just now' }, ...all]);
-  const addPerson = (data: { name: string; email: string; role: Role; managerId: string | null; department: string }) => { const id = `person-${Date.now()}`; setDirectory((all) => [...all, { id, name: data.name, role: data.role, title: data.department || (data.role === 'Manager' ? 'Manager' : 'Team member'), managerId: data.role === 'Team member' ? data.managerId : null, presence: 'Offline', lastActiveAt: 'Never', sessionMinutes: 0, taskMinutes: 0 }]); };
-  const addLeave = (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => setLeaves((all) => [...all, { ...data, id: `leave-${Date.now()}`, userId: actor.id, status: 'Pending', createdAt: 'Just now' }]);
-  const updateLeave = (id: string, status: LeaveStatus) => setLeaves((all) => updateLeaveStatus(all, id, status, actor));
-  if (!signedIn) return <Login onEnter={(id) => { setActorId(id); setSignedIn(true); setLocation(person(id).role === 'Team member' ? '/my-work' : '/dashboard'); }} />;
-  if (selected) return <Shell actor={actor} onLogout={() => { setSignedIn(false); setLocation('/'); }}><WorkDetail actor={actor} item={selected} tasks={tasks} activities={activities} comments={comments} onBack={() => setLocation(actor.role === 'Team member' ? '/my-work' : '/work')} onOpen={openWork} onUpdateTask={updateTask} onAddTask={addTask} onComment={(message) => addComment(selected.id, message)} onStartTimer={(taskId) => { const task = tasks.find((entry) => entry.id === taskId); if (task) updateTask(taskId, { timeMinutes: task.timeMinutes + 25 }, 'logged 25 minutes on'); }} /></Shell>;
-  const page = location === '/people' ? <PeoplePage people={runtimePeople} onAdd={addPerson} /> : location === '/attendance' ? <AttendancePage actor={actor} people={runtimePeople} tasks={tasks} leaves={leaves} /> : location === '/leave' ? <LeavePage actor={actor} people={runtimePeople} leaves={leaves} onApply={addLeave} onDecision={updateLeave} /> : location === '/team' ? <TeamPage actor={actor} work={scopeWork} tasks={tasks} onOpen={openWork} /> : location === '/reports' ? <ReportsPage actor={actor} reports={reports} work={scopeWork} onSubmit={submitReport} onReview={(id, status) => setReports((all) => all.map((report) => report.id === id ? { ...report, status } : report))} /> : location === '/approvals' ? <ApprovalsPage tasks={tasks} work={scopeWork} onOpen={openWork} /> : location === '/time' ? <TimePage actor={actor} tasks={tasks} /> : location === '/insights' ? <InsightsPage work={scopeWork} tasks={tasks} /> : location === '/assignments' ? <WorkListPage title="Founder assignments" description="Work received from Founder that needs planning, decomposition, and distribution." work={scopeWork.filter((item) => item.managerId === actor.id)} tasks={tasks} onOpen={openWork} /> : location === '/team-tasks' ? <WorkListPage title="Team tasks" description="Break manager work into clear assignments for your team." work={scopeWork} tasks={tasks} onOpen={openWork} /> : location === '/my-work' || location === '/today' || location === '/submissions' || location === '/notifications' || location === '/profile' ? <WorkListPage title={location === '/today' ? "Today's work" : location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={tasks.filter((task) => task.assigneeId === actor.id && (location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved'))} onOpen={openWork} /> : <Dashboard actor={actor} work={scopeWork} tasks={tasks} peopleInScope={scopePeople} reports={reports} onOpen={openWork} onCreate={() => setCreateOpen(true)} onNavigate={setLocation} />;
-  return <Shell actor={actor} onLogout={() => { setSignedIn(false); setLocation('/'); }}>{page}{createOpen && <AssignWorkModal onClose={() => setCreateOpen(false)} onCreate={createWork} />}</Shell>;
+  const updateTask = async (taskId: string, patch: Partial<WorkTask>, message: string) => { 
+    const existing = tasks.find((task) => task.id === taskId); 
+    if (!existing) return; 
+    setTasks((all) => all.map((task) => task.id === taskId ? { ...task, ...patch } : task)); 
+    try {
+      await apiPatch(`/tasks/${taskId}`, patch);
+      await addActivity(existing.workId, `${message} on ${existing.title}`, patch.stage === 'Revision' ? 'warning' : patch.stage === 'Approved' ? 'success' : 'normal'); 
+    } catch (err) { console.error(err); }
+  };
+  const addTask = async (data: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => { 
+    try {
+      const res = await apiPost<{item: WorkTask}>('/tasks', data);
+      setTasks((all) => [...all, res.item]); 
+      await addActivity(data.workId, `assigned ${data.title} to ${person(data.assigneeId).name}`); 
+      setTaskModalOpen(false);
+    } catch (err) { console.error(err); }
+  };
+  const addComment = async (workId: string, message: string) => { 
+    try {
+      const res = await apiPost<{item: Comment}>('/comments', { workId, authorId: actor.id, message });
+      setComments((all) => [...all, res.item]);
+    } catch (err) { console.error(err); }
+  };
+  const createWork = async (data: { title: string; description: string; client: string; workType: WorkType; priority: Priority; dueDate: string; assigneeId: string }) => { 
+    const assignee = person(data.assigneeId); 
+    try {
+      const workRes = await apiPost<{item: WorkItem}>('/work', {
+        title: data.title, description: data.description || 'New operational work assigned from the command center.', client: data.client || undefined, workType: data.workType, priority: data.priority, dueDate: data.dueDate, founderId: actor.id, managerId: assignee.role === 'Manager' ? assignee.id : assignee.managerId, directAssigneeId: assignee.role === 'Team member' ? assignee.id : undefined, stage: assignee.role === 'Manager' ? 'Planning' : 'Assigned', progress: 5, createdAt: TODAY
+      });
+      setWork((all) => [workRes.item, ...all]); 
+      
+      if (assignee.role === 'Team member') {
+        const taskRes = await apiPost<{item: WorkTask}>('/tasks', {
+          workId: workRes.item.id, title: data.title, instructions: data.description || 'Complete the assigned work and submit it for review.', assigneeId: assignee.id, dueDate: data.dueDate, priority: data.priority, stage: 'Assigned', progress: 0, timeMinutes: 0, estimatedMinutes: 240
+        });
+        setTasks((all) => [...all, taskRes.item]); 
+      }
+      setCreateOpen(false); 
+      await addActivity(workRes.item.id, `assigned ${data.title} to ${assignee.name}`, 'success'); 
+      openWork(workRes.item.id); 
+    } catch (err) { console.error(err); }
+  };
+  const submitReport = async (data: Omit<ManagerReport, 'id' | 'managerId' | 'status' | 'createdAt'>) => { 
+    try {
+      const res = await apiPost<{item: ManagerReport}>('/reports', { ...data, managerId: actor.id });
+      setReports((all) => [res.item, ...all]);
+    } catch (err) { console.error(err); }
+  };
+  const addPerson = async (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => {
+    try {
+      const token = localStorage.getItem('arka_token');
+      const res = await fetch(`${API_BASE}/people`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          password: data.password || '1234',
+          role: data.role,
+          title: data.department || (data.role === 'Manager' ? 'Manager' : 'Team member'),
+          managerId: data.role === 'Team member' ? data.managerId : null
+        })
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.item) {
+          setDirectory((all) => [...all, result.item]);
+        }
+      } else {
+        console.error("Failed to create person", await res.text());
+      }
+    } catch (err) {
+      console.error("Error creating person", err);
+    }
+  };
+  const updatePersonPassword = async (personId: string, newPass: string) => {
+    try {
+      const token = localStorage.getItem('arka_token');
+      const res = await fetch(`${API_BASE}/people/${personId}/password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ password: newPass })
+      });
+      if (res.ok) {
+        setDirectory((all) => all.map(p => p.id === personId ? { ...p, password: newPass } : p));
+      } else {
+        console.error("Failed to update password", await res.text());
+      }
+    } catch (err) {
+      console.error("Error updating password", err);
+    }
+  };
+  const deletePerson = async (personId: string) => {
+    try {
+      await apiDelete(`/people/${personId}`);
+      setDirectory((all) => all.filter((p) => p.id !== personId));
+      setTasks((all) => all.filter((t) => t.assigneeId !== personId));
+      setReports((all) => all.filter((r) => r.managerId !== personId));
+    } catch (err) {
+      console.error("Error deleting person", err);
+      alert("Failed to delete employee from database.");
+    }
+  };
+  const addLeave = async (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => { 
+    try {
+      const res = await apiPost<{item: LeaveRequest}>('/leaves', { ...data, userId: actor.id });
+      setLeaves((all) => [...all, res.item]);
+    } catch (err) { console.error(err); }
+  };
+  const updateLeave = async (id: string, status: LeaveStatus) => { 
+    try {
+      const res = await apiPatch<{item: LeaveRequest}>(`/leaves/${id}`, { status, approvedBy: actor.id });
+      setLeaves((all) => all.map(l => l.id === id ? res.item : l));
+    } catch (err) { console.error(err); }
+  };
+  useEffect(() => {
+    // Attempt auto-login with existing token
+    const token = localStorage.getItem('arka_token');
+    if (token) {
+      apiGet<{ item: Person }>('/auth/me')
+        .then(res => {
+          if (res.item) {
+            setActorId(res.item.id);
+            setSignedIn(true);
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem('arka_token');
+        });
+    }
+  }, []);
+
+  if (!signedIn) return <Login onEnter={async (email, password) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      localStorage.setItem('arka_token', data.item.token);
+      setActorId(data.item.id);
+      setSignedIn(true);
+      
+      // Update directory locally with the new session
+      setDirectory(all => { 
+        const existing = all.find(p => p.id === data.item.id); 
+        return existing 
+          ? all.map(p => p.id === data.item.id ? { ...existing, ...data.item } : p) 
+          : [...all, { ...data.item, presence: 'Online', lastActiveAt: 'Just now' } as Person]; 
+      });
+      
+      setLocation(data.item.role === 'Team member' ? '/my-work' : '/dashboard');
+      return true;
+    } catch {
+      return false;
+    }
+  }} />;
+
+  const updatePresence = async (presence: Presence) => {
+    try {
+      if (presence === 'Break' || presence === 'Lunch') {
+        const msg = `started a 15-minute ${presence}`;
+        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: msg, tone: 'warning' });
+        
+        // Automated timer: Revert to online after 15 minutes (900000 ms)
+        setTimeout(async () => {
+          try {
+            await apiPatch(`/people/${actor.id}/presence`, { presence: 'Online' });
+            await apiPost('/activities', { workId: 'system', actorId: actor.id, message: `automatically returned from ${presence}`, tone: 'success' });
+            setDirectory((all) => all.map(p => p.id === actor.id ? { ...p, presence: 'Online' } : p));
+          } catch(e) {}
+        }, 15 * 60 * 1000);
+      } else if (actor.presence === 'Break' || actor.presence === 'Lunch') {
+        const msg = `returned early from ${actor.presence}`;
+        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: msg, tone: 'success' });
+      }
+
+      const res = await apiPatch<{item: Person}>(`/people/${actor.id}/presence`, { presence });
+      setDirectory((all) => all.map(p => p.id === actor.id ? res.item : p));
+    } catch (err) { console.error("Update presence error", err); }
+  };
+
+  if (!actor) return null;
+  if (selected) return <Shell actor={actor} onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }} onUpdatePresence={updatePresence}><WorkDetail actor={actor} item={selected} tasks={scopeTasks} activities={activities} comments={comments} onBack={() => setLocation(actor.role === 'Team member' ? '/my-work' : '/work')} onOpen={openWork} onUpdateTask={updateTask} onAddTask={addTask} onComment={(message) => addComment(selected.id, message)} onStartTimer={(taskId) => { const task = scopeTasks.find((entry) => entry.id === taskId); if (task) updateTask(taskId, { timeMinutes: task.timeMinutes + 25 }, 'logged 25 minutes on'); }} /></Shell>;
+  const page = location === '/people' ? (
+    <PeoplePage people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onDeletePerson={deletePerson} />
+  ) : location === '/attendance' ? (
+    <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} />
+  ) : location === '/leave' ? (
+    <LeavePage actor={actor} people={runtimePeople} leaves={leaves} onApply={addLeave} onDecision={updateLeave} />
+  ) : location === '/team' ? (
+    <TeamPage actor={actor} work={scopeWork} tasks={scopeTasks} onOpen={openWork} />
+  ) : location === '/reports' ? (
+    <ReportsPage actor={actor} reports={reports} work={scopeWork} onSubmit={submitReport} onReview={(id, status) => setReports((all) => all.map((report) => report.id === id ? { ...report, status } : report))} />
+  ) : location === '/approvals' || location === '/reviews' ? (
+    <ApprovalsPage tasks={scopeTasks} work={scopeWork} onOpen={openWork} />
+  ) : location === '/time' ? (
+    <TimePage actor={actor} tasks={scopeTasks} />
+  ) : location === '/insights' ? (
+    <InsightsPage work={scopeWork} tasks={scopeTasks} />
+  ) : location === '/documents' ? (
+    <DocumentHub currentUser={actor} allPeople={runtimePeople} tasks={scopeTasks} />
+  ) : location === '/work' ? (
+    <WorkListPage title="Company work" description="Centralized pipeline of active client deliverables and internal initiatives." work={scopeWork} tasks={scopeTasks} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : undefined} />
+  ) : location === '/assignments' ? (
+    <WorkListPage title="Founder assignments" description="Work received from Founder that needs planning, decomposition, and distribution." work={scopeWork.filter((item) => item.managerId === actor.id)} tasks={scopeTasks} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Assign team task" />
+  ) : location === '/team-tasks' ? (
+    <WorkListPage title="Team tasks" description="Break manager work into clear assignments for your team." work={scopeWork} tasks={scopeTasks} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Assign team task" />
+  ) : location === '/my-work' || location === '/today' || location === '/submissions' || location === '/notifications' || location === '/profile' ? (
+    <WorkListPage title={location === '/today' ? "Today's work" : location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={scopeTasks.filter((task) => location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved')} onOpen={openWork} />
+  ) : (
+    <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : () => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={deletePerson} />
+  );
+
+  return (
+    <Shell actor={actor} onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }} onUpdatePresence={updatePresence}>
+      {page}
+      {createOpen && <AssignWorkModal onClose={() => setCreateOpen(false)} onCreate={createWork} />}
+      {taskModalOpen && (
+        <CreateTaskModal
+          workList={scopeWork.length > 0 ? scopeWork : work}
+          onClose={() => setTaskModalOpen(false)}
+          onCreate={addTask}
+        />
+      )}
+      <ChatWidget currentUser={actor} allPeople={runtimePeople} />
+    </Shell>
+  );
 }
 
 function App() {

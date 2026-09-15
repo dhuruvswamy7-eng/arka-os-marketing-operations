@@ -1,0 +1,1675 @@
+Yes. What you need now is **not another coding prompt**. You need a **developer handover / technical implementation document** that clearly explains:
+
+1. **What ARKA OS is**
+2. **What the system does**
+3. **Who uses it**
+4. **Complete workflow**
+5. **Features**
+6. **Backend architecture**
+7. **Database**
+8. **Authentication**
+9. **Attendance + breaks + lunch**
+10. **Task management**
+11. **Permissions/security**
+12. **Technology stack**
+13. **How Hostinger + Supabase work together**
+14. **Deployment architecture**
+15. **Development phases**
+16. **Production requirements**
+
+You can give the following directly to your developer.
+
+---
+
+# ARKA OS — PRODUCT & TECHNICAL IMPLEMENTATION SPECIFICATION
+
+## 1. PROJECT NAME
+
+**ARKA OS**
+
+### Product Type
+
+Internal Company Management & Work Tracking Platform.
+
+### Primary Purpose
+
+ARKA OS is an internal system used by the Founder, Managers and Team Members to manage:
+
+* Employees
+* Teams
+* Tasks
+* Work progress
+* Attendance
+* Login/logout
+* Breaks
+* Lunch
+* Task time
+* Leave
+* Reports
+* Company-level visibility
+
+The objective is to replace fragmented/manual tracking with one centralized system.
+
+---
+
+# 2. WHAT PROBLEM DOES ARKA OS SOLVE?
+
+Currently, company work can become difficult to track because information is distributed across different tools and conversations.
+
+ARKA OS should provide one centralized system where the company can answer:
+
+> Who is working?
+
+> Who is online?
+
+> When did they log in?
+
+> When did they log out?
+
+> Who is on break?
+
+> Who is at lunch?
+
+> What work is assigned?
+
+> Who is responsible for the work?
+
+> What is the current status?
+
+> How much task time was recorded?
+
+> Which tasks are overdue?
+
+> Which employees belong to which Manager?
+
+> What is happening across the organization?
+
+The system should provide this information in real time.
+
+---
+
+# 3. USER HIERARCHY
+
+ARKA OS has three levels.
+
+```text
+FOUNDER
+SUPER ADMIN
+     │
+     ├── MANAGER
+     │      ├── TEAM MEMBER
+     │      ├── TEAM MEMBER
+     │      └── TEAM MEMBER
+     │
+     └── MANAGER
+            ├── TEAM MEMBER
+            └── TEAM MEMBER
+```
+
+## Level 1 — Founder / Super Admin
+
+Complete organization-level control.
+
+## Level 2 — Manager / Team Admin
+
+Controls assigned team.
+
+## Level 3 — Team Member / User
+
+Works on assigned tasks and manages their own attendance/work.
+
+---
+
+# 4. AUTHENTICATION MODEL
+
+The system must **NOT use Google authentication**.
+
+There must also be **no public registration**.
+
+Authentication:
+
+**Email + Password**
+
+The Founder creates employee accounts.
+
+Workflow:
+
+```text
+FOUNDER
+   ↓
+CREATE EMPLOYEE
+   ↓
+EMAIL + PASSWORD
+   ↓
+ACCOUNT CREATED
+   ↓
+EMPLOYEE LOGS IN
+   ↓
+SYSTEM IDENTIFIES ROLE
+   ↓
+CORRECT DASHBOARD OPENS
+```
+
+The employee does not choose their role.
+
+---
+
+# 5. EMPLOYEE CREATION
+
+Founder has:
+
+**People → Add Employee**
+
+Form:
+
+```text
+Full Name
+Email
+Password
+Phone
+Role
+Department
+Designation
+Manager
+Joining Date
+Profile Photo
+Status
+```
+
+Example:
+
+```text
+Name: Rahul Kumar
+Email: rahul@arka.com
+Password: ********
+Role: Team Member
+Department: Marketing
+Designation: Content Executive
+Manager: Arun Kumar
+Status: Active
+```
+
+When created:
+
+```text
+Supabase Auth Account
+        +
+ARKA OS User Profile
+        =
+Active Employee Account
+```
+
+Passwords must never be stored in plain text.
+
+Supabase Auth handles password authentication.
+
+---
+
+# 6. ROLE-BASED ROUTING
+
+There is one application.
+
+Recommended routes:
+
+```text
+/login
+
+/super-admin
+/manager
+/workspace
+```
+
+After login:
+
+```text
+Founder
+→ /super-admin
+
+Manager
+→ /manager
+
+Team Member
+→ /workspace
+```
+
+The user should not manually select their dashboard.
+
+---
+
+# 7. FOUNDER / SUPER ADMIN
+
+Founder has complete control.
+
+### Founder can manage:
+
+### Employees
+
+* Create
+* Edit
+* Activate
+* Deactivate
+* Delete where appropriate
+* Reset password
+* Change role
+* Change Manager
+* View employee profile
+
+### Teams
+
+* Create/manage Managers
+* Assign Team Members
+* Move Team Members between Managers
+* View team structure
+
+### Work
+
+* Create tasks
+* Assign tasks
+* Reassign tasks
+* Change priority
+* Change deadlines
+* View progress
+* View task activity
+* Comment
+
+### Attendance
+
+* See everyone
+* Login time
+* Logout time
+* Current status
+* Breaks
+* Lunch
+* Total session
+* Active session
+* Historical attendance
+
+### Time
+
+* Task time
+* Employee time
+* Team time
+
+### Leave
+
+* View
+* Manage
+* Approve/reject where required
+
+### Settings
+
+* Organization settings
+* Attendance policy
+* Employee settings
+
+---
+
+# 8. MANAGER / TEAM ADMIN
+
+Manager gets a separate dashboard.
+
+Manager can:
+
+* View own team
+* Create tasks
+* Assign tasks to own team
+* Monitor team tasks
+* View team attendance
+* View team login/logout
+* View team breaks/lunch
+* View team time
+* View team leave
+* Comment on tasks
+* Request revisions
+* View reports
+
+Manager cannot:
+
+* Manage the entire company
+* Change their own role
+* Create Founder
+* Access another Manager's team
+* Change organization settings
+* See unrelated employee data
+
+---
+
+# 9. TEAM MEMBER / USER
+
+Team Member gets an individual workspace.
+
+They can:
+
+* Login
+* View assigned tasks
+* Work on tasks
+* Change task status
+* Track task time
+* Comment
+* Complete tasks
+* Take breaks
+* Take lunch
+* Resume work
+* Logout
+* View own attendance
+* Apply for leave
+* View own profile
+
+They cannot:
+
+* Create employees
+* Change roles
+* See company attendance
+* See other employee private data
+* Manage teams
+* Change company settings
+
+---
+
+# 10. TASK MANAGEMENT
+
+Task lifecycle:
+
+```text
+CREATED
+   ↓
+ASSIGNED
+   ↓
+IN PROGRESS
+   ↓
+COMPLETED
+```
+
+Optional revision:
+
+```text
+COMPLETED
+   ↓
+NEEDS REVISION
+   ↓
+IN PROGRESS
+   ↓
+COMPLETED
+```
+
+### IMPORTANT
+
+There should be **no mandatory approval workflow**.
+
+Remove:
+
+```text
+Submit
+→ Approval
+→ Approved
+→ Completed
+```
+
+Instead use comments and revision requests.
+
+---
+
+# 11. TASK CREATION
+
+Founder can assign tasks to anyone.
+
+Manager can assign tasks only to their team.
+
+Task fields:
+
+```text
+Title
+Description
+Assignee
+Created By
+Priority
+Status
+Due Date
+Created At
+Updated At
+```
+
+Priorities:
+
+```text
+Low
+Medium
+High
+Urgent
+```
+
+---
+
+# 12. TASK COMMENTS / ACTIVITY
+
+Users with access can comment.
+
+Example:
+
+Manager:
+
+> Update the first two designs.
+
+Team Member:
+
+> Updated the designs.
+
+The system records task activity.
+
+Activity examples:
+
+```text
+Task Created
+Task Assigned
+Task Reassigned
+Status Changed
+Comment Added
+Revision Requested
+Task Completed
+Deadline Changed
+Priority Changed
+```
+
+---
+
+# 13. ATTENDANCE SYSTEM
+
+This is a core ARKA OS feature.
+
+Employees should **NOT log out for lunch**.
+
+Employees should **NOT be forced to login twice a day**.
+
+Instead:
+
+```text
+LOGIN
+ ↓
+WORKING
+ ↓
+BREAK
+ ↓
+RESUME
+ ↓
+WORKING
+ ↓
+LUNCH
+ ↓
+RESUME
+ ↓
+WORKING
+ ↓
+BREAK
+ ↓
+RESUME
+ ↓
+WORKING
+ ↓
+LOGOUT
+```
+
+---
+
+# 14. DAILY BREAK POLICY
+
+Default company policy:
+
+```text
+Morning Break: 15 minutes
+
+Lunch: 60 minutes
+
+Evening Break: 15 minutes
+```
+
+However, ARKA OS should record **actual usage**.
+
+Example:
+
+Configured:
+
+```text
+15 + 60 + 15
+= 90 minutes
+```
+
+Actual:
+
+```text
+14 + 56 + 17
+= 87 minutes
+```
+
+System records:
+
+**87 minutes actual break/lunch time.**
+
+Do not automatically deduct 90 minutes.
+
+---
+
+# 15. EMPLOYEE ATTENDANCE INTERFACE
+
+While working:
+
+```text
+┌──────────────────────────┐
+│ 🟢 WORKING               │
+│                          │
+│ Login: 09:05 AM          │
+│ Session: 4h 20m          │
+│                          │
+│ [ BREAK ] [ LUNCH ]      │
+│                          │
+│ [ LOGOUT ]               │
+└──────────────────────────┘
+```
+
+During break:
+
+```text
+┌──────────────────────────┐
+│ 🟡 ON BREAK              │
+│                          │
+│ Started: 10:42 AM        │
+│ Duration: 05m            │
+│                          │
+│ [ RESUME WORK ]          │
+└──────────────────────────┘
+```
+
+During lunch:
+
+```text
+┌──────────────────────────┐
+│ 🟠 ON LUNCH              │
+│                          │
+│ Started: 01:00 PM       │
+│ Duration: 35m            │
+│                          │
+│ [ RESUME WORK ]          │
+└──────────────────────────┘
+```
+
+---
+
+# 16. ATTENDANCE DATABASE
+
+Use:
+
+### `login_sessions`
+
+```text
+id
+organization_id
+user_id
+login_at
+logout_at
+last_active_at
+status
+created_at
+```
+
+### `attendance_events`
+
+```text
+id
+organization_id
+user_id
+session_id
+event_type
+started_at
+ended_at
+duration_minutes
+created_at
+```
+
+Event types:
+
+```text
+break
+lunch
+```
+
+---
+
+# 17. ATTENDANCE STATE MACHINE
+
+Valid states:
+
+```text
+WORKING
+BREAK
+LUNCH
+COMPLETED
+STALE
+```
+
+Valid transitions:
+
+```text
+LOGIN
+→ WORKING
+
+WORKING
+→ BREAK
+
+BREAK
+→ WORKING
+
+WORKING
+→ LUNCH
+
+LUNCH
+→ WORKING
+
+WORKING
+→ COMPLETED
+```
+
+Don't allow:
+
+```text
+BREAK → LUNCH
+```
+
+without first resuming.
+
+Don't allow:
+
+```text
+LUNCH → BREAK
+```
+
+without first resuming.
+
+---
+
+# 18. LOGIN TRACKING
+
+When employee logs in:
+
+```text
+login_at = current timestamp
+last_active_at = current timestamp
+status = working
+```
+
+When employee logs out:
+
+```text
+logout_at = current timestamp
+status = completed
+```
+
+Every session must be stored separately.
+
+Example:
+
+```text
+Session 1
+09:00 → 13:00
+
+Session 2
+14:00 → 18:00
+```
+
+Both must remain in the database.
+
+---
+
+# 19. BROWSER ABANDONMENT
+
+Do NOT fake logout if the employee simply closes the browser.
+
+Use:
+
+```text
+last_active_at
+```
+
+and heartbeat updates.
+
+If the employee disappears unexpectedly:
+
+```text
+status = stale/offline
+```
+
+after a defined threshold.
+
+Do not invent a fake logout timestamp.
+
+---
+
+# 20. ATTENDANCE CALCULATION
+
+Example:
+
+```text
+Login:
+09:05 AM
+
+Morning Break:
+10:42 → 10:56
+14m
+
+Lunch:
+01:02 → 01:58
+56m
+
+Evening Break:
+04:18 → 04:35
+17m
+
+Logout:
+06:42 PM
+```
+
+Calculate:
+
+```text
+Total Session:
+9h 37m
+
+Break:
+31m
+
+Lunch:
+56m
+
+Total Break/Lunch:
+1h 27m
+
+Active Session:
+8h 10m
+```
+
+---
+
+# 21. TASK TIME IS SEPARATE
+
+Attendance and task time are different.
+
+Example:
+
+```text
+Attendance:
+9h 37m
+
+Active Session:
+8h 10m
+
+Task Time:
+6h 00m
+```
+
+Do not automatically classify:
+
+```text
+8h 10m - 6h
+```
+
+as idle/unproductive.
+
+The system should report factual measurements only.
+
+---
+
+# 22. TASK TIME DATABASE
+
+### `time_entries`
+
+```text
+id
+organization_id
+task_id
+user_id
+start_time
+end_time
+duration_minutes
+created_at
+```
+
+Employees can start/stop task timers.
+
+---
+
+# 23. FOUNDER ATTENDANCE DASHBOARD
+
+Founder sees:
+
+```text
+ATTENDANCE
+
+Employee
+Role
+Status
+Login
+Logout
+Session
+Break
+Lunch
+Active Time
+Task Time
+```
+
+Example:
+
+```text
+Rahul
+Team Member
+Working
+09:05
+—
+7h 12m
+31m
+56m
+6h 45m
+5h 20m
+```
+
+Filters:
+
+```text
+Today
+Yesterday
+This Week
+This Month
+Custom
+```
+
+Employee filters:
+
+```text
+All
+Managers
+Team Members
+```
+
+---
+
+# 24. MANAGER ATTENDANCE
+
+Manager sees only their team.
+
+```text
+MY TEAM
+
+Employee
+Status
+Login
+Logout
+Break
+Lunch
+Active Time
+Task Time
+```
+
+Click employee:
+
+```text
+Employee Attendance Timeline
+
+LOGIN
+09:05
+
+BREAK
+10:42 → 10:56
+
+LUNCH
+13:02 → 13:58
+
+BREAK
+16:18 → 16:35
+
+LOGOUT
+18:42
+```
+
+---
+
+# 25. REALTIME
+
+Attendance must update in realtime.
+
+Example:
+
+Team Member clicks:
+
+**LUNCH**
+
+Immediately:
+
+Manager:
+
+```text
+Rahul → 🟠 LUNCH
+```
+
+Founder:
+
+```text
+Rahul → 🟠 LUNCH
+```
+
+No page refresh.
+
+Use Supabase Realtime.
+
+---
+
+# 26. LEAVE
+
+Team Member can:
+
+```text
+Apply Leave
+```
+
+Manager sees their team's leave.
+
+Founder has organization-level visibility/control.
+
+Approved leave should show:
+
+**ON LEAVE**
+
+not:
+
+**ABSENT**
+
+---
+
+# 27. DATABASE ARCHITECTURE
+
+Main tables:
+
+```text
+organizations
+users
+attendance_settings
+login_sessions
+attendance_events
+tasks
+task_activity
+time_entries
+leaves
+```
+
+Relationship:
+
+```text
+organizations
+      │
+      ▼
+     users
+      │
+      ├──────── tasks
+      │            │
+      │            └── time_entries
+      │
+      ├──────── login_sessions
+      │                 │
+      │                 └── attendance_events
+      │
+      └──────── leaves
+```
+
+---
+
+# 28. SECURITY
+
+Use:
+
+**Supabase Row Level Security (RLS)**.
+
+Security must exist at database level.
+
+Not just frontend.
+
+### Founder
+
+```text
+All organization data
+```
+
+### Manager
+
+```text
+Own team
++
+Own data
+```
+
+### Team Member
+
+```text
+Own data
++
+Assigned tasks
+```
+
+Example:
+
+A Manager should not be able to manually query:
+
+```text
+Another Manager's Team
+```
+
+and receive the data.
+
+RLS must prevent it.
+
+---
+
+# 29. TECHNOLOGY STACK
+
+## Frontend
+
+```text
+React
+TypeScript
+Vite
+```
+
+Use the existing ARKA OS frontend.
+
+Do not rebuild unnecessarily.
+
+## Backend
+
+```text
+Supabase
+```
+
+## Database
+
+```text
+PostgreSQL
+```
+
+## Authentication
+
+```text
+Supabase Auth
+Email + Password
+```
+
+## Realtime
+
+```text
+Supabase Realtime
+```
+
+## Security
+
+```text
+Supabase Row Level Security
+```
+
+## Storage
+
+```text
+Supabase Storage
+```
+
+for profile photos/files where required.
+
+## Backend/server-side operations
+
+```text
+Supabase Edge Functions
+```
+
+where privileged operations are required.
+
+## Source control
+
+```text
+GitHub
+```
+
+## Frontend hosting
+
+```text
+Hostinger
+```
+
+## Domain
+
+```text
+os.arka.com
+```
+
+---
+
+# 30. HOSTING ARCHITECTURE
+
+Hostinger and Supabase should have different responsibilities.
+
+```text
+                os.arka.com
+                     │
+                     ▼
+                HOSTINGER
+                     │
+                     ▼
+              ARKA OS FRONTEND
+                     │
+                     │ HTTPS/API
+                     ▼
+                 SUPABASE
+                     │
+        ┌────────────┼─────────────┐
+        │            │             │
+   PostgreSQL      Auth         Realtime
+        │
+        ├── Users
+        ├── Tasks
+        ├── Attendance
+        ├── Break/Lunch
+        ├── Time
+        └── Leave
+```
+
+Hostinger does **not** need to be the application's primary database.
+
+Supabase is the backend/data platform.
+
+---
+
+# 31. WHY THIS ARCHITECTURE
+
+Using Hostinger for frontend hosting and Supabase for backend gives us:
+
+### Hostinger
+
+Responsible for:
+
+* Website hosting
+* Subdomain
+* Frontend deployment
+* SSL
+* Production web application
+
+### Supabase
+
+Responsible for:
+
+* Database
+* Authentication
+* Realtime
+* Security
+* Storage
+* Backend functions
+
+This keeps the architecture clean.
+
+---
+
+# 32. GITHUB WORKFLOW
+
+Development:
+
+```text
+Developer
+   ↓
+VS Code
+   ↓
+Git
+   ↓
+GitHub
+   ↓
+Hostinger
+   ↓
+Production
+```
+
+Supabase remains connected to the production frontend.
+
+---
+
+# 33. ENVIRONMENT VARIABLES
+
+Frontend:
+
+```text
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
+
+Privileged backend/Edge Function environment:
+
+```text
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+IMPORTANT:
+
+The service-role key must NEVER be exposed to the browser.
+
+Never commit secrets to GitHub.
+
+Create:
+
+```text
+.env.example
+```
+
+with placeholder values.
+
+---
+
+# 34. PRODUCTION DEPLOYMENT
+
+Deployment process:
+
+```text
+1. Develop in VS Code
+        ↓
+2. Test locally
+        ↓
+3. Push to GitHub
+        ↓
+4. Connect repository to Hostinger
+        ↓
+5. Hostinger builds React/Vite
+        ↓
+6. Deploy application
+        ↓
+7. Connect os.arka.com
+        ↓
+8. Configure Supabase production URL
+        ↓
+9. Test authentication
+        ↓
+10. Test database
+        ↓
+11. Test RLS
+        ↓
+12. Test realtime
+        ↓
+13. Production launch
+```
+
+---
+
+# 35. DOMAIN STRUCTURE
+
+Production:
+
+```text
+https://os.arka.com
+```
+
+Routes:
+
+```text
+https://os.arka.com/login
+
+https://os.arka.com/super-admin
+
+https://os.arka.com/manager
+
+https://os.arka.com/workspace
+```
+
+Do not create separate applications for each role.
+
+It is one ARKA OS application with role-based dashboards.
+
+---
+
+# 36. DEVELOPMENT PHASES
+
+## Phase 1 — Audit
+
+Developer studies the existing ARKA OS repository.
+
+Do not change UI unnecessarily.
+
+---
+
+## Phase 2 — Supabase
+
+Create:
+
+* Project
+* Database
+* Migrations
+* Auth
+* RLS
+* Realtime
+
+---
+
+## Phase 3 — Authentication
+
+Build:
+
+```text
+Login
+Logout
+Password reset
+Session management
+Role routing
+```
+
+---
+
+## Phase 4 — Employee Management
+
+Build:
+
+```text
+Founder
+→ Create Employee
+→ Create Manager
+→ Assign Team
+→ Edit
+→ Activate
+→ Deactivate
+```
+
+---
+
+## Phase 5 — Tasks
+
+Build:
+
+```text
+Create
+Assign
+Update
+Comment
+Complete
+Revision
+```
+
+---
+
+## Phase 6 — Attendance
+
+Build:
+
+```text
+Login
+Logout
+Session
+Heartbeat
+Presence
+```
+
+---
+
+## Phase 7 — Break/Lunch
+
+Build:
+
+```text
+Break
+Resume
+Lunch
+Resume
+Duration
+Policy
+Reminders
+```
+
+---
+
+## Phase 8 — Task Time
+
+Build:
+
+```text
+Start timer
+Stop timer
+Duration
+History
+Reports
+```
+
+---
+
+## Phase 9 — Leave
+
+Build:
+
+```text
+Apply
+View
+Manage
+ON LEAVE
+```
+
+---
+
+## Phase 10 — Realtime
+
+Build live updates for:
+
+```text
+Attendance
+Break
+Lunch
+Tasks
+Comments
+Status
+```
+
+---
+
+## Phase 11 — Reports
+
+Founder:
+
+```text
+Company
+Employee
+Attendance
+Tasks
+Time
+Leave
+```
+
+Manager:
+
+```text
+Team
+Attendance
+Tasks
+Time
+Leave
+```
+
+Team Member:
+
+```text
+Own records
+```
+
+---
+
+# 37. TESTING
+
+Before production, test all three roles.
+
+### Founder test
+
+```text
+Login
+Create Manager
+Create Team Member
+Assign Team Member
+Create Task
+Assign Task
+View Attendance
+View Break
+View Lunch
+View Logout
+View Time
+Manage Leave
+```
+
+### Manager test
+
+```text
+Login
+View Team
+Create Task
+Assign Task
+View Team Attendance
+View Team Time
+View Leave
+```
+
+### Team Member test
+
+```text
+Login
+View Task
+Start Work
+Start Break
+Resume
+Start Lunch
+Resume
+Track Task Time
+Complete Task
+Logout
+```
+
+---
+
+# 38. SECURITY TESTING
+
+Test that:
+
+```text
+Team Member
+X → Founder dashboard
+
+Team Member
+X → Another employee's attendance
+
+Manager
+X → Another Manager's team
+
+Manager
+X → Company settings
+
+Manager
+X → Change own role
+
+Team Member
+X → Change own role
+```
+
+All must be blocked by database security.
+
+---
+
+# 39. FINAL PRODUCTION REQUIREMENT
+
+The final ARKA OS must NOT be:
+
+```text
+Demo
+Mock
+Static
+Hardcoded
+LocalStorage-based
+Frontend-only
+```
+
+It must be:
+
+```text
+REAL DATABASE
++
+REAL AUTH
++
+REAL USERS
++
+REAL TASKS
++
+REAL ATTENDANCE
++
+REAL BREAK/LUNCH
++
+REAL TIME TRACKING
++
+REAL LEAVE
++
+REALTIME
++
+RLS SECURITY
++
+PRODUCTION HOSTING
+```
+
+---
+
+# 40. FINAL ARCHITECTURE
+
+```text
+                         ARKA OS
+                            │
+                            ▼
+                     os.arka.com
+                            │
+                            ▼
+                       HOSTINGER
+                            │
+                    React + TypeScript
+                         + Vite
+                            │
+                            ▼
+                        SUPABASE
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+      PostgreSQL          Auth            Realtime
+          │                 │                 │
+          │                 │                 │
+          ▼                 ▼                 ▼
+      Employees          Login          Live Status
+      Managers           Password       Attendance
+      Tasks              Sessions       Break
+      Attendance                         Lunch
+      Time                               Tasks
+      Leave
+          │
+          ▼
+         RLS
+          │
+     ┌────┼─────┐
+     ▼    ▼     ▼
+ Founder Manager User
+```
+
+## Final recommendation to the developer
+
+**Build this as a production internal company system, not as a prototype.**
+
+The existing ARKA OS frontend is the starting point. The developer's job is to **connect the existing UI to Supabase and make every important feature actually work**.
+
+The final infrastructure is:
+
+**VS Code → GitHub → Hostinger → `os.arka.com`**
+
+and:
+
+**ARKA OS → Supabase PostgreSQL + Auth + RLS + Realtime + Storage/Edge Functions where required.**
+
+The key attendance model is:
+
+**ONE LOGIN → WORK → BREAK/LUNCH → RESUME → WORK → LOGOUT**
+
+with default policy:
+
+**15 min morning break + 60 min lunch + 15 min evening break**, while recording the **actual** duration rather than automatically deducting the configured allowance.
+
+This is the document I would hand to the developer as the **technical/product scope before development starts**.

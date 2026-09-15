@@ -130,6 +130,19 @@
   [class*="text-[#9a7400]"], [class*="text-[#886800]"] { color: #6d5200 !important; }
 }
 
+body {
+  background:
+    radial-gradient(circle at 70% 12%, hsl(var(--accent) / 0.14), transparent 18%),
+    radial-gradient(circle at 16% 86%, hsl(var(--primary) / 0.16), transparent 16%),
+    linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%);
+}
+
+.app-background-grid {
+  background-image: linear-gradient(hsl(36 19% 87% / .25) 1px, transparent 1px), linear-gradient(90deg, hsl(36 19% 87% / .25) 1px, transparent 1px);
+  background-size: 26px 26px;
+  background-position: center;
+}
+
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-soft { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
 .animate-rise { animation: rise .45s ease-out both; }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  authenticateDemoUser,
   getAssignablePeople,
   getAttendanceScope,
   getVisiblePeopleForRole,
@@ -49,6 +50,14 @@ test('rejecting leave leaves attendance unchanged and non-Founders cannot decide
   assert.equal(rejected[0].status, 'Rejected');
   assert.equal(isApprovedLeaveActiveOnDate(rejected[0], '2026-09-15'), false);
   assert.deepEqual(updateLeaveStatus([pendingRahulLeave], pendingRahulLeave.id, 'Approved', people[1]), [pendingRahulLeave]);
+});
+
+test('demo authentication accepts the requested three role accounts and rejects non-matching passwords', () => {
+  assert.deepEqual(authenticateDemoUser('arka@founder', '1234'), { id: 'maya', role: 'Founder', name: 'Founder' });
+  assert.deepEqual(authenticateDemoUser('arka@manager', '1234'), { id: 'priya', role: 'Manager', name: 'Manager' });
+  assert.deepEqual(authenticateDemoUser('arka@teammember', '1234'), { id: 'rahul', role: 'Team member', name: 'Team Member 1' });
+  assert.equal(authenticateDemoUser('arka@founder', 'wrong-password'), null);
+  assert.equal(authenticateDemoUser('arka@unknown', '1234'), null);
 });
 
 test('new employees are available to Founder work assignment selectors', () => {
