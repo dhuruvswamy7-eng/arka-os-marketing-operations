@@ -24,9 +24,11 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
     if (!currentUser) return;
 
     // Connect to the backend Socket.io server
-    // In dev, the API server runs on port 3000, Vite handles the rest. We assume token is set later.
-    const token = localStorage.getItem("token") || "mock-token";
-    const newSocket = io(window.location.origin, {
+    const token = localStorage.getItem("arka_token") || localStorage.getItem("token") || "mock-token";
+    const socketUrl = typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.hostname}:5000`
+      : 'http://localhost:5000';
+    const newSocket = io(socketUrl, {
       auth: { token },
       path: "/socket.io/" // Default path
     });

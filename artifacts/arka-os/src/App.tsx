@@ -15,7 +15,11 @@ import { DocumentHub } from './components/DocumentHub';
 const queryClient = new QueryClient();
 const TODAY = '2026-09-15';
 const LOGO_SRC = `${import.meta.env.BASE_URL}assets/arkamedia-logo.png`;
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:5000/api`
+    : 'http://localhost:5000/api'
+);
 
 async function apiGet<T>(path: string): Promise<T> {
   const token = localStorage.getItem('arka_token');

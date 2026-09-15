@@ -26,6 +26,14 @@ initSocket(server);
 // Initialize Cron Jobs
 initCronJobs();
 
-server.listen(port, () => {
-  logger.info({ port }, "Server listening");
+process.on("uncaughtException", (err) => {
+  logger.warn({ err: err?.message || err }, "Uncaught Exception caught (prevented crash)");
+});
+
+process.on("unhandledRejection", (reason: any) => {
+  logger.warn({ reason: reason?.message || reason }, "Unhandled Rejection caught (prevented crash)");
+});
+
+server.listen(port, "0.0.0.0", () => {
+  logger.info({ port }, "Server listening on 0.0.0.0");
 });
