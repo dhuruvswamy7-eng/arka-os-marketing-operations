@@ -87,9 +87,6 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1131.0
         version: 3.1131.0
-      '@aws-sdk/lib-storage':
-        specifier: ^3.1131.0
-        version: 3.1131.0
       '@swc/helpers':
         specifier: ^0.5.23
         version: 0.5.23
