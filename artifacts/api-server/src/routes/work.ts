@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, workTable } from "@workspace/db";
+import { db, workTable, tasksTable, activitiesTable, commentsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -59,6 +59,20 @@ router.post("/", async (req, res) => {
   } catch (err) {
     console.error("Create work error:", err);
     res.status(503).json({ message: "Database unavailable or invalid payload" });
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const workId = req.params.id;
+    await db.delete(tasksTable).where(eq(tasksTable.workId, workId));
+    await db.delete(activitiesTable).where(eq(activitiesTable.workId, workId));
+    await db.delete(commentsTable).where(eq(commentsTable.workId, workId));
+    await db.delete(workTable).where(eq(workTable.id, workId));
+    res.status(204).end();
+  } catch (err) {
+    console.error("Delete work error:", err);
+    res.status(503).json({ message: "Database unavailable" });
   }
 });
 
