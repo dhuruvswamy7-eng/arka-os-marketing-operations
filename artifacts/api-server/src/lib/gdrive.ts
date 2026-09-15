@@ -1,4 +1,3 @@
-import { google } from "googleapis";
 import { logger } from "./logger";
 import fs from "fs";
 
@@ -8,23 +7,29 @@ const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
 let driveClient: any = null;
 
-if (keyFilePath && fs.existsSync(keyFilePath)) {
-  try {
-    const auth = new google.auth.GoogleAuth({
-      keyFile: keyFilePath,
-      scopes: ["https://www.googleapis.com/auth/drive.file"],
-    });
-    driveClient = google.drive({ version: "v3", auth });
-    logger.info("Google Drive client initialized.");
-  } catch (error) {
-    logger.error({ error }, "Failed to initialize Google Drive client.");
+async function getDriveClient() {
+  if (driveClient) return driveClient;
+  if (keyFilePath && fs.existsSync(keyFilePath)) {
+    try {
+      const { google } = await import("googleapis");
+      const auth = new google.auth.GoogleAuth({
+        keyFile: keyFilePath,
+        scopes: ["https://www.googleapis.com/auth/drive.file"],
+      });
+      driveClient = google.drive({ version: "v3", auth });
+      logger.info("Google Drive client initialized.");
+      return driveClient;
+    } catch (error) {
+      logger.error({ error }, "Failed to initialize Google Drive client.");
+      return null;
+    }
   }
-} else {
-  logger.warn("No GOOGLE_APPLICATION_CREDENTIALS provided. Google Drive sync will be disabled.");
+  return null;
 }
 
 export async function uploadToDrive(filePath: string, fileName: string, mimeType: string, folderId?: string) {
-  if (!driveClient) {
+  const client = await getDriveClient();
+  if (!client) {
     logger.warn("Drive client not initialized. Cannot upload file.");
     return null;
   }
@@ -42,7 +47,7 @@ export async function uploadToDrive(filePath: string, fileName: string, mimeType
       body: fs.createReadStream(filePath),
     };
 
-    const response = await driveClient.files.create({
+    const response = await client.files.create({
       requestBody: fileMetadata,
       media: media,
       fields: "id, webViewLink",

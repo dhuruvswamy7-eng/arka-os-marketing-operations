@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import { logger } from "./logger";
 
 // Hostinger SMTP configuration via environment variables
@@ -8,16 +7,6 @@ const smtpPort = parseInt(process.env.SMTP_PORT || "465", 10);
 const smtpUser = process.env.SMTP_USER || "";
 const smtpPass = process.env.SMTP_PASS || "";
 
-const transporter = nodemailer.createTransport({
-  host: smtpHost,
-  port: smtpPort,
-  secure: smtpPort === 465, // true for 465, false for other ports
-  auth: {
-    user: smtpUser,
-    pass: smtpPass,
-  },
-});
-
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
   if (!smtpUser || !smtpPass) {
     logger.warn("Email not sent: SMTP_USER or SMTP_PASS is missing in environment.");
@@ -25,6 +14,17 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
   }
 
   try {
+    const { default: nodemailer } = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
     const info = await transporter.sendMail({
       from: `"ARKA-OS" <${smtpUser}>`,
       to,
