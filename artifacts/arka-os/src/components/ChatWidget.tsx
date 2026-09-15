@@ -26,7 +26,9 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
     // Connect to the backend Socket.io server
     const token = localStorage.getItem("arka_token") || localStorage.getItem("token") || "mock-token";
     const socketUrl = typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:5000`
+      ? (window.location.port === '5173'
+          ? `${window.location.protocol}//${window.location.hostname}:5000`
+          : window.location.origin)
       : 'http://localhost:5000';
     const newSocket = io(socketUrl, {
       auth: { token },

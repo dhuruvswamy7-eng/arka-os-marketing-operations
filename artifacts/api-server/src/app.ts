@@ -4,6 +4,9 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
+import path from "path";
+import fs from "fs";
+
 const app: Express = express();
 
 app.use(
@@ -30,5 +33,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// Serve frontend static build if present
+const potentialStaticDirs = [
+  path.resolve(process.cwd(), "../arka-os/dist/public"),
+  path.resolve(process.cwd(), "public"),
+  path.resolve(process.cwd(), "dist/public"),
+];
+
+const publicDir = potentialStaticDirs.find((dir) => fs.existsSync(dir));
+
+if (publicDir) {
+  app.use(express.static(publicDir));
+  app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api") && !req.path.startsWith("/socket.io")) {
+      return res.sendFile(path.join(publicDir, "index.html"));
+    }
+    next();
+  });
+}
 
 export default app;
