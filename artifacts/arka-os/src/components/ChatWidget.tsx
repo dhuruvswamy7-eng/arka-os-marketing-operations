@@ -208,12 +208,12 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
 
   // Filtered direct message contacts
   const otherPeople = useMemo(() => {
-    return allPeople
-      .filter(p => p.id !== currentUser.id)
+    return (allPeople || [])
+      .filter(p => p && p.id !== currentUser?.id)
       .filter(p => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
-        return p.name.toLowerCase().includes(q) || p.role.toLowerCase().includes(q) || (p.title && p.title.toLowerCase().includes(q));
+        return (p.name || '').toLowerCase().includes(q) || (p.role || '').toLowerCase().includes(q) || (p.title && p.title.toLowerCase().includes(q));
       })
       .sort((a, b) => {
         // Founder first, then Managers, then Online people, then by name
@@ -223,9 +223,9 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
         if (b.role === "Manager" && a.role !== "Manager") return 1;
         if (a.presence === "Online" && b.presence !== "Online") return -1;
         if (b.presence === "Online" && a.presence !== "Online") return 1;
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       });
-  }, [allPeople, currentUser.id, searchQuery]);
+  }, [allPeople, currentUser?.id, searchQuery]);
 
   const activeContact = activeTarget === "general" ? null : allPeople.find(p => p.id === activeTarget);
   const currentMessages = messagesByTarget[activeTarget] || [];

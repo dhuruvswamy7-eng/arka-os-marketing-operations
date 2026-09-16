@@ -880,6 +880,19 @@ function AppRouter() {
   const [sessions, setSessions] = useState<SessionRecord[]>(initialSessions);
   const [createOpen, setCreateOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [timerSecondsRemaining, setTimerSecondsRemaining] = useState<number | null>(() => {
+    try {
+      const raw = localStorage.getItem('arka_presence_timer');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.expiresAt) {
+          const diff = Math.ceil((parsed.expiresAt - Date.now()) / 1000);
+          return diff > 0 ? diff : 0;
+        }
+      }
+    } catch {}
+    return null;
+  });
 
   useEffect(() => {
     const refresh = () => hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions);
@@ -890,12 +903,16 @@ function AppRouter() {
   }, [signedIn]);
 
   runtimePeople = directory;
-  const actor = person(actorId);
+  const actor = person(actorId) || directory[0] || initialPeople[0];
   const selectedId = location.startsWith('/work/') ? location.split('/')[2] : null;
   const selected = selectedId ? work.find((item) => item.id === selectedId) : null;
-  const scopeWork = useMemo(() => actor.role === 'Founder' ? work : actor.role === 'Manager' ? work.filter((item) => item.managerId === actor.id || tasks.some((task) => task.workId === item.id && person(task.assigneeId).managerId === actor.id)) : work.filter((item) => tasks.some((task) => task.workId === item.id && task.assigneeId === actor.id) || item.directAssigneeId === actor.id), [actor, work, tasks]);
-  const scopePeople = actor.role === 'Founder' ? runtimePeople : actor.role === 'Manager' ? runtimePeople.filter((item) => item.id === actor.id || item.managerId === actor.id) : [actor];
+  const scopeWork = useMemo(() => {
+    if (!actor) return work;
+    return actor.role === 'Founder' ? work : actor.role === 'Manager' ? work.filter((item) => item.managerId === actor.id || tasks.some((task) => task.workId === item.id && person(task.assigneeId).managerId === actor.id)) : work.filter((item) => tasks.some((task) => task.workId === item.id && task.assigneeId === actor.id) || item.directAssigneeId === actor.id);
+  }, [actor, work, tasks]);
+  const scopePeople = !actor ? runtimePeople : actor.role === 'Founder' ? runtimePeople : actor.role === 'Manager' ? runtimePeople.filter((item) => item.id === actor.id || item.managerId === actor.id) : [actor];
   const scopeTasks = useMemo(() => {
+    if (!actor) return tasks;
     if (actor.role === 'Founder') return tasks;
     if (actor.role === 'Manager') {
       return tasks.filter((task) => {
@@ -906,6 +923,87 @@ function AppRouter() {
     // Team member strictly only sees tasks assigned to themselves
     return tasks.filter((task) => task.assigneeId === actor.id);
   }, [actor, tasks]);
+
+  const updatePresence = async (presence: Presence, isAuto = false) => {
+    if (!actor) return;
+    try {
+      const prevPresence = actor.presence;
+
+      if (presence === 'Break') {
+        const expiresAt = Date.now() + 15 * 60 * 1000;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Break', expiresAt }));
+        setTimerSecondsRemaining(15 * 60);
+        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 15-minute Break', tone: 'warning' });
+      } else if (presence === 'Lunch') {
+        const expiresAt = Date.now() + 60 * 60 * 1000;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Lunch', expiresAt }));
+        setTimerSecondsRemaining(60 * 60);
+        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 1-hour Lunch', tone: 'warning' });
+      } else {
+        localStorage.removeItem('arka_presence_timer');
+        setTimerSecondsRemaining(null);
+
+        if (prevPresence === 'Break' || prevPresence === 'Lunch') {
+          const reason = isAuto ? `automatically returned from ${prevPresence}` : `returned early from ${prevPresence}`;
+          await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' });
+        }
+      }
+
+      const res = await apiPatch<{item: Person}>(`/people/${actor.id}/presence`, { presence });
+      setDirectory((all) => all.map(p => p.id === actor.id ? { ...p, presence } : p));
+    } catch (err) {
+      console.error("Update presence error", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!signedIn || !actor) return () => {};
+
+    if (actor.presence === 'Break' || actor.presence === 'Lunch') {
+      const raw = localStorage.getItem('arka_presence_timer');
+      let expiresAt: number;
+
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.userId === actor.id && parsed.presence === actor.presence && parsed.expiresAt) {
+            expiresAt = parsed.expiresAt;
+          } else {
+            const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+            expiresAt = Date.now() + durationMs;
+            localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
+          }
+        } catch {
+          const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+          expiresAt = Date.now() + durationMs;
+          localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
+        }
+      } else {
+        const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+        expiresAt = Date.now() + durationMs;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
+      }
+
+      const tick = () => {
+        const diff = Math.ceil((expiresAt - Date.now()) / 1000);
+        if (diff <= 0) {
+          setTimerSecondsRemaining(0);
+          localStorage.removeItem('arka_presence_timer');
+          updatePresence('Online', true);
+        } else {
+          setTimerSecondsRemaining(diff);
+        }
+      };
+
+      tick();
+      const interval = setInterval(tick, 1000);
+      return () => clearInterval(interval);
+    } else {
+      localStorage.removeItem('arka_presence_timer');
+      setTimerSecondsRemaining(null);
+      return () => {};
+    }
+  }, [signedIn, actor?.id, actor?.presence]);
   const addActivity = async (workId: string, message: string, tone: Activity['tone'] = 'normal') => { 
     try {
       const res = await apiPost<{item: Activity}>('/activities', { workId, actorId: actor.id, message, tone });
@@ -1102,101 +1200,6 @@ function AppRouter() {
       return false;
     }
   }} />;
-
-  const [timerSecondsRemaining, setTimerSecondsRemaining] = useState<number | null>(() => {
-    try {
-      const raw = localStorage.getItem('arka_presence_timer');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.expiresAt) {
-          const diff = Math.ceil((parsed.expiresAt - Date.now()) / 1000);
-          return diff > 0 ? diff : 0;
-        }
-      }
-    } catch {}
-    return null;
-  });
-
-  const updatePresence = async (presence: Presence, isAuto = false) => {
-    if (!actor) return;
-    try {
-      const prevPresence = actor.presence;
-
-      if (presence === 'Break') {
-        const expiresAt = Date.now() + 15 * 60 * 1000;
-        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Break', expiresAt }));
-        setTimerSecondsRemaining(15 * 60);
-        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 15-minute Break', tone: 'warning' });
-      } else if (presence === 'Lunch') {
-        const expiresAt = Date.now() + 60 * 60 * 1000;
-        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Lunch', expiresAt }));
-        setTimerSecondsRemaining(60 * 60);
-        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 1-hour Lunch', tone: 'warning' });
-      } else {
-        localStorage.removeItem('arka_presence_timer');
-        setTimerSecondsRemaining(null);
-
-        if (prevPresence === 'Break' || prevPresence === 'Lunch') {
-          const reason = isAuto ? `automatically returned from ${prevPresence}` : `returned early from ${prevPresence}`;
-          await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' });
-        }
-      }
-
-      const res = await apiPatch<{item: Person}>(`/people/${actor.id}/presence`, { presence });
-      setDirectory((all) => all.map(p => p.id === actor.id ? { ...p, presence } : p));
-    } catch (err) {
-      console.error("Update presence error", err);
-    }
-  };
-
-  useEffect(() => {
-    if (!actor) return () => {};
-
-    if (actor.presence === 'Break' || actor.presence === 'Lunch') {
-      const raw = localStorage.getItem('arka_presence_timer');
-      let expiresAt: number;
-
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.userId === actor.id && parsed.presence === actor.presence && parsed.expiresAt) {
-            expiresAt = parsed.expiresAt;
-          } else {
-            const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
-            expiresAt = Date.now() + durationMs;
-            localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
-          }
-        } catch {
-          const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
-          expiresAt = Date.now() + durationMs;
-          localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
-        }
-      } else {
-        const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
-        expiresAt = Date.now() + durationMs;
-        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
-      }
-
-      const tick = () => {
-        const diff = Math.ceil((expiresAt - Date.now()) / 1000);
-        if (diff <= 0) {
-          setTimerSecondsRemaining(0);
-          localStorage.removeItem('arka_presence_timer');
-          updatePresence('Online', true);
-        } else {
-          setTimerSecondsRemaining(diff);
-        }
-      };
-
-      tick();
-      const interval = setInterval(tick, 1000);
-      return () => clearInterval(interval);
-    } else {
-      localStorage.removeItem('arka_presence_timer');
-      setTimerSecondsRemaining(null);
-      return () => {};
-    }
-  }, [actor?.id, actor?.presence]);
 
   if (!actor) return null;
   if (selected) return (
