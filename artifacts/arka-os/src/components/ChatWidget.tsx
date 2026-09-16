@@ -46,7 +46,7 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? (
 
 async function fetchChatHistory(peerId: string, currentUserId: string): Promise<Message[]> {
   try {
-    const token = localStorage.getItem("arka_token");
+    const token = sessionStorage.getItem("arka_token") || localStorage.getItem("arka_token");
     const res = await fetch(`${API_BASE}/messages?peerId=${encodeURIComponent(peerId)}&userId=${encodeURIComponent(currentUserId)}`, {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -63,7 +63,7 @@ async function fetchChatHistory(peerId: string, currentUserId: string): Promise<
 
 async function postChatMessage(payload: Partial<Message>): Promise<void> {
   try {
-    const token = localStorage.getItem("arka_token");
+    const token = sessionStorage.getItem("arka_token") || localStorage.getItem("arka_token");
     await fetch(`${API_BASE}/messages`, {
       method: "POST",
       headers: {
@@ -100,11 +100,17 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize Socket.io connection
+  const currentUserId = currentUser?.id;
+  const isOpenRef = useRef(isOpen);
   useEffect(() => {
-    if (!currentUser) return;
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
-    const token = localStorage.getItem("arka_token") || "mock-token";
+  // Initialize Socket.io connection once per user
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const token = sessionStorage.getItem("arka_token") || localStorage.getItem("arka_token") || "mock-token";
     const newSocket = io(SOCKET_URL, {
       auth: { token },
       path: "/socket.io/",
@@ -119,7 +125,7 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
       // Determine thread key
       let threadKey = "general";
       if (recipientId !== "general") {
-        threadKey = msg.senderId === currentUser.id ? recipientId : msg.senderId;
+        threadKey = msg.senderId === currentUserId ? recipientId : msg.senderId;
       }
 
       setMessagesByTarget(prev => {
@@ -133,7 +139,7 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
 
       // Update unread count if user is not looking at this thread or widget is closed
       setActiveTarget(currentActive => {
-        if (!isOpen || currentActive !== threadKey) {
+        if (!isOpenRef.current || currentActive !== threadKey) {
           setUnreadCounts(u => ({
             ...u,
             [threadKey]: (u[threadKey] || 0) + 1
@@ -153,16 +159,23 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
     return () => {
       newSocket.close();
     };
-  }, [currentUser, isOpen]);
+  }, [currentUserId]);
 
-  // Load message history when activeTarget changes
+  // Load message history when activeTarget or currentUserId changes
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUserId) return;
 
     let isCancelled = false;
-    setIsLoadingHistory(true);
+    
+    // Only show loading indicator if thread is empty/never loaded
+    setMessagesByTarget(prev => {
+      if (!prev[activeTarget] || prev[activeTarget].length === 0) {
+        setIsLoadingHistory(true);
+      }
+      return prev;
+    });
 
-    fetchChatHistory(activeTarget, currentUser.id).then(items => {
+    fetchChatHistory(activeTarget, currentUserId).then(items => {
       if (isCancelled) return;
       setMessagesByTarget(prev => ({
         ...prev,
@@ -185,7 +198,7 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
     return () => {
       isCancelled = true;
     };
-  }, [activeTarget, currentUser]);
+  }, [activeTarget, currentUserId]);
 
   // Auto scroll when message list changes
   useEffect(() => {
@@ -489,7 +502,7 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
 
             {/* Messages Scroll Area */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gradient-to-b from-[#0f172a] to-[#0b1120]">
-              {isLoadingHistory ? (
+              {isLoadingHistory && currentMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-2">
                   <div className="size-5 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
                   <span>Loading messages...</span>

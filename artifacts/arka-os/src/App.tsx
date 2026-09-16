@@ -25,21 +25,60 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (
     : 'http://localhost:5000/api'
 );
 
+function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const sessionToken = sessionStorage.getItem('arka_token');
+  if (sessionToken) return sessionToken;
+  const localToken = localStorage.getItem('arka_token');
+  if (localToken) {
+    sessionStorage.setItem('arka_token', localToken);
+    localStorage.removeItem('arka_token');
+    return localToken;
+  }
+  return null;
+}
+
+function setStoredToken(token: string | null) {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    sessionStorage.setItem('arka_token', token);
+  } else {
+    sessionStorage.removeItem('arka_token');
+  }
+  localStorage.removeItem('arka_token');
+}
+
+let isSupersededAlertShown = false;
+function handleAuthFailure(status: number, data: any) {
+  if (status === 401 && data?.code === 'SESSION_SUPERSEDED') {
+    setStoredToken(null);
+    if (!isSupersededAlertShown) {
+      isSupersededAlertShown = true;
+      alert("Session Expired: Your account was logged in from another device or browser.");
+      window.location.reload();
+    }
+  }
+}
+
 async function apiGet<T>(path: string): Promise<T> {
-  const token = localStorage.getItem('arka_token');
+  const token = getStoredToken();
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
   });
   if (!response.ok) {
+    try {
+      const errData = await response.clone().json();
+      handleAuthFailure(response.status, errData);
+    } catch {}
     throw new Error(`API ${path} responded with ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
 
 async function apiPost<T>(path: string, body: any): Promise<T> {
-  const token = localStorage.getItem('arka_token');
+  const token = getStoredToken();
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
@@ -48,12 +87,18 @@ async function apiPost<T>(path: string, body: any): Promise<T> {
     },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw new Error(`API ${path} responded with ${response.status}`);
+  if (!response.ok) {
+    try {
+      const errData = await response.clone().json();
+      handleAuthFailure(response.status, errData);
+    } catch {}
+    throw new Error(`API ${path} responded with ${response.status}`);
+  }
   return response.json() as Promise<T>;
 }
 
 async function apiPatch<T>(path: string, body: any): Promise<T> {
-  const token = localStorage.getItem('arka_token');
+  const token = getStoredToken();
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'PATCH',
     headers: {
@@ -62,19 +107,31 @@ async function apiPatch<T>(path: string, body: any): Promise<T> {
     },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw new Error(`API ${path} responded with ${response.status}`);
+  if (!response.ok) {
+    try {
+      const errData = await response.clone().json();
+      handleAuthFailure(response.status, errData);
+    } catch {}
+    throw new Error(`API ${path} responded with ${response.status}`);
+  }
   return response.json() as Promise<T>;
 }
 
 async function apiDelete<T>(path: string): Promise<T> {
-  const token = localStorage.getItem('arka_token');
+  const token = getStoredToken();
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'DELETE',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
   });
-  if (!response.ok) throw new Error(`API ${path} responded with ${response.status}`);
+  if (!response.ok) {
+    try {
+      const errData = await response.clone().json();
+      handleAuthFailure(response.status, errData);
+    } catch {}
+    throw new Error(`API ${path} responded with ${response.status}`);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -760,11 +817,16 @@ function PeoplePage({ people, onAdd, onUpdatePassword, onDeletePerson }: { peopl
   );
 }
 
-function AttendancePage({ actor, people, tasks, leaves, sessions = [] }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[]; sessions?: SessionRecord[] }) {
+function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[]; sessions?: SessionRecord[]; onRefresh?: () => void }) {
   const [period, setPeriod] = useState('Today');
   const [selectedDate, setSelectedDate] = useState(TODAY);
   const [roleFilter, setRoleFilter] = useState<'All' | 'Manager' | 'Team member'>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [markLeaveTarget, setMarkLeaveTarget] = useState<Person | null>(null);
+  const [leaveModalType, setLeaveModalType] = useState<LeaveType>('Casual');
+  const [leaveModalReason, setLeaveModalReason] = useState('Absent / No login');
+  const [isSavingLeave, setIsSavingLeave] = useState(false);
+
   const navigateDate = (dir: -1 | 1) => { const d = new Date(`${selectedDate}T12:00:00`); d.setDate(d.getDate() + dir); setSelectedDate(d.toISOString().slice(0, 10)); setPeriod('Custom date'); setExpandedId(null); };
   const scope = getAttendanceScope(actor, people);
   const filteredPeople = scope.filter((item) => roleFilter === 'All' || item.role === roleFilter);
@@ -776,7 +838,140 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [] }: { actor
   const totalTask = rows.reduce((sum, row) => sum + row.taskMinutes, 0);
   const exportCsv = () => { const header = 'Date,Employee,Role,First Login,Last Logout,Total Session Time,Task Time,Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
   const changePeriod = (value: string) => { setPeriod(value); if (value === 'Yesterday') setSelectedDate('2026-09-14'); else setSelectedDate(TODAY); };
-  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'} title={`Attendance — ${formatDate(selectedDate)}`} description="Session presence and task time are separate signals. Every visible employee remains in the table, including no-login and approved leave records." action={<div className="flex flex-wrap items-center gap-2"><button onClick={() => navigateDate(-1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowLeft className="size-4" /></button><button onClick={() => navigateDate(1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowRight className="size-4" /></button><select value={period} onChange={(event) => changePeriod(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm font-semibold outline-none"><option>Today</option><option>Yesterday</option><option>This Week</option><option>This Month</option><option>Custom date</option></select>{period === 'Custom date' && <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm outline-none" />}<Button variant="secondary" onClick={exportCsv}>Export CSV</Button><Button variant="secondary" onClick={() => window.print()}>Print</Button></div>} /><div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Total employees" value={rows.length} detail="Complete visible scope" /><Metric label="Logged in" value={rows.filter((row) => row.sessions.length > 0).length} detail="Have a session record" /><Metric label="Not logged in" value={rows.filter((row) => row.sessions.length === 0 && !row.leave).length} detail="Still represented in table" /><Metric label="On leave" value={rows.filter((row) => row.leave).length} detail="Approved leave" tone="warning" /><Metric label="Session / task time" value={`${hours(totalSession)} / ${hours(totalTask)}`} detail="Separate measurements" /></div><div className="mb-4 flex flex-wrap gap-2"><Button variant={roleFilter === 'All' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('All')}>All</Button><Button variant={roleFilter === 'Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Manager')}>Managers</Button><Button variant={roleFilter === 'Team member' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Team member')}>Team Members</Button></div><Card><div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid"><span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span></div>{rows.map((row) => <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0"><button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]"><div><div className="font-bold">{row.item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div></div><span className="text-sm">{row.item.role}</span><span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span><span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions.at(-1)?.logoutAt)}</span><span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span><span className="text-sm">{hours(row.taskMinutes)}</span><Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>{row.status}</Badge></button>{expandedId === row.item.id && <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />}</div>)}{rows.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No employees in this scope.</p>}</Card><WeeklyAttendanceGrid filteredPeople={filteredPeople} onSelectDate={(d: string) => { setSelectedDate(d); setPeriod('Custom date'); setExpandedId(null); }} leaves={leaves} sessions={sessions} /></>;
+
+  return (
+    <>
+      <SectionTitle
+        eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'}
+        title={`Attendance — ${formatDate(selectedDate)}`}
+        description="Session presence and task time are separate signals. Every visible employee remains in the table, including no-login and approved leave records."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => navigateDate(-1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowLeft className="size-4" /></button>
+            <button onClick={() => navigateDate(1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowRight className="size-4" /></button>
+            <select value={period} onChange={(event) => changePeriod(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm font-semibold outline-none"><option>Today</option><option>Yesterday</option><option>This Week</option><option>This Month</option><option>Custom date</option></select>
+            {period === 'Custom date' && <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm outline-none" />}
+            <Button variant="secondary" onClick={exportCsv}>Export CSV</Button>
+            <Button variant="secondary" onClick={() => window.print()}>Print</Button>
+          </div>
+        }
+      />
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Total employees" value={rows.length} detail="Complete visible scope" />
+        <Metric label="Logged in" value={rows.filter((row) => row.sessions.length > 0).length} detail="Have a session record" />
+        <Metric label="Not logged in" value={rows.filter((row) => row.sessions.length === 0 && !row.leave).length} detail="Still represented in table" />
+        <Metric label="On leave" value={rows.filter((row) => row.leave).length} detail="Approved leave" tone="warning" />
+        <Metric label="Session / task time" value={`${hours(totalSession)} / ${hours(totalTask)}`} detail="Separate measurements" />
+      </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button variant={roleFilter === 'All' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('All')}>All</Button>
+        <Button variant={roleFilter === 'Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Manager')}>Managers</Button>
+        <Button variant={roleFilter === 'Team member' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Team member')}>Team Members</Button>
+      </div>
+      <Card>
+        <div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
+          <span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span>
+        </div>
+        {rows.map((row) => (
+          <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0">
+            <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]">
+              <div>
+                <div className="font-bold">{row.item.name}</div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div>
+              </div>
+              <span className="text-sm">{row.item.role}</span>
+              <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span>
+              <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions.at(-1)?.logoutAt)}</span>
+              <span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span>
+              <span className="text-sm">{hours(row.taskMinutes)}</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                  {row.status}
+                </Badge>
+                {actor.role === 'Founder' && row.status !== 'ON LEAVE' && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMarkLeaveTarget(row.item);
+                      setLeaveModalReason(`Absent / No login on ${formatDate(selectedDate)}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        setMarkLeaveTarget(row.item);
+                      }
+                    }}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-xs"
+                    title="Mark this employee as On Leave for this date"
+                  >
+                    <CalendarDays className="size-3" />
+                    Mark Leave
+                  </span>
+                )}
+              </div>
+            </button>
+            {expandedId === row.item.id && (
+              <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />
+            )}
+          </div>
+        ))}
+        {rows.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No employees in this scope.</p>}
+      </Card>
+      <WeeklyAttendanceGrid filteredPeople={filteredPeople} onSelectDate={(d: string) => { setSelectedDate(d); setPeriod('Custom date'); setExpandedId(null); }} leaves={leaves} sessions={sessions} />
+
+      {markLeaveTarget && (
+        <Modal title={`Mark Leave — ${markLeaveTarget.name}`} onClose={() => setMarkLeaveTarget(null)}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setIsSavingLeave(true);
+            try {
+              await apiPost('/leaves', {
+                userId: markLeaveTarget.id,
+                leaveType: leaveModalType,
+                startDate: selectedDate,
+                endDate: selectedDate,
+                reason: leaveModalReason.trim() || 'Marked by Founder (Absent)',
+                status: 'Approved',
+                approvedBy: actor.id
+              });
+              setMarkLeaveTarget(null);
+              if (onRefresh) onRefresh();
+            } catch (err) {
+              alert('Failed to mark leave');
+            } finally {
+              setIsSavingLeave(false);
+            }
+          }} className="space-y-4">
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[#fafaf8] p-3 text-xs">
+              <div className="font-bold text-slate-800">Employee: {markLeaveTarget.name}</div>
+              <div className="text-[hsl(var(--muted-foreground))]">Role: {markLeaveTarget.role} · Date: {formatDate(selectedDate)}</div>
+            </div>
+            <SelectField
+              label="Leave type"
+              value={leaveModalType}
+              onChange={(value) => setLeaveModalType(value as LeaveType)}
+              options={['Casual', 'Sick', 'Personal', 'Other']}
+            />
+            <Field
+              label="Reason"
+              value={leaveModalReason}
+              onChange={setLeaveModalReason}
+              placeholder="e.g. Absent / Called in sick / Emergency"
+              required
+            />
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="secondary" onClick={() => setMarkLeaveTarget(null)}>Cancel</Button>
+              <Button type="submit" disabled={isSavingLeave || !leaveModalReason.trim()}>
+                {isSavingLeave ? 'Saving...' : 'Confirm & Mark Approved Leave'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 function AttendanceDetail({ item, sessions, tasks, leave, selectedDate, total, taskMinutes }: { item: Person; sessions: SessionRecord[]; tasks: WorkTask[]; leave?: LeaveRequest; selectedDate: string; total: number; taskMinutes: number }) {
@@ -814,12 +1009,125 @@ function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions =
   </Card>;
 }
 
-function LeavePage({ actor, people, leaves, onApply, onDecision }: { actor: Person; people: Person[]; leaves: LeaveRequest[]; onApply: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void; onDecision: (id: string, status: LeaveStatus) => void }) {
+function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { actor: Person; people: Person[]; leaves: LeaveRequest[]; onApply: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void; onDecision: (id: string, status: LeaveStatus) => void; onRefresh?: () => void }) {
   const [open, setOpen] = useState(false);
+  const [founderRecordOpen, setFounderRecordOpen] = useState(false);
+  const [targetUserId, setTargetUserId] = useState(() => people.find(p => p.role !== 'Founder')?.id || people[0]?.id || '');
+  const [founderLeaveType, setFounderLeaveType] = useState<LeaveType>('Casual');
+  const [founderStartDate, setFounderStartDate] = useState(TODAY);
+  const [founderEndDate, setFounderEndDate] = useState(TODAY);
+  const [founderReason, setFounderReason] = useState('Approved by Founder');
+  const [founderNote, setFounderNote] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
   const visiblePeople = getVisiblePeopleForRole(actor, people);
   const visible = leaves.filter((leave) => visiblePeople.some((item) => item.id === leave.userId));
   const pending = visible.filter((leave) => leave.status === 'Pending').length;
-  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'} title={actor.role === 'Founder' ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'} description={actor.role === 'Founder' ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'} action={actor.role !== 'Founder' && <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave</Button>} /><div className="mb-5 grid gap-3 sm:grid-cols-3"><Metric label="Pending" value={pending} detail="Awaiting Founder decision" tone={pending ? 'warning' : 'default'} /><Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" /><Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future leave" /></div><Card>{visible.map((leave) => { const employee = person(leave.userId); return <div key={leave.id} className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0"><div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CalendarDays className="size-5" /></div><div className="min-w-[200px] flex-1"><div className="font-bold">{employee.name}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{employee.role} · {leave.leaveType} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}</div></div><div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--muted-foreground))]">{leave.reason}</div><Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>{leave.status}</Badge>{(actor.role === 'Founder' || (actor.role === 'Manager' && person(leave.userId).managerId === actor.id)) && leave.status === 'Pending' && <div className="flex gap-2"><Button onClick={() => onDecision(leave.id, 'Approved')}><Check className="size-4" />Approve</Button><Button variant="secondary" onClick={() => onDecision(leave.id, 'Rejected')}>Reject</Button></div>}</div>; })}{visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No leave applications in this scope.</p>}</Card>{open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}</>;
+
+  return (
+    <>
+      <SectionTitle
+        eyebrow={actor.role === 'Founder' ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
+        title={actor.role === 'Founder' ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
+        description={actor.role === 'Founder' ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'}
+        action={
+          actor.role === 'Founder' ? (
+            <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave</Button>
+          ) : (
+            <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave</Button>
+          )
+        }
+      />
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <Metric label="Pending" value={pending} detail="Awaiting Founder decision" tone={pending ? 'warning' : 'default'} />
+        <Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" />
+        <Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future leave" />
+      </div>
+      <Card>
+        {visible.map((leave) => {
+          const employee = person(leave.userId);
+          return (
+            <div key={leave.id} className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0">
+              <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700">
+                <CalendarDays className="size-5" />
+              </div>
+              <div className="min-w-[200px] flex-1">
+                <div className="font-bold">{employee.name}</div>
+                <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {employee.role} · {leave.leaveType} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
+                </div>
+              </div>
+              <div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--muted-foreground))]">{leave.reason}</div>
+              <Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                {leave.status}
+              </Badge>
+              {(actor.role === 'Founder' || (actor.role === 'Manager' && person(leave.userId).managerId === actor.id)) && leave.status === 'Pending' && (
+                <div className="flex gap-2">
+                  <Button onClick={() => onDecision(leave.id, 'Approved')}><Check className="size-4" />Approve</Button>
+                  <Button variant="secondary" onClick={() => onDecision(leave.id, 'Rejected')}>Reject</Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No leave applications in this scope.</p>}
+      </Card>
+      {open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}
+
+      {founderRecordOpen && (
+        <Modal title="Record Employee Leave (Approved)" onClose={() => setFounderRecordOpen(false)}>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setIsSaving(true);
+            try {
+              await apiPost('/leaves', {
+                userId: targetUserId,
+                leaveType: founderLeaveType,
+                startDate: founderStartDate,
+                endDate: founderEndDate,
+                reason: founderReason.trim() || 'Approved by Founder',
+                note: founderNote.trim() || null,
+                status: 'Approved',
+                approvedBy: actor.id
+              });
+              setFounderRecordOpen(false);
+              if (onRefresh) onRefresh();
+            } catch (err) {
+              alert('Failed to record leave');
+            } finally {
+              setIsSaving(false);
+            }
+          }} className="space-y-4">
+            <SelectField
+              label="Select Employee"
+              value={targetUserId}
+              onChange={setTargetUserId}
+              options={people.map((p) => p.id)}
+              labels={Object.fromEntries(people.map((p) => [p.id, `${p.name} (${p.role})`]))}
+            />
+            <SelectField
+              label="Leave type"
+              value={founderLeaveType}
+              onChange={(value) => setFounderLeaveType(value as LeaveType)}
+              options={['Casual', 'Sick', 'Personal', 'Other']}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Start date" type="date" value={founderStartDate} onChange={setFounderStartDate} required />
+              <Field label="End date" type="date" value={founderEndDate} onChange={setFounderEndDate} required />
+            </div>
+            <Field label="Reason" value={founderReason} onChange={setFounderReason} placeholder="e.g. Absent / Vacation / Personal" required />
+            <Field label="Optional note" value={founderNote} onChange={setFounderNote} placeholder="Additional notes or context" />
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="secondary" onClick={() => setFounderRecordOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSaving || !founderReason.trim()}>
+                {isSaving ? 'Saving...' : 'Record Approved Leave'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 function EmployeeModal({ people, onClose, onCreate }: { people: Person[]; onClose: () => void; onCreate: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void }) {
@@ -897,8 +1205,8 @@ function AppRouter() {
   useEffect(() => {
     const refresh = () => hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions);
     void refresh();
-    const timer = setInterval(refresh, 1500);
-    const heartbeatTimer = setInterval(() => { if (signedIn) apiPost('/auth/heartbeat', {}).catch(() => {}); }, 60000);
+    const timer = setInterval(refresh, 5000);
+    const heartbeatTimer = setInterval(() => { if (signedIn) apiPost('/auth/heartbeat', {}).catch(() => {}); }, 25000);
     return () => { clearInterval(timer); clearInterval(heartbeatTimer); };
   }, [signedIn]);
 
@@ -1085,7 +1393,7 @@ function AppRouter() {
   };
   const addPerson = async (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => {
     try {
-      const token = localStorage.getItem('arka_token');
+      const token = getStoredToken();
       const res = await fetch(`${API_BASE}/people`, {
         method: 'POST',
         headers: {
@@ -1115,7 +1423,7 @@ function AppRouter() {
   };
   const updatePersonPassword = async (personId: string, newPass: string) => {
     try {
-      const token = localStorage.getItem('arka_token');
+      const token = getStoredToken();
       const res = await fetch(`${API_BASE}/people/${personId}/password`, {
         method: 'PATCH',
         headers: {
@@ -1158,7 +1466,7 @@ function AppRouter() {
   };
   useEffect(() => {
     // Attempt auto-login with existing token
-    const token = localStorage.getItem('arka_token');
+    const token = getStoredToken();
     if (token) {
       apiGet<{ item: Person }>('/auth/me')
         .then(res => {
@@ -1168,7 +1476,7 @@ function AppRouter() {
           }
         })
         .catch(() => {
-          localStorage.removeItem('arka_token');
+          setStoredToken(null);
         });
     }
   }, []);
@@ -1182,7 +1490,7 @@ function AppRouter() {
       });
       if (!res.ok) return false;
       const data = await res.json();
-      localStorage.setItem('arka_token', data.item.token);
+      setStoredToken(data.item.token);
       setActorId(data.item.id);
       setSignedIn(true);
       
@@ -1205,7 +1513,7 @@ function AppRouter() {
   if (selected) return (
     <Shell
       actor={actor}
-      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }}
+      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setStoredToken(null); localStorage.removeItem('arka_presence_timer'); setSignedIn(false); setLocation('/'); }}
       onUpdatePresence={updatePresence}
       timerSecondsRemaining={timerSecondsRemaining}
       allPeople={runtimePeople}
@@ -1234,9 +1542,9 @@ function AppRouter() {
   const page = location === '/people' ? (
     <PeoplePage people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onDeletePerson={deletePerson} />
   ) : location === '/attendance' ? (
-    <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} />
+    <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} onRefresh={refresh} />
   ) : location === '/leave' ? (
-    <LeavePage actor={actor} people={runtimePeople} leaves={leaves} onApply={addLeave} onDecision={updateLeave} />
+    <LeavePage actor={actor} people={runtimePeople} leaves={leaves} onApply={addLeave} onDecision={updateLeave} onRefresh={refresh} />
   ) : location === '/team' ? (
     <TeamPage actor={actor} work={scopeWork} tasks={scopeTasks} onOpen={openWork} />
   ) : location === '/reports' ? (
@@ -1264,7 +1572,7 @@ function AppRouter() {
   return (
     <Shell
       actor={actor}
-      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }}
+      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setStoredToken(null); localStorage.removeItem('arka_presence_timer'); setSignedIn(false); setLocation('/'); }}
       onUpdatePresence={updatePresence}
       timerSecondsRemaining={timerSecondsRemaining}
       allPeople={runtimePeople}

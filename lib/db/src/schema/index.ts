@@ -74,6 +74,7 @@ export const peopleTable = pgTable("people", {
   lastActiveAt: text("last_active_at").notNull(),
   sessionMinutes: integer("session_minutes").default(0),
   taskMinutes: integer("task_minutes").default(0),
+  activeSessionId: text("active_session_id"),
 });
 
 export const workTable = pgTable("work", {
