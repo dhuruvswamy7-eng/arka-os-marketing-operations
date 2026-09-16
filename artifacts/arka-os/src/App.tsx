@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -1202,13 +1202,16 @@ function AppRouter() {
     return null;
   });
 
+  const refresh = useCallback(() => {
+    return hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions);
+  }, []);
+
   useEffect(() => {
-    const refresh = () => hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions);
     void refresh();
     const timer = setInterval(refresh, 5000);
     const heartbeatTimer = setInterval(() => { if (signedIn) apiPost('/auth/heartbeat', {}).catch(() => {}); }, 25000);
     return () => { clearInterval(timer); clearInterval(heartbeatTimer); };
-  }, [signedIn]);
+  }, [signedIn, refresh]);
 
   runtimePeople = directory;
   const actor = person(actorId) || directory[0] || initialPeople[0];
