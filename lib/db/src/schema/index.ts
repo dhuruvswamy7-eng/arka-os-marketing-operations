@@ -140,6 +140,7 @@ export const reportsTable = pgTable("reports", {
 export const messagesTable = pgTable("messages", {
   id: text("id").primaryKey(),
   senderId: text("sender_id").notNull(),
+  recipientId: text("recipient_id"),
   content: text("content").notNull(),
   createdAt: text("created_at").notNull(),
 });

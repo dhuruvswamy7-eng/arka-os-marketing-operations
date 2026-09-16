@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+// @ts-ignore
 import initSqlJs from "sql.js";
 
 const dbDir = path.resolve(process.cwd(), "data");

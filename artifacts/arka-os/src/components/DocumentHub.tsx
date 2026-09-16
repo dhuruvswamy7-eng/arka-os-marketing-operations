@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Upload, FileText } from "lucide-react";
-import { Person, WorkTask } from "@workspace/db";
+import type { Person, WorkTask } from "../App";
 
 interface DocumentItem {
   id: string;
@@ -10,6 +10,7 @@ interface DocumentItem {
   url: string;
   uploadedBy: string;
   taskId?: string | null;
+  createdAt?: string;
 }
 
 export function DocumentHub({ currentUser, allPeople, tasks }: { currentUser: Person; allPeople: Person[]; tasks: WorkTask[] }) {
@@ -146,7 +147,7 @@ export function DocumentHub({ currentUser, allPeople, tasks }: { currentUser: Pe
                     <div>
                       <p className="font-medium text-slate-200">{doc.filename}</p>
                       <p className="text-xs text-slate-500">
-                        {getTaskName(doc.taskId)} • Uploaded by {getUploaderName(doc.uploadedBy)} • {new Date(doc.createdAt).toLocaleDateString()}
+                        {getTaskName(doc.taskId)} • Uploaded by {getUploaderName(doc.uploadedBy)} • {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recent'}
                       </p>
                     </div>
                   </div>

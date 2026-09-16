@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, peopleTable, workTable, tasksTable, sessionsTable, leavesTable, reportsTable, messagesTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import jwt from "jsonwebtoken";
+import { getIO } from "../socket";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-dev-secret-key-do-not-use-in-prod";
@@ -83,8 +84,18 @@ router.patch("/:id/presence", async (req, res) => {
       res.status(400).json({ message: "Missing presence field" });
       return;
     }
-    await db.update(peopleTable).set({ presence: payload.presence }).where(eq(peopleTable.id, req.params.id));
+    const lastActiveAt = new Date().toISOString();
+    await db
+      .update(peopleTable)
+      .set({ presence: payload.presence, lastActiveAt })
+      .where(eq(peopleTable.id, req.params.id));
     const item = await db.select().from(peopleTable).where(eq(peopleTable.id, req.params.id)).limit(1).then(r => r[0]);
+
+    try {
+      const io = getIO();
+      io.emit("presence:update", { userId: req.params.id, status: payload.presence });
+    } catch {}
+
     res.json({ item });
   } catch (err) {
     console.error("Update presence error:", err);

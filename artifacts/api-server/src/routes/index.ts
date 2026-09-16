@@ -14,6 +14,7 @@ import activitiesRouter from "./activities";
 import commentsRouter from "./comments";
 import leavesRouter from "./leaves";
 import sessionsRouter from "./sessions";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use("/activities", activitiesRouter);
 router.use("/comments", commentsRouter);
 router.use("/leaves", leavesRouter);
 router.use("/sessions", sessionsRouter);
+router.use("/messages", messagesRouter);
 
 export default router;

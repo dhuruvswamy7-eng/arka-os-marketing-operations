@@ -41,14 +41,30 @@ export function initSocket(server: HttpServer) {
     socket.broadcast.emit("presence:update", { userId: user.id, status: "Online" });
 
     socket.on("chat:message", async (msg) => {
-      const payload = { ...msg, senderId: user.id, timestamp: new Date().toISOString() };
-      io.emit("chat:message", payload);
+      const recipientId = msg.recipientId && msg.recipientId !== "general" ? msg.recipientId : "general";
+      const payload = {
+        id: msg.id || crypto.randomUUID(),
+        senderId: user.id,
+        recipientId,
+        content: msg.content,
+        timestamp: new Date().toISOString()
+      };
+
+      if (recipientId !== "general") {
+        // Direct message: deliver to recipient room and echo to sender room
+        io.to(recipientId).emit("chat:message", payload);
+        io.to(user.id).emit("chat:message", payload);
+      } else {
+        // General company channel: broadcast to all
+        io.emit("chat:message", payload);
+      }
       
       // Save to database
       try {
         await db.insert(messagesTable).values({
           id: payload.id,
           senderId: user.id,
+          recipientId: payload.recipientId,
           content: payload.content,
           createdAt: payload.timestamp
         });

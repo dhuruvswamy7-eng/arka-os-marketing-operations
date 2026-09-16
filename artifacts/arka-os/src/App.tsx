@@ -17,9 +17,11 @@ const TODAY = '2026-09-15';
 const LOGO_SRC = `${import.meta.env.BASE_URL}assets/arkamedia-logo.png`;
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (
   typeof window !== 'undefined'
-    ? (window.location.port === '5173'
-        ? `${window.location.protocol}//${window.location.hostname}:5000/api`
-        : '/api')
+    ? (window.location.hostname.includes('arkadigitalmedia.com')
+        ? 'https://arka-api-w9o0.onrender.com/api'
+        : (window.location.port === '5173'
+            ? `${window.location.protocol}//${window.location.hostname}:5000/api`
+            : '/api'))
     : 'http://localhost:5000/api'
 );
 
@@ -111,23 +113,23 @@ async function hydrateFromApi(
   }
 }
 
-type Role = 'Founder' | 'Manager' | 'Team member';
-type Stage = 'Planning' | 'Assigned' | 'In Progress' | 'Review' | 'Revision' | 'Approved' | 'Completed' | 'Blocked';
-type Priority = 'Low' | 'Medium' | 'High' | 'Urgent';
-type WorkType = 'Website' | 'SEO' | 'Graphic Design' | 'Internal' | 'Other';
-type Presence = 'Online' | 'Idle' | 'Offline';
+export type Role = 'Founder' | 'Manager' | 'Team member';
+export type Stage = 'Planning' | 'Assigned' | 'In Progress' | 'Review' | 'Revision' | 'Approved' | 'Completed' | 'Blocked';
+export type Priority = 'Low' | 'Medium' | 'High' | 'Urgent';
+export type WorkType = 'Website' | 'SEO' | 'Graphic Design' | 'Internal' | 'Other';
+export type Presence = 'Online' | 'Break' | 'Lunch' | 'Idle' | 'Offline';
 
-type Person = {
+export type Person = {
   id: string; name: string; email?: string; password?: string; role: Role; title: string; managerId: string | null;
   presence: Presence; loginAt?: string; logoutAt?: string; lastActiveAt: string;
   sessionMinutes?: number; taskMinutes?: number;
 };
-type WorkItem = {
+export type WorkItem = {
   id: string; title: string; description: string; client?: string; workType: WorkType;
   priority: Priority; dueDate: string; founderId: string; managerId: string | null;
   directAssigneeId?: string; stage: Stage; progress: number; createdAt: string;
 };
-type WorkTask = {
+export type WorkTask = {
   id: string; workId: string; title: string; instructions: string; assigneeId: string;
   dueDate: string; priority: Priority; stage: Stage; progress: number; timeMinutes: number;
   estimatedMinutes: number; submittedAt?: string; revisionNote?: string;
@@ -293,7 +295,21 @@ function SectionTitle({ eyebrow, title, description, action }: { eyebrow?: strin
   return <div className="mb-6 flex items-end justify-between gap-4"><div>{eyebrow && <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(var(--primary))]">{eyebrow}</div>}<h1 className="text-2xl font-black tracking-[-0.04em] md:text-3xl">{title}</h1>{description && <p className="mt-2 max-w-2xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{description}</p>}</div>{action}</div>;
 }
 
-function Shell({ actor, onLogout, onUpdatePresence, children }: { actor: Person; onLogout: () => void; onUpdatePresence: (p: Presence) => void; children: ReactNode }) {
+function Shell({ 
+  actor, 
+  onLogout, 
+  onUpdatePresence, 
+  timerSecondsRemaining,
+  allPeople,
+  children 
+}: { 
+  actor: Person; 
+  onLogout: () => void; 
+  onUpdatePresence: (p: Presence) => void; 
+  timerSecondsRemaining?: number | null;
+  allPeople?: Person[];
+  children: ReactNode 
+}) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = roleNavigation[actor.role];
@@ -314,21 +330,55 @@ function Shell({ actor, onLogout, onUpdatePresence, children }: { actor: Person;
       <button onClick={onLogout} className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-white/55 hover:bg-white/10 hover:text-white"><LogOut className="size-4" />Log out</button><div className="mt-3 border-t border-white/10 pt-3 text-[10px] uppercase tracking-[0.12em] text-white/35">Designed and developed by Dhuruv</div>
     </aside>
     {mobileOpen && <button aria-label="Close navigation" className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />}
-    <main className="min-h-screen lg:pl-[260px]"><header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[hsl(var(--border))] bg-[#f7f7f5]/90 px-5 backdrop-blur md:px-8"><button className="rounded-lg p-2 hover:bg-white lg:hidden" onClick={() => setMobileOpen(true)}><Menu className="size-5" /></button><div className="hidden items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] md:flex"><span className="size-2 rounded-full bg-emerald-500" /> Workspace <span className="text-black/20">/</span> {actor.role}</div><div className="ml-auto flex items-center gap-4">
-      <div className="flex items-center gap-2 rounded-full bg-white border border-[hsl(var(--border))] px-3 py-1 shadow-sm">
-        <span className={`size-2 rounded-full ${actor.presence === 'Online' ? 'bg-emerald-400' : actor.presence === 'Break' || actor.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-400'}`} /> 
-        <select 
-          className="bg-transparent text-xs font-semibold outline-none cursor-pointer text-[hsl(var(--foreground))]"
-          value={actor.presence}
-          onChange={(e) => onUpdatePresence(e.target.value as Presence)}
-        >
-          <option value="Online">Online</option>
-          <option value="Break">On Break</option>
-          <option value="Lunch">At Lunch</option>
-          <option value="Idle">Idle</option>
-        </select>
-      </div>
-      <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Search className="size-4" /></button><button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Bell className="size-4" /></button><div className="grid size-8 place-items-center rounded-full bg-[#111] text-xs font-bold text-[#f8c329]">{actor.name.split(' ').map((part) => part[0]).join('')}</div></div></header><div className="mx-auto max-w-[1500px] p-5 md:p-8">{children}</div></main>
+    <main className="min-h-screen lg:pl-[260px]">
+      <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[hsl(var(--border))] bg-[#f7f7f5]/90 px-5 backdrop-blur md:px-8">
+        <button className="rounded-lg p-2 hover:bg-white lg:hidden" onClick={() => setMobileOpen(true)}><Menu className="size-5" /></button>
+        <div className="hidden items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] md:flex">
+          <span className="size-2 rounded-full bg-emerald-500" /> Workspace <span className="text-black/20">/</span> {actor.role}
+        </div>
+        <div className="ml-auto flex items-center gap-3 md:gap-4">
+          
+          {/* Active Countdown Badge for Break and Lunch */}
+          {(actor.presence === 'Break' || actor.presence === 'Lunch') && timerSecondsRemaining !== null && timerSecondsRemaining !== undefined && (
+            <div className="flex items-center gap-2 rounded-full bg-amber-50 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-900 shadow-sm animate-pulse">
+              <Clock3 className="size-3.5 text-amber-600 animate-spin" style={{ animationDuration: '4s' }} />
+              <span>
+                {actor.presence === 'Break' ? '☕ Break' : '🍱 Lunch'}: {Math.floor(timerSecondsRemaining / 60)}:{String(timerSecondsRemaining % 60).padStart(2, '0')}
+              </span>
+              <button
+                type="button"
+                onClick={() => onUpdatePresence('Online')}
+                className="ml-1 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] px-2 py-0.5 transition shadow-sm cursor-pointer"
+                title="End early and switch back to Online"
+              >
+                End early
+              </button>
+            </div>
+          )}
+
+          {/* Presence Dropdown */}
+          <div className="flex items-center gap-2 rounded-full bg-white border border-[hsl(var(--border))] px-3 py-1 shadow-sm">
+            <span className={`size-2 rounded-full ${actor.presence === 'Online' ? 'bg-emerald-400' : actor.presence === 'Break' || actor.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-400'}`} /> 
+            <select 
+              className="bg-transparent text-xs font-semibold outline-none cursor-pointer text-[hsl(var(--foreground))]"
+              value={actor.presence}
+              onChange={(e) => onUpdatePresence(e.target.value as Presence)}
+            >
+              <option value="Online">Online</option>
+              <option value="Break">On Break (15m)</option>
+              <option value="Lunch">At Lunch (1h)</option>
+              <option value="Idle">Idle</option>
+            </select>
+          </div>
+
+          <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Search className="size-4" /></button>
+          <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Bell className="size-4" /></button>
+          <div className="grid size-8 place-items-center rounded-full bg-[#111] text-xs font-bold text-[#f8c329]">{actor.name.split(' ').map((part) => part[0]).join('')}</div>
+        </div>
+      </header>
+      <div className="mx-auto max-w-[1500px] p-5 md:p-8">{children}</div>
+    </main>
+    {allPeople && <ChatWidget currentUser={actor} allPeople={allPeople} />}
   </div>;
 }
 
@@ -338,7 +388,7 @@ function Metric({ label, value, detail, tone = 'default', onClick }: { label: st
 }
 
 function PersonRow({ item, currentWork, onOpen, onDelete }: { item: Person; currentWork?: WorkItem; onOpen?: (id: string) => void; onDelete?: () => void }) {
-  return <div className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-4 last:border-0"><div className={`size-2.5 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : item.presence === 'Idle' ? 'bg-amber-400' : 'bg-slate-300'}`} /><div className="min-w-[160px] flex-1"><div className="font-bold">{item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{item.title}</div></div><div className="w-20 text-xs font-semibold">{item.presence}</div><div className="w-40 text-xs text-[hsl(var(--muted-foreground))]">{item.presence === 'Online' ? (item.loginAt ? `In: ${formatTimestamp(item.loginAt)}` : 'Online') : (item.logoutAt ? `Out: ${formatTimestamp(item.logoutAt)}` : item.loginAt ? `Last: ${formatTimestamp(item.loginAt)}` : 'No session')}</div><div className="min-w-[180px] flex-1 text-sm">{currentWork ? <button className="text-left font-semibold hover:text-[hsl(var(--primary))]" onClick={() => onOpen?.(currentWork.id)}>{currentWork.title}<div className="mt-0.5 text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div>{onDelete && item.role !== 'Founder' && <button type="button" title={`Delete ${item.name}`} onClick={onDelete} className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 transition"><Trash2 className="size-4" /></button>}</div>;
+  return <div className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-4 last:border-0"><div className={`size-2.5 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : item.presence === 'Break' || item.presence === 'Lunch' ? 'bg-amber-400' : item.presence === 'Idle' ? 'bg-yellow-300' : 'bg-slate-300'}`} /><div className="min-w-[160px] flex-1"><div className="font-bold">{item.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{item.title}</div></div><div className="w-20 text-xs font-semibold">{item.presence}</div><div className="w-40 text-xs text-[hsl(var(--muted-foreground))]">{item.presence === 'Online' ? (item.loginAt ? `In: ${formatTimestamp(item.loginAt)}` : 'Online') : (item.logoutAt ? `Out: ${formatTimestamp(item.logoutAt)}` : item.loginAt ? `Last: ${formatTimestamp(item.loginAt)}` : 'No session')}</div><div className="min-w-[180px] flex-1 text-sm">{currentWork ? <button className="text-left font-semibold hover:text-[hsl(var(--primary))]" onClick={() => onOpen?.(currentWork.id)}>{currentWork.title}<div className="mt-0.5 text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div>{onDelete && item.role !== 'Founder' && <button type="button" title={`Delete ${item.name}`} onClick={onDelete} className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 transition"><Trash2 className="size-4" /></button>}</div>;
 }
 
 function WorkRow({ item, tasks, onOpen }: { item: WorkItem; tasks: WorkTask[]; onOpen: (id: string) => void }) {
@@ -1053,32 +1103,131 @@ function AppRouter() {
     }
   }} />;
 
-  const updatePresence = async (presence: Presence) => {
+  const [timerSecondsRemaining, setTimerSecondsRemaining] = useState<number | null>(() => {
     try {
-      if (presence === 'Break' || presence === 'Lunch') {
-        const msg = `started a 15-minute ${presence}`;
-        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: msg, tone: 'warning' });
-        
-        // Automated timer: Revert to online after 15 minutes (900000 ms)
-        setTimeout(async () => {
-          try {
-            await apiPatch(`/people/${actor.id}/presence`, { presence: 'Online' });
-            await apiPost('/activities', { workId: 'system', actorId: actor.id, message: `automatically returned from ${presence}`, tone: 'success' });
-            setDirectory((all) => all.map(p => p.id === actor.id ? { ...p, presence: 'Online' } : p));
-          } catch(e) {}
-        }, 15 * 60 * 1000);
-      } else if (actor.presence === 'Break' || actor.presence === 'Lunch') {
-        const msg = `returned early from ${actor.presence}`;
-        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: msg, tone: 'success' });
+      const raw = localStorage.getItem('arka_presence_timer');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.expiresAt) {
+          const diff = Math.ceil((parsed.expiresAt - Date.now()) / 1000);
+          return diff > 0 ? diff : 0;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const updatePresence = async (presence: Presence, isAuto = false) => {
+    if (!actor) return;
+    try {
+      const prevPresence = actor.presence;
+
+      if (presence === 'Break') {
+        const expiresAt = Date.now() + 15 * 60 * 1000;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Break', expiresAt }));
+        setTimerSecondsRemaining(15 * 60);
+        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 15-minute Break', tone: 'warning' });
+      } else if (presence === 'Lunch') {
+        const expiresAt = Date.now() + 60 * 60 * 1000;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Lunch', expiresAt }));
+        setTimerSecondsRemaining(60 * 60);
+        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 1-hour Lunch', tone: 'warning' });
+      } else {
+        localStorage.removeItem('arka_presence_timer');
+        setTimerSecondsRemaining(null);
+
+        if (prevPresence === 'Break' || prevPresence === 'Lunch') {
+          const reason = isAuto ? `automatically returned from ${prevPresence}` : `returned early from ${prevPresence}`;
+          await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' });
+        }
       }
 
       const res = await apiPatch<{item: Person}>(`/people/${actor.id}/presence`, { presence });
-      setDirectory((all) => all.map(p => p.id === actor.id ? res.item : p));
-    } catch (err) { console.error("Update presence error", err); }
+      setDirectory((all) => all.map(p => p.id === actor.id ? { ...p, presence } : p));
+    } catch (err) {
+      console.error("Update presence error", err);
+    }
   };
 
+  useEffect(() => {
+    if (!actor) return () => {};
+
+    if (actor.presence === 'Break' || actor.presence === 'Lunch') {
+      const raw = localStorage.getItem('arka_presence_timer');
+      let expiresAt: number;
+
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.userId === actor.id && parsed.presence === actor.presence && parsed.expiresAt) {
+            expiresAt = parsed.expiresAt;
+          } else {
+            const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+            expiresAt = Date.now() + durationMs;
+            localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
+          }
+        } catch {
+          const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+          expiresAt = Date.now() + durationMs;
+          localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
+        }
+      } else {
+        const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+        expiresAt = Date.now() + durationMs;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
+      }
+
+      const tick = () => {
+        const diff = Math.ceil((expiresAt - Date.now()) / 1000);
+        if (diff <= 0) {
+          setTimerSecondsRemaining(0);
+          localStorage.removeItem('arka_presence_timer');
+          updatePresence('Online', true);
+        } else {
+          setTimerSecondsRemaining(diff);
+        }
+      };
+
+      tick();
+      const interval = setInterval(tick, 1000);
+      return () => clearInterval(interval);
+    } else {
+      localStorage.removeItem('arka_presence_timer');
+      setTimerSecondsRemaining(null);
+      return () => {};
+    }
+  }, [actor?.id, actor?.presence]);
+
   if (!actor) return null;
-  if (selected) return <Shell actor={actor} onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }} onUpdatePresence={updatePresence}><WorkDetail actor={actor} item={selected} tasks={scopeTasks} activities={activities} comments={comments} onBack={() => setLocation(actor.role === 'Team member' ? '/my-work' : '/work')} onOpen={openWork} onUpdateTask={updateTask} onAddTask={addTask} onDeleteTask={deleteTask} onDeleteWork={deleteWork} onComment={(message) => addComment(selected.id, message)} onStartTimer={(taskId) => { const task = scopeTasks.find((entry) => entry.id === taskId); if (task) updateTask(taskId, { timeMinutes: task.timeMinutes + 25 }, 'logged 25 minutes on'); }} /></Shell>;
+  if (selected) return (
+    <Shell
+      actor={actor}
+      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }}
+      onUpdatePresence={updatePresence}
+      timerSecondsRemaining={timerSecondsRemaining}
+      allPeople={runtimePeople}
+    >
+      <WorkDetail
+        actor={actor}
+        item={selected}
+        tasks={scopeTasks}
+        activities={activities}
+        comments={comments}
+        onBack={() => setLocation(actor.role === 'Team member' ? '/my-work' : '/work')}
+        onOpen={openWork}
+        onUpdateTask={updateTask}
+        onAddTask={addTask}
+        onDeleteTask={deleteTask}
+        onDeleteWork={deleteWork}
+        onComment={(message) => addComment(selected.id, message)}
+        onStartTimer={(taskId) => {
+          const task = scopeTasks.find((entry) => entry.id === taskId);
+          if (task) updateTask(taskId, { timeMinutes: task.timeMinutes + 25 }, 'logged 25 minutes on');
+        }}
+      />
+    </Shell>
+  );
+
   const page = location === '/people' ? (
     <PeoplePage people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onDeletePerson={deletePerson} />
   ) : location === '/attendance' ? (
@@ -1110,7 +1259,13 @@ function AppRouter() {
   );
 
   return (
-    <Shell actor={actor} onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }} onUpdatePresence={updatePresence}>
+    <Shell
+      actor={actor}
+      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setSignedIn(false); setLocation('/'); }}
+      onUpdatePresence={updatePresence}
+      timerSecondsRemaining={timerSecondsRemaining}
+      allPeople={runtimePeople}
+    >
       {page}
       {createOpen && <AssignWorkModal onClose={() => setCreateOpen(false)} onCreate={createWork} />}
       {taskModalOpen && (
@@ -1120,7 +1275,6 @@ function AppRouter() {
           onCreate={addTask}
         />
       )}
-      <ChatWidget currentUser={actor} allPeople={runtimePeople} />
     </Shell>
   );
 }
