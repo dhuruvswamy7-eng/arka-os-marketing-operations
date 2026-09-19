@@ -59,7 +59,7 @@ router.post("/", async (req, res) => {
       email: email,
       password: payload.password ?? "1234",
       role: payload.role ?? "Team member",
-      title: payload.title ?? "Team Member",
+      title: payload.title ?? (payload.role === "HR Manager" ? "Head of People & HR Operations" : payload.role === "Manager" ? "Manager" : "Team Member"),
       managerId: payload.managerId || null,
       presence: payload.presence ?? "Offline",
       lastActiveAt: "Never",

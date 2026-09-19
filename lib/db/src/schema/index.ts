@@ -12,7 +12,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const roleEnum = pgEnum("role", ["Founder", "Manager", "Team member"]);
+export const roleEnum = pgEnum("role", ["Founder", "Manager", "Team member", "HR Manager"]);
 export const presenceEnum = pgEnum("presence", ["Online", "Break", "Lunch", "Idle", "Offline"]);
 export const workStageEnum = pgEnum("work_stage", [
   "Planning",

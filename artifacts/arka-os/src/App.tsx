@@ -170,7 +170,7 @@ async function hydrateFromApi(
   }
 }
 
-export type Role = 'Founder' | 'Manager' | 'Team member';
+export type Role = 'Founder' | 'Manager' | 'Team member' | 'HR Manager';
 export type Stage = 'Planning' | 'Assigned' | 'In Progress' | 'Review' | 'Revision' | 'Approved' | 'Completed' | 'Blocked';
 export type Priority = 'Low' | 'Medium' | 'High' | 'Urgent';
 export type WorkType = 'Website' | 'SEO' | 'Graphic Design' | 'Internal' | 'Other';
@@ -178,40 +178,39 @@ export type Presence = 'Online' | 'Break' | 'Lunch' | 'Idle' | 'Offline';
 
 export type Person = {
   id: string; name: string; email?: string; password?: string; role: Role; title: string; managerId: string | null;
-  presence: Presence; loginAt?: string; logoutAt?: string; lastActiveAt: string;
-  sessionMinutes?: number; taskMinutes?: number;
+  presence: Presence; lastActiveAt: string; loginAt?: string | null; logoutAt?: string | null; sessionMinutes: number; taskMinutes: number;
 };
+
 export type WorkItem = {
-  id: string; title: string; description: string; client?: string; workType: WorkType;
-  priority: Priority; dueDate: string; founderId: string; managerId: string | null;
-  directAssigneeId?: string; stage: Stage; progress: number; createdAt: string;
+  id: string; title: string; description: string; client?: string; workType: WorkType; priority: Priority; dueDate: string;
+  founderId: string; managerId?: string | null; directAssigneeId?: string | null; stage: Stage; progress: number; createdAt: string;
 };
+
 export type WorkTask = {
-  id: string; workId: string; title: string; instructions: string; assigneeId: string;
-  dueDate: string; priority: Priority; stage: Stage; progress: number; timeMinutes: number;
-  estimatedMinutes: number; submittedAt?: string; revisionNote?: string;
+  id: string; workId: string; title: string; instructions: string; assigneeId: string; dueDate: string; priority: Priority;
+  stage: Stage; progress: number; timeMinutes: number; estimatedMinutes: number; submittedAt?: string | null; revisionNote?: string | null;
 };
-type Activity = {
-  id: string; workId: string; actorId: string; message: string; createdAt: string;
-  tone?: 'normal' | 'success' | 'warning';
+
+export type Activity = { id: string; workId: string; actorId: string; message: string; createdAt: string; tone?: 'normal' | 'warning' | 'success'; };
+export type Comment = { id: string; workId: string; authorId: string; message: string; createdAt: string; };
+export type ReportStatus = 'Draft' | 'Submitted' | 'Reviewed' | 'Needs revision';
+export type ManagerReport = {
+  id: string; managerId: string; period: string; completed: string; inProgress: string; blockers: string; decisions: string;
+  status: ReportStatus; createdAt: string;
 };
-type Comment = { id: string; workId: string; authorId: string; message: string; createdAt: string };
-type ManagerReport = {
-  id: string; managerId: string; period: string; completed: string; inProgress: string;
-  blockers: string; decisions: string; status: 'Draft' | 'Submitted' | 'Reviewed' | 'Needs revision'; createdAt: string;
+export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
+export type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Other';
+export type LeaveRequest = {
+  id: string; userId: string; leaveType: LeaveType; startDate: string; endDate: string; reason: string; note?: string | null;
+  status: LeaveStatus; approvedBy?: string | null; createdAt: string;
 };
-type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
-type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Other';
-type LeaveRequest = {
-  id: string; userId: string; leaveType: LeaveType; startDate: string; endDate: string;
-  reason: string; note?: string; status: LeaveStatus; approvedBy?: string; createdAt: string;
-};
-type SessionRecord = {
+export type SessionRecord = {
   id: string; userId: string; date: string; loginAt: string; logoutAt?: string; durationMinutes: number;
 };
 
 const initialPeople: Person[] = [
   { id: 'usr_founder', name: 'Arka Founder', role: 'Founder', title: 'Founder / CEO', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
+  { id: 'usr_hr', name: 'HR Manager', email: 'hr@arka.com', password: '1234', role: 'HR Manager', title: 'Head of People & HR Operations', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
 ];
 
 let runtimePeople = initialPeople;
@@ -249,6 +248,16 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'Approvals', path: '/approvals', icon: CheckCircle2 },
     { label: 'Time & Effort', path: '/time', icon: Clock3 },
     { label: 'Insights', path: '/insights', icon: Zap },
+    { label: 'Settings', path: '/settings', icon: Settings2 },
+  ],
+  'HR Manager': [
+    { label: 'HR Command Center', path: '/dashboard', icon: Command },
+    { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
+    { label: 'Leave Management', path: '/leave', icon: CalendarDays },
+    { label: 'Company Workflow', path: '/work', icon: Inbox },
+    { label: 'Team Presence', path: '/team', icon: Users },
+    { label: 'People Directory', path: '/people', icon: UserPlus },
+    { label: 'Time & Effort', path: '/time', icon: Clock3 },
     { label: 'Settings', path: '/settings', icon: Settings2 },
   ],
   Manager: [
@@ -295,18 +304,21 @@ function formatTimestamp(isoString?: string | null) {
 }
 
 export function getVisiblePeopleForRole(actor: Pick<Person, 'id' | 'role'>, people: Person[]) {
-  if (actor.role === 'Founder') return people;
+  if (actor.role === 'Founder' || actor.role === 'HR Manager') return people;
   if (actor.role === 'Manager') return people.filter((item) => item.id === actor.id || item.managerId === actor.id);
   return people.filter((item) => item.id === actor.id);
 }
 
 export function getAttendanceScope(actor: Pick<Person, 'id' | 'role'>, people: Person[]) {
   const visiblePeople = getVisiblePeopleForRole(actor, people);
-  return actor.role === 'Founder' ? visiblePeople.filter((item) => item.role !== 'Founder') : visiblePeople.filter((item) => item.id !== actor.id || actor.role === 'Team member');
+  if (actor.role === 'Founder' || actor.role === 'HR Manager') {
+    return visiblePeople.filter((item) => item.role !== 'Founder');
+  }
+  return visiblePeople.filter((item) => item.id !== actor.id || actor.role === 'Team member');
 }
 
 export function getAssignablePeople(people: Person[], role?: Role) {
-  return people.filter((item) => item.role !== 'Founder' && (!role || item.role === role));
+  return people.filter((item) => item.role !== 'Founder' && item.role !== 'HR Manager' && (!role || item.role === role));
 }
 
 export function isApprovedLeaveActiveOnDate(leave: LeaveRequest, date: string) {
@@ -314,7 +326,7 @@ export function isApprovedLeaveActiveOnDate(leave: LeaveRequest, date: string) {
 }
 
 export function updateLeaveStatus(leaves: LeaveRequest[], id: string, status: LeaveStatus, actor: Pick<Person, 'role' | 'id'>) {
-  if (actor.role !== 'Founder' || (status !== 'Approved' && status !== 'Rejected')) return leaves;
+  if ((actor.role !== 'Founder' && actor.role !== 'HR Manager') || (status !== 'Approved' && status !== 'Rejected')) return leaves;
   return leaves.map((leave) => leave.id === id && leave.status === 'Pending'
     ? { ...leave, status, approvedBy: status === 'Approved' ? actor.id : leave.approvedBy }
     : leave);
@@ -326,6 +338,9 @@ export function authenticateDemoUser(email: string, pass: string) {
   }
   if (email === 'arka@founder' && pass === '1234') {
     return { id: 'usr_founder', role: 'Founder' as const, name: 'Founder' };
+  }
+  if (email === 'hr@arka.com' && pass === '1234') {
+    return { id: 'usr_hr', role: 'HR Manager' as const, name: 'HR Manager' };
   }
   return null;
 }
@@ -452,13 +467,169 @@ function WorkRow({ item, tasks, onOpen }: { item: WorkItem; tasks: WorkTask[]; o
   return <button onClick={() => onOpen(item.id)} className="group grid w-full grid-cols-[1fr_auto] items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-4 text-left last:border-0 hover:bg-[#fafaf8] md:grid-cols-[1.4fr_0.6fr_0.65fr_0.7fr_auto]"><div><div className="font-bold group-hover:text-[hsl(var(--primary))]">{item.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{item.client || 'Internal'} · {tasks.length} task{tasks.length === 1 ? '' : 's'}</div></div><div className="hidden text-sm md:block">{item.managerId ? person(item.managerId).name : item.directAssigneeId ? person(item.directAssigneeId).name : 'Unassigned'}</div><div className={`hidden text-sm font-bold md:block ${priorityTone[item.priority]}`}>{item.priority}</div><div className="hidden text-sm text-[hsl(var(--muted-foreground))] md:block">{formatDate(item.dueDate)}</div><Badge className={stageTone[item.stage]}>{item.stage}</Badge></button>;
 }
 
-function Dashboard({ actor, work, tasks, peopleInScope, reports, onOpen, onCreate, onNavigate, onDeletePerson }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; peopleInScope: Person[]; reports: ManagerReport[]; onOpen: (id: string) => void; onCreate: () => void; onNavigate: (path: string) => void; onDeletePerson?: (id: string) => Promise<void> | void }) {
+function Dashboard({ actor, work, tasks, peopleInScope, reports, leaves = [], onDecision, onOpen, onCreate, onNavigate, onDeletePerson }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; peopleInScope: Person[]; reports: ManagerReport[]; leaves?: LeaveRequest[]; onDecision?: (id: string, status: LeaveStatus) => void; onOpen: (id: string) => void; onCreate: () => void; onNavigate: (path: string) => void; onDeletePerson?: (id: string) => Promise<void> | void }) {
   const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
   const active = work.filter((item) => item.stage !== 'Completed');
   const dueToday = active.filter((item) => item.dueDate === TODAY);
   const overdue = active.filter((item) => isOverdue(item.dueDate));
   const blocked = active.filter((item) => item.stage === 'Blocked');
   const reviews = tasks.filter((task) => task.stage === 'Review');
+  if (actor.role === 'HR Manager') {
+    const onlineEmployees = peopleInScope.filter((p) => p.presence === 'Online');
+    const onLeaveEmployees = peopleInScope.filter((p) => leaves.some((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, TODAY)));
+    const pendingLeaves = leaves.filter((l) => l.status === 'Pending');
+
+    return (
+      <>
+        <SectionTitle
+          eyebrow="HR Executive Command Center"
+          title={`Good morning, ${actor.name.split(' ')[0]}.`}
+          description="Executive HR oversight — monitor company-wide attendance, review and approve leaves, and observe team workflow."
+        />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric
+            label="Total employees"
+            value={peopleInScope.length}
+            detail="Company roster"
+            onClick={() => onNavigate('/people')}
+          />
+          <Metric
+            label="Active now"
+            value={onlineEmployees.length}
+            detail="Currently online"
+            tone="success"
+            onClick={() => onNavigate('/attendance')}
+          />
+          <Metric
+            label="On leave today"
+            value={onLeaveEmployees.length}
+            detail="Approved leave"
+            tone={onLeaveEmployees.length > 0 ? 'warning' : 'default'}
+            onClick={() => onNavigate('/leave')}
+          />
+          <Metric
+            label="Pending leaves"
+            value={pendingLeaves.length}
+            detail="Requires decision"
+            tone={pendingLeaves.length > 0 ? 'warning' : 'default'}
+            onClick={() => onNavigate('/leave')}
+          />
+          <Metric
+            label="Active workflow"
+            value={active.length}
+            detail="Initiatives in progress"
+            onClick={() => onNavigate('/work')}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+          <Card>
+            <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Daily Presence</div>
+                <h2 className="mt-1 text-lg font-black">Team Attendance & Availability</h2>
+              </div>
+              <Button variant="ghost" onClick={() => onNavigate('/attendance')}>
+                View attendance <ArrowRight className="size-4" />
+              </Button>
+            </div>
+            {peopleInScope.map((item) => (
+              <PersonRow
+                key={item.id}
+                item={item}
+                currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)}
+                onOpen={onOpen}
+              />
+            ))}
+          </Card>
+
+          <div className="space-y-6">
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Leave Requests</div>
+                  <h2 className="mt-1 text-lg font-black">Pending Approval</h2>
+                </div>
+                <Button variant="ghost" onClick={() => onNavigate('/leave')}>
+                  All leaves <ArrowRight className="size-4" />
+                </Button>
+              </div>
+              <div className="mt-4 space-y-3">
+                {pendingLeaves.slice(0, 5).map((leave) => {
+                  const emp = person(leave.userId);
+                  return (
+                    <div key={leave.id} className="rounded-xl border border-[hsl(var(--border))] p-3.5 bg-[#fafaf8]">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-bold">{emp.name}</div>
+                          <div className="text-xs text-[hsl(var(--muted-foreground))]">{emp.role} · {leave.leaveType}</div>
+                          <div className="mt-1 text-xs text-slate-600">{formatDate(leave.startDate)} – {formatDate(leave.endDate)}</div>
+                          <div className="mt-1 text-xs italic text-[hsl(var(--muted-foreground))]">"{leave.reason}"</div>
+                        </div>
+                      </div>
+                      {onDecision && (
+                        <div className="mt-3 flex gap-2 border-t border-[hsl(var(--border))] pt-2">
+                          <button
+                            type="button"
+                            onClick={() => onDecision(leave.id, 'Approved')}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700 transition"
+                          >
+                            <Check className="size-3" /> Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDecision(leave.id, 'Rejected')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100 transition"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {pendingLeaves.length === 0 && (
+                  <p className="py-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                    No pending leave requests to approve.
+                  </p>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Workflow Oversight</div>
+                  <h2 className="mt-1 text-lg font-black">Active Initiatives</h2>
+                </div>
+                <Button variant="ghost" onClick={() => onNavigate('/work')}>
+                  View all <ArrowRight className="size-4" />
+                </Button>
+              </div>
+              <div className="mt-4 space-y-2.5">
+                {active.slice(0, 4).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => onOpen(item.id)}
+                    className="flex w-full items-center justify-between rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8] transition"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="font-semibold text-sm truncate">{item.title}</div>
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{item.workType} · {item.progress}% done</div>
+                    </div>
+                    <Badge className={stageTone[item.stage]}>{item.stage}</Badge>
+                  </button>
+                ))}
+                {active.length === 0 && (
+                  <p className="py-4 text-center text-sm text-[hsl(var(--muted-foreground))]">No active work.</p>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+      </>
+    );
+  }
   if (actor.role === 'Founder') return <><SectionTitle eyebrow="Founder command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here's the current state of Arka. Exception-focused visibility for decisions, not employee surveillance." action={<Button onClick={onCreate}><Plus className="size-4" />Assign work</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Active work" value={active.length} detail="Across the operation" onClick={() => onNavigate('/work')} /><Metric label="Due today" value={dueToday.length} detail="Needs a decision" tone="warning" /><Metric label="Overdue" value={overdue.length} detail="Requires intervention" tone="danger" onClick={() => onNavigate('/work')} /><Metric label="Blocked" value={blocked.length} detail="Waiting on a path forward" tone="danger" /><Metric label="Waiting approval" value={reviews.length} detail="Submitted for review" tone="warning" onClick={() => onNavigate('/approvals')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]"><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Where is everyone?</div><h2 className="mt-1 text-lg font-black">Team presence</h2></div><Button variant="ghost" onClick={() => onNavigate('/people')}>Manage people <ArrowRight className="size-4" /></Button></div>{peopleInScope.map((item) => <PersonRow key={item.id} item={item} currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)} onOpen={onOpen} onDelete={onDeletePerson && item.role !== 'Founder' ? () => setDeleteTarget(item) : undefined} />)}</Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Attention required</div><h2 className="mt-1 text-lg font-black">Founder decisions</h2><div className="mt-5 space-y-3">{[...overdue.slice(0, 2).map((item) => ({ label: 'Overdue work', item })), ...blocked.slice(0, 2).map((item) => ({ label: 'Blocked work', item }))].map(({ label, item }) => <button key={item.id} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><ShieldAlert className="mt-0.5 size-4 text-red-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-red-700">{label}</span><span className="mt-1 block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.managerId ? `Manager: ${person(item.managerId).name}` : 'Direct assignment'}</span></span></button>)}{reports.filter((report) => report.status === 'Submitted').map((report) => <button key={report.id} onClick={() => onNavigate('/reports')} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><FileText className="mt-0.5 size-4 text-[hsl(var(--primary))]" /><span><span className="block text-xs font-bold uppercase tracking-wide text-[hsl(var(--primary))]">Manager report</span><span className="mt-1 block text-sm font-semibold">{report.period} is ready to review</span></span></button>)}{overdue.length + blocked.length + reports.filter((report) => report.status === 'Submitted').length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No founder intervention required.</p>}</div></Card></div>{deleteTarget && <ConfirmDeleteModal targetPerson={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={async () => { if (onDeletePerson) await onDeletePerson(deleteTarget.id); }} />}</>;
   if (actor.role === 'Manager') return <><SectionTitle eyebrow="Manager command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="What does your team need to execute today?" action={<Button onClick={onCreate}><Plus className="size-4" />Assign task</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Founder assignments" value={work.filter((item) => item.managerId === actor.id && item.stage === 'Planning').length} detail="Waiting to be planned" onClick={() => onNavigate('/assignments')} /><Metric label="Team work" value={tasks.filter((task) => person(task.assigneeId).managerId === actor.id && task.stage !== 'Completed').length} detail="Active team tasks" /><Metric label="Due today" value={dueToday.length} detail="Deadline today" tone="warning" /><Metric label="Blocked" value={blocked.length} detail="Needs resolution" tone="danger" /><Metric label="My reviews" value={reviews.length} detail="Waiting for your review" tone="warning" onClick={() => onNavigate('/reviews')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Manager attention</div><h2 className="mt-1 text-lg font-black">Keep execution moving</h2></div><div className="p-5 space-y-3">{[...reviews.map((task) => ({ label: 'Waiting for review', title: task.title, detail: `${person(task.assigneeId).name} submitted this task`, id: task.workId })), ...blocked.map((item) => ({ label: 'Blocked', title: item.title, detail: 'Resolve or escalate the blocker', id: item.id }))].map((item) => <button key={`${item.label}-${item.id}`} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left hover:bg-[#fafaf8]"><Flag className="mt-0.5 size-4 text-amber-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-amber-700">{item.label}</span><span className="mt-1 block font-bold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.detail}</span></span></button>)}{reviews.length + blocked.length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Your team is clear.</p>}</div></Card><TeamWorkload peopleInScope={peopleInScope} tasks={tasks} /></div></>;
   const ownTasks = tasks.filter((task) => task.assigneeId === actor.id);
@@ -483,8 +654,9 @@ function WorkListPage({ title, description, work, tasks, onOpen, onCreate, creat
 }
 
 function TeamPage({ actor, work, tasks, onOpen }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; onOpen: (id: string) => void }) {
-  const scope = actor.role === 'Founder' ? runtimePeople : runtimePeople.filter((item) => item.managerId === actor.id || item.id === actor.id);
-  return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder operational view' : 'My team'} title={actor.role === 'Founder' ? 'Where is everyone?' : 'Team execution'} description="Presence exists to establish availability, work state, and operational visibility—not to judge productivity by hours." /><Card><div className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Person</span><span>Presence</span><span>Login Timestamp</span><span>Current work</span><span>Workload</span></div>{scope.map((member) => { const currentTask = tasks.find((task) => task.assigneeId === member.id && task.stage !== 'Completed'); const currentWork = currentTask ? work.find((item) => item.id === currentTask.workId) : work.find((item) => item.managerId === member.id && item.stage !== 'Completed'); const count = tasks.filter((task) => task.assigneeId === member.id && task.stage !== 'Completed').length; return <div key={member.id} className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><div><div className="font-bold">{member.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div></div><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />{member.presence}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimestamp(member.loginAt) || (member.logoutAt ? `Out: ${formatTimestamp(member.logoutAt)}` : '—')}</div><div>{currentWork ? <button onClick={() => onOpen(currentWork.id)} className="text-left font-semibold hover:text-[hsl(var(--primary))]">{currentTask?.title || currentWork.title}<div className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div><Badge className={count >= 3 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>{count >= 3 ? 'High' : `${count} active`}</Badge></div>; })}</Card></>;
+  const isExec = actor.role === 'Founder' || actor.role === 'HR Manager';
+  const scope = isExec ? runtimePeople : runtimePeople.filter((item) => item.managerId === actor.id || item.id === actor.id);
+  return <><SectionTitle eyebrow={isExec ? 'Operational view' : 'My team'} title={isExec ? 'Where is everyone?' : 'Team execution'} description="Presence exists to establish availability, work state, and operational visibility—not to judge productivity by hours." /><Card><div className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Person</span><span>Presence</span><span>Login Timestamp</span><span>Current work</span><span>Workload</span></div>{scope.map((member) => { const currentTask = tasks.find((task) => task.assigneeId === member.id && task.stage !== 'Completed'); const currentWork = currentTask ? work.find((item) => item.id === currentTask.workId) : work.find((item) => item.managerId === member.id && item.stage !== 'Completed'); const count = tasks.filter((task) => task.assigneeId === member.id && task.stage !== 'Completed').length; return <div key={member.id} className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><div><div className="font-bold">{member.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div></div><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />{member.presence}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimestamp(member.loginAt) || (member.logoutAt ? `Out: ${formatTimestamp(member.logoutAt)}` : '—')}</div><div>{currentWork ? <button onClick={() => onOpen(currentWork.id)} className="text-left font-semibold hover:text-[hsl(var(--primary))]">{currentTask?.title || currentWork.title}<div className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div><Badge className={count >= 3 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>{count >= 3 ? 'High' : `${count} active`}</Badge></div>; })}</Card></>;
 }
 
 function WorkDetail({ actor, item, tasks, activities, comments, onBack, onOpen, onUpdateTask, onAddTask, onComment, onStartTimer, onDeleteTask, onDeleteWork }: { actor: Person; item: WorkItem; tasks: WorkTask[]; activities: Activity[]; comments: Comment[]; onBack: () => void; onOpen: (id: string) => void; onUpdateTask: (taskId: string, patch: Partial<WorkTask>, message: string) => void; onAddTask: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void; onComment: (message: string) => void; onStartTimer: (taskId: string) => void; onDeleteTask?: (taskId: string) => void; onDeleteWork?: (workId: string) => void }) {
@@ -514,7 +686,7 @@ function ApprovalsPage({ tasks, work, onOpen }: { tasks: WorkTask[]; work: WorkI
 }
 
 function TimePage({ actor, tasks }: { actor: Person; tasks: WorkTask[] }) {
-  const visible = actor.role === 'Founder' ? tasks : actor.role === 'Manager' ? tasks.filter((task) => person(task.assigneeId).managerId === actor.id) : tasks.filter((task) => task.assigneeId === actor.id);
+  const visible = (actor.role === 'Founder' || actor.role === 'HR Manager') ? tasks : actor.role === 'Manager' ? tasks.filter((task) => person(task.assigneeId).managerId === actor.id) : tasks.filter((task) => task.assigneeId === actor.id);
   const total = visible.reduce((sum, task) => sum + task.timeMinutes, 0);
   return <><SectionTitle eyebrow="Time and effort" title={actor.role === 'Team member' ? 'My time' : 'Time & workload'} description="Understand where operational effort is going; do not treat hours as a simplistic measure of productivity." /><div className="grid gap-3 sm:grid-cols-3"><Metric label="Logged time" value={hours(total)} detail="Across visible work" /><Metric label="Active tasks" value={visible.filter((task) => task.stage !== 'Completed').length} detail="Tasks with open work" /><Metric label="Review time" value={hours(visible.filter((task) => task.stage === 'Review').reduce((sum, task) => sum + task.timeMinutes, 0))} detail="Submitted work" /></div><Card className="mt-6"><div className="grid grid-cols-[1.2fr_1fr_0.7fr_0.7fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Task</span><span>Person</span><span>Stage</span><span>Time</span></div>{visible.map((task) => <div key={task.id} className="grid grid-cols-[1.2fr_1fr_0.7fr_0.7fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><span className="font-bold">{task.title}</span><span>{person(task.assigneeId).name}</span><Badge className={stageTone[task.stage]}>{task.stage}</Badge><span className="font-semibold">{hours(task.timeMinutes)}</span></div>)}</Card></>;
 }
@@ -744,36 +916,37 @@ function ConfirmDeleteModal({ targetPerson, onClose, onConfirm }: { targetPerson
   );
 }
 
-function PeoplePage({ people, onAdd, onUpdatePassword, onDeletePerson }: { people: Person[]; onAdd: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void; onUpdatePassword: (personId: string, newPass: string) => void; onDeletePerson?: (personId: string) => Promise<void> | void }) {
+function PeoplePage({ actor, people, onAdd, onUpdatePassword, onDeletePerson }: { actor: Person; people: Person[]; onAdd: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void; onUpdatePassword: (personId: string, newPass: string) => void; onDeletePerson?: (personId: string) => Promise<void> | void }) {
   const [open, setOpen] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<Person | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
+  const isFounder = actor.role === 'Founder';
 
   return (
     <>
       <SectionTitle
-        eyebrow="Team / people management"
+        eyebrow={isFounder ? "Team / people management" : "Organization directory"}
         title="People"
-        description="The Founder manages the organization directory, reporting relationships, employee login credentials, and removals."
-        action={<Button onClick={() => setOpen(true)}><UserPlus className="size-4" />Add employee</Button>}
+        description={isFounder ? "The Founder manages the organization directory, reporting relationships, employee login credentials, and removals." : "Company-wide directory of all team members, roles, and presence."}
+        action={isFounder ? <Button onClick={() => setOpen(true)}><UserPlus className="size-4" />Add employee</Button> : undefined}
       />
       <Card>
-        <div className="grid grid-cols-[1.1fr_0.6fr_0.6fr_0.9fr_0.5fr_1.3fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
+        <div className={`grid ${isFounder ? 'grid-cols-[1.1fr_0.6fr_0.6fr_0.9fr_0.5fr_1.3fr]' : 'grid-cols-[1.2fr_0.7fr_0.7fr_1fr_0.6fr]'} border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]`}>
           <span>Person / Email</span>
           <span>Role</span>
           <span>Manager</span>
           <span>Last Login</span>
           <span>Presence</span>
-          <span className="text-right">Action</span>
+          {isFounder && <span className="text-right">Action</span>}
         </div>
         {people.map((item) => (
-          <div key={item.id} className="grid grid-cols-[1.1fr_0.6fr_0.6fr_0.9fr_0.5fr_1.3fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0">
+          <div key={item.id} className={`grid ${isFounder ? 'grid-cols-[1.1fr_0.6fr_0.6fr_0.9fr_0.5fr_1.3fr]' : 'grid-cols-[1.2fr_0.7fr_0.7fr_1fr_0.6fr]'} items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0`}>
             <div>
               <div className="font-bold">{item.name}</div>
               <div className="text-xs text-[hsl(var(--muted-foreground))] font-mono">{item.email || item.id}</div>
             </div>
-            <span><Badge className={item.role === 'Founder' ? 'border-amber-200 bg-amber-50 text-amber-800' : item.role === 'Manager' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-700'}>{item.role}</Badge></span>
-            <span>{item.managerId ? person(item.managerId).name : (item.role === 'Founder' ? 'Head of Organization' : 'Organization')}</span>
+            <span><Badge className={item.role === 'Founder' ? 'border-amber-200 bg-amber-50 text-amber-800' : item.role === 'HR Manager' ? 'border-purple-200 bg-purple-50 text-purple-800' : item.role === 'Manager' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-700'}>{item.role}</Badge></span>
+            <span>{item.managerId ? person(item.managerId).name : (item.role === 'Founder' ? 'Head of Organization' : item.role === 'HR Manager' ? 'HR Leadership' : 'Organization')}</span>
             <div>
               <div className="text-xs font-semibold text-[hsl(var(--foreground))]">{formatTimestamp(item.loginAt)}</div>
               {item.logoutAt && <div className="text-[10px] text-[hsl(var(--muted-foreground))]">Out: {formatTimestamp(item.logoutAt)}</div>}
@@ -782,23 +955,25 @@ function PeoplePage({ people, onAdd, onUpdatePassword, onDeletePerson }: { peopl
               <span className={`size-2 rounded-full ${item.presence === 'Online' ? 'bg-emerald-500' : item.presence === 'Break' || item.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-300'}`} />
               {item.presence}
             </span>
-            <div className="flex justify-end items-center gap-2">
-              <Button variant="secondary" onClick={() => setPasswordTarget(item)}>
-                <Lock className="size-3.5" />
-                Change Password
-              </Button>
-              {item.role !== 'Founder' && onDeletePerson && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(item)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/60 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition"
-                  title="Delete employee from database"
-                >
-                  <Trash2 className="size-3.5" />
-                  Delete
-                </button>
-              )}
-            </div>
+            {isFounder && (
+              <div className="flex justify-end items-center gap-2">
+                <Button variant="secondary" onClick={() => setPasswordTarget(item)}>
+                  <Lock className="size-3.5" />
+                  Change Password
+                </Button>
+                {item.role !== 'Founder' && onDeletePerson && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(item)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/60 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition"
+                    title="Delete employee from database"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </Card>
@@ -820,7 +995,7 @@ function PeoplePage({ people, onAdd, onUpdatePassword, onDeletePerson }: { peopl
 function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[]; sessions?: SessionRecord[]; onRefresh?: () => void }) {
   const [period, setPeriod] = useState('Today');
   const [selectedDate, setSelectedDate] = useState(TODAY);
-  const [roleFilter, setRoleFilter] = useState<'All' | 'Manager' | 'Team member'>('All');
+  const [roleFilter, setRoleFilter] = useState<'All' | 'Manager' | 'Team member' | 'HR Manager'>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [markLeaveTarget, setMarkLeaveTarget] = useState<Person | null>(null);
   const [leaveModalType, setLeaveModalType] = useState<LeaveType>('Casual');
@@ -842,7 +1017,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
   return (
     <>
       <SectionTitle
-        eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'}
+        eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'HR Manager' ? 'HR attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'}
         title={`Attendance — ${formatDate(selectedDate)}`}
         description="Session presence and task time are separate signals. Every visible employee remains in the table, including no-login and approved leave records."
         action={
@@ -867,6 +1042,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
         <Button variant={roleFilter === 'All' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('All')}>All</Button>
         <Button variant={roleFilter === 'Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Manager')}>Managers</Button>
         <Button variant={roleFilter === 'Team member' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Team member')}>Team Members</Button>
+        <Button variant={roleFilter === 'HR Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('HR Manager')}>HR</Button>
       </div>
       <Card>
         <div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
@@ -888,7 +1064,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
                 <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
                   {row.status}
                 </Badge>
-                {actor.role === 'Founder' && row.status !== 'ON LEAVE' && (
+                {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.status !== 'ON LEAVE' && (
                   <span
                     role="button"
                     tabIndex={0}
@@ -932,7 +1108,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
                 leaveType: leaveModalType,
                 startDate: selectedDate,
                 endDate: selectedDate,
-                reason: leaveModalReason.trim() || 'Marked by Founder (Absent)',
+                reason: leaveModalReason.trim() || `Marked by ${actor.role} (Absent)`,
                 status: 'Approved',
                 approvedBy: actor.id
               });
@@ -1024,14 +1200,16 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
   const visible = leaves.filter((leave) => visiblePeople.some((item) => item.id === leave.userId));
   const pending = visible.filter((leave) => leave.status === 'Pending').length;
 
+  const isManagement = actor.role === 'Founder' || actor.role === 'HR Manager';
+
   return (
     <>
       <SectionTitle
-        eyebrow={actor.role === 'Founder' ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
-        title={actor.role === 'Founder' ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
-        description={actor.role === 'Founder' ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'}
+        eyebrow={isManagement ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
+        title={isManagement ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
+        description={isManagement ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'}
         action={
-          actor.role === 'Founder' ? (
+          isManagement ? (
             <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave</Button>
           ) : (
             <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave</Button>
@@ -1039,7 +1217,7 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
         }
       />
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
-        <Metric label="Pending" value={pending} detail="Awaiting Founder decision" tone={pending ? 'warning' : 'default'} />
+        <Metric label="Pending" value={pending} detail={isManagement ? "Awaiting decision" : "Awaiting Founder decision"} tone={pending ? 'warning' : 'default'} />
         <Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" />
         <Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future leave" />
       </div>
@@ -1061,7 +1239,7 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
               <Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
                 {leave.status}
               </Badge>
-              {(actor.role === 'Founder' || (actor.role === 'Manager' && person(leave.userId).managerId === actor.id)) && leave.status === 'Pending' && (
+              {(isManagement || (actor.role === 'Manager' && person(leave.userId).managerId === actor.id)) && leave.status === 'Pending' && (
                 <div className="flex gap-2">
                   <Button onClick={() => onDecision(leave.id, 'Approved')}><Check className="size-4" />Approve</Button>
                   <Button variant="secondary" onClick={() => onDecision(leave.id, 'Rejected')}>Reject</Button>
@@ -1075,7 +1253,7 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
       {open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}
 
       {founderRecordOpen && (
-        <Modal title="Record Employee Leave (Approved)" onClose={() => setFounderRecordOpen(false)}>
+        <Modal title={`Record Employee Leave (${actor.role === 'Founder' ? 'Founder' : 'HR'} Approved)`} onClose={() => setFounderRecordOpen(false)}>
           <form onSubmit={async (e) => {
             e.preventDefault();
             setIsSaving(true);
@@ -1085,7 +1263,7 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
                 leaveType: founderLeaveType,
                 startDate: founderStartDate,
                 endDate: founderEndDate,
-                reason: founderReason.trim() || 'Approved by Founder',
+                reason: founderReason.trim() || `Approved by ${actor.role}`,
                 note: founderNote.trim() || null,
                 status: 'Approved',
                 approvedBy: actor.id
@@ -1148,8 +1326,8 @@ function EmployeeModal({ people, onClose, onCreate }: { people: Person[]; onClos
         <Field label="Email (Login ID)" value={email} onChange={setEmail} type="email" placeholder="name@arkamedia.com" required />
         <Field label="Login Password" value={password} onChange={setPassword} placeholder="Set login password for this employee" required />
         <div className="grid gap-3 sm:grid-cols-2">
-          <SelectField label="Role" value={role} onChange={(value) => setRole(value as Role)} options={['Manager', 'Team member']} />
-          <Field label="Department" value={department} onChange={setDepartment} placeholder="e.g. Design, Operations" />
+          <SelectField label="Role" value={role} onChange={(value) => setRole(value as Role)} options={['Manager', 'Team member', 'HR Manager']} />
+          <Field label="Department / Title" value={department} onChange={setDepartment} placeholder={role === 'HR Manager' ? "e.g. Head of People & HR Operations" : "e.g. Design, Operations"} />
         </div>
         {role === 'Team member' && (
           <SelectField
@@ -1219,12 +1397,13 @@ function AppRouter() {
   const selected = selectedId ? work.find((item) => item.id === selectedId) : null;
   const scopeWork = useMemo(() => {
     if (!actor) return work;
-    return actor.role === 'Founder' ? work : actor.role === 'Manager' ? work.filter((item) => item.managerId === actor.id || tasks.some((task) => task.workId === item.id && person(task.assigneeId).managerId === actor.id)) : work.filter((item) => tasks.some((task) => task.workId === item.id && task.assigneeId === actor.id) || item.directAssigneeId === actor.id);
+    if (actor.role === 'Founder' || actor.role === 'HR Manager') return work;
+    return actor.role === 'Manager' ? work.filter((item) => item.managerId === actor.id || tasks.some((task) => task.workId === item.id && person(task.assigneeId).managerId === actor.id)) : work.filter((item) => tasks.some((task) => task.workId === item.id && task.assigneeId === actor.id) || item.directAssigneeId === actor.id);
   }, [actor, work, tasks]);
-  const scopePeople = !actor ? runtimePeople : actor.role === 'Founder' ? runtimePeople : actor.role === 'Manager' ? runtimePeople.filter((item) => item.id === actor.id || item.managerId === actor.id) : [actor];
+  const scopePeople = !actor ? runtimePeople : (actor.role === 'Founder' || actor.role === 'HR Manager') ? runtimePeople : actor.role === 'Manager' ? runtimePeople.filter((item) => item.id === actor.id || item.managerId === actor.id) : [actor];
   const scopeTasks = useMemo(() => {
     if (!actor) return tasks;
-    if (actor.role === 'Founder') return tasks;
+    if (actor.role === 'Founder' || actor.role === 'HR Manager') return tasks;
     if (actor.role === 'Manager') {
       return tasks.filter((task) => {
         const assignee = person(task.assigneeId);
@@ -1408,7 +1587,7 @@ function AppRouter() {
           email: data.email,
           password: data.password || '1234',
           role: data.role,
-          title: data.department || (data.role === 'Manager' ? 'Manager' : 'Team member'),
+          title: data.department || (data.role === 'HR Manager' ? 'Head of People & HR Operations' : data.role === 'Manager' ? 'Manager' : 'Team member'),
           managerId: data.role === 'Team member' ? data.managerId : null
         })
       });
@@ -1543,7 +1722,7 @@ function AppRouter() {
   );
 
   const page = location === '/people' ? (
-    <PeoplePage people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onDeletePerson={deletePerson} />
+    <PeoplePage actor={actor} people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onDeletePerson={deletePerson} />
   ) : location === '/attendance' ? (
     <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} onRefresh={refresh} />
   ) : location === '/leave' ? (
@@ -1569,7 +1748,7 @@ function AppRouter() {
   ) : location === '/my-work' || location === '/today' || location === '/submissions' || location === '/notifications' || location === '/profile' ? (
     <WorkListPage title={location === '/today' ? "Today's work" : location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={scopeTasks.filter((task) => location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved')} onOpen={openWork} />
   ) : (
-    <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : () => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={deletePerson} />
+    <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : actor.role === 'Manager' ? () => setTaskModalOpen(true) : () => {}} onNavigate={setLocation} onDeletePerson={actor.role === 'Founder' ? deletePerson : undefined} />
   );
 
   return (

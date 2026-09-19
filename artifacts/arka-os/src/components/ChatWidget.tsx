@@ -229,9 +229,11 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
         return (p.name || '').toLowerCase().includes(q) || (p.role || '').toLowerCase().includes(q) || (p.title && p.title.toLowerCase().includes(q));
       })
       .sort((a, b) => {
-        // Founder first, then Managers, then Online people, then by name
+        // Founder first, then HR Manager, then Managers, then Online people, then by name
         if (a.role === "Founder") return -1;
         if (b.role === "Founder") return 1;
+        if (a.role === "HR Manager" && b.role !== "HR Manager") return -1;
+        if (b.role === "HR Manager" && a.role !== "HR Manager") return 1;
         if (a.role === "Manager" && b.role !== "Manager") return -1;
         if (b.role === "Manager" && a.role !== "Manager") return 1;
         if (a.presence === "Online" && b.presence !== "Online") return -1;
@@ -402,6 +404,9 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
                                 {person.role === "Founder" && (
                                   <Shield className="size-3 text-[#f8c329] flex-shrink-0" />
                                 )}
+                                {person.role === "HR Manager" && (
+                                  <Shield className="size-3 text-purple-400 flex-shrink-0" />
+                                )}
                               </div>
                               <div className={`text-[10px] truncate ${isActive ? "text-blue-200" : "text-slate-500 group-hover:text-slate-400"}`}>
                                 {person.role}
@@ -473,6 +478,9 @@ export function ChatWidget({ currentUser, allPeople }: { currentUser: Person | n
                         <span className="truncate">{activeContact.name}</span>
                         {activeContact.role === "Founder" && (
                           <span className="text-[9px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-400/30 font-bold">Founder</span>
+                        )}
+                        {activeContact.role === "HR Manager" && (
+                          <span className="text-[9px] bg-purple-400/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-400/30 font-bold">HR Manager</span>
                         )}
                         {activeContact.role === "Manager" && (
                           <span className="text-[9px] bg-blue-400/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-400/30 font-bold">Manager</span>
