@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, Clock3, Command,
   FileText, Flag, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
-  MessageSquare, Plus, Search, Settings2, ShieldAlert, Timer, Trash2, UserPlus, UserRound, Users, X, Zap
+  MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Timer, Trash2, UserPlus, UserRound, Users, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { ChatWidget } from './components/ChatWidget';
