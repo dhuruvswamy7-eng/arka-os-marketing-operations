@@ -882,6 +882,30 @@ function ChangePasswordModal({ targetPerson, onClose, onSave }: { targetPerson: 
   );
 }
 
+function ChangeRoleModal({ targetPerson, onClose, onSave }: { targetPerson: Person; onClose: () => void; onSave: (newRole: Role) => void }) {
+  const [selectedRole, setSelectedRole] = useState<Role>(targetPerson.role);
+  return (
+    <Modal title={`Set Role for ${targetPerson.name}`} onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); onSave(selectedRole); onClose(); }} className="space-y-4">
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[#fafaf8] p-3 text-xs text-[hsl(var(--muted-foreground))]">
+          <strong>Employee:</strong> {targetPerson.name} ({targetPerson.email || targetPerson.id})
+          <div className="mt-1"><strong>Current Role:</strong> {targetPerson.role}</div>
+        </div>
+        <SelectField
+          label="Assigned Role"
+          value={selectedRole}
+          onChange={(val) => setSelectedRole(val as Role)}
+          options={['Manager', 'Team member', 'HR Manager']}
+        />
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit">Save Role</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function ConfirmDeleteModal({ targetPerson, onClose, onConfirm }: { targetPerson: Person; onClose: () => void; onConfirm: () => Promise<void> | void }) {
   const [loading, setLoading] = useState(false);
   return (
@@ -916,9 +940,10 @@ function ConfirmDeleteModal({ targetPerson, onClose, onConfirm }: { targetPerson
   );
 }
 
-function PeoplePage({ actor, people, onAdd, onUpdatePassword, onDeletePerson }: { actor: Person; people: Person[]; onAdd: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void; onUpdatePassword: (personId: string, newPass: string) => void; onDeletePerson?: (personId: string) => Promise<void> | void }) {
+function PeoplePage({ actor, people, onAdd, onUpdatePassword, onUpdateRole, onDeletePerson }: { actor: Person; people: Person[]; onAdd: (data: { name: string; email: string; password?: string; role: Role; managerId: string | null; department: string }) => void; onUpdatePassword: (personId: string, newPass: string) => void; onUpdateRole?: (personId: string, newRole: Role) => void; onDeletePerson?: (personId: string) => Promise<void> | void }) {
   const [open, setOpen] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<Person | null>(null);
+  const [roleTarget, setRoleTarget] = useState<Person | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
   const isFounder = actor.role === 'Founder';
 
@@ -957,9 +982,15 @@ function PeoplePage({ actor, people, onAdd, onUpdatePassword, onDeletePerson }: 
             </span>
             {isFounder && (
               <div className="flex justify-end items-center gap-2">
+                {onUpdateRole && item.role !== 'Founder' && (
+                  <Button variant="secondary" onClick={() => setRoleTarget(item)}>
+                    <Shield className="size-3.5 text-purple-600" />
+                    Role
+                  </Button>
+                )}
                 <Button variant="secondary" onClick={() => setPasswordTarget(item)}>
                   <Lock className="size-3.5" />
-                  Change Password
+                  Password
                 </Button>
                 {item.role !== 'Founder' && onDeletePerson && (
                   <button
@@ -977,6 +1008,13 @@ function PeoplePage({ actor, people, onAdd, onUpdatePassword, onDeletePerson }: 
           </div>
         ))}
       </Card>
+      {roleTarget && onUpdateRole && (
+        <ChangeRoleModal
+          targetPerson={roleTarget}
+          onClose={() => setRoleTarget(null)}
+          onSave={(newRole) => onUpdateRole(roleTarget.id, newRole)}
+        />
+      )}
       {open && <EmployeeModal people={people} onClose={() => setOpen(false)} onCreate={(data) => { onAdd(data); setOpen(false); }} />}
       {passwordTarget && <ChangePasswordModal targetPerson={passwordTarget} onClose={() => setPasswordTarget(null)} onSave={(newPass) => onUpdatePassword(passwordTarget.id, newPass)} />}
       {deleteTarget && (
@@ -1623,6 +1661,26 @@ function AppRouter() {
       console.error("Error updating password", err);
     }
   };
+  const updatePersonRole = async (personId: string, newRole: Role) => {
+    try {
+      const token = getStoredToken();
+      const res = await fetch(`${API_BASE}/people/${personId}/role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+      if (res.ok) {
+        setDirectory((all) => all.map(p => p.id === personId ? { ...p, role: newRole, title: newRole === 'HR Manager' ? 'Head of People & HR Operations' : p.title } : p));
+      } else {
+        console.error("Failed to update role", await res.text());
+      }
+    } catch (err) {
+      console.error("Error updating role", err);
+    }
+  };
   const deletePerson = async (personId: string) => {
     try {
       await apiDelete(`/people/${personId}`);
@@ -1722,7 +1780,7 @@ function AppRouter() {
   );
 
   const page = location === '/people' ? (
-    <PeoplePage actor={actor} people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onDeletePerson={deletePerson} />
+    <PeoplePage actor={actor} people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onUpdateRole={updatePersonRole} onDeletePerson={deletePerson} />
   ) : location === '/attendance' ? (
     <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} onRefresh={refresh} />
   ) : location === '/leave' ? (

@@ -124,6 +124,31 @@ router.patch("/:id/password", async (req, res) => {
   }
 });
 
+router.patch("/:id/role", async (req, res) => {
+  const user = getUserFromAuthHeader(req.headers.authorization);
+  if (!user || user.role !== "Founder") {
+    res.status(403).json({ message: "Only Founder can update employee roles" });
+    return;
+  }
+  const newRole = req.body?.role;
+  const newTitle = req.body?.title;
+  if (!newRole) {
+    res.status(400).json({ message: "Role is required" });
+    return;
+  }
+  try {
+    const updateData: any = { role: newRole };
+    if (newTitle) updateData.title = newTitle;
+    else if (newRole === "HR Manager") updateData.title = "Head of People & HR Operations";
+    await db.update(peopleTable).set(updateData).where(eq(peopleTable.id, req.params.id));
+    const item = await db.select().from(peopleTable).where(eq(peopleTable.id, req.params.id)).limit(1).then(r => r[0]);
+    res.json({ success: true, item });
+  } catch (err) {
+    console.error("Update role error:", err);
+    res.status(503).json({ message: "Database unavailable" });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   const user = getUserFromAuthHeader(req.headers.authorization);
   if (!user || user.role !== "Founder") {

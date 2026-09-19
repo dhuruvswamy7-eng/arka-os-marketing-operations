@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { initSocket } from "./socket";
 import { initCronJobs } from "./lib/cron";
+import { pool } from "@workspace/db";
 
 const rawPort = process.env["PORT"] || "5000";
 const port = Number(rawPort);
@@ -14,6 +15,18 @@ initSocket(server);
 
 // Initialize Cron Jobs
 initCronJobs();
+
+// Startup database migrations
+async function runStartupMigrations() {
+  try {
+    await pool.query("ALTER TYPE role ADD VALUE IF NOT EXISTS 'HR Manager';");
+    await pool.query("UPDATE people SET role = 'HR Manager', title = 'Head of People & HR Operations' WHERE email = 'sanjana.jetty1469@gmail.com' OR name ILIKE '%Sanjana%';");
+    logger.info("Executed startup role migration: Sanjana CK set to HR Manager.");
+  } catch (err: any) {
+    logger.warn({ err: err?.message || err }, "Startup migration warning");
+  }
+}
+void runStartupMigrations();
 
 process.on("uncaughtException", (err) => {
   logger.warn({ err: err?.message || err }, "Uncaught Exception caught (prevented crash)");
