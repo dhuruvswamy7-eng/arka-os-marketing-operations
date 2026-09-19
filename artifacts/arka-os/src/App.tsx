@@ -286,8 +286,16 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
 };
 
 function person(id: string) { return runtimePeople.find((item) => item.id === id) || runtimePeople[0]; }
-function formatDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
-function isOverdue(value: string) { return value < TODAY; }
+function formatDate(value?: string | null) {
+  if (!value) return '—';
+  try {
+    const d = new Date(`${value}T12:00:00`);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch {
+    return '—';
+  }
+}
+function isOverdue(value?: string | null) { return Boolean(value && value < TODAY); }
 function hours(minutes: number) { return `${Math.floor(minutes / 60)}h ${minutes % 60}m`; }
 function formatTimestamp(isoString?: string | null) {
   if (!isoString) return '—';
@@ -722,58 +730,88 @@ function Field({ label, value, onChange, placeholder, type = 'text', required = 
   return <label className="block space-y-1.5"><span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">{label}</span><input required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none focus:border-[hsl(var(--primary))]" /></label>;
 }
 
-function AssignWorkModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: { title: string; description: string; client: string; workType: WorkType; priority: Priority; dueDate: string; assigneeId: string }) => void }) {
-  const assignable = getAssignablePeople(runtimePeople);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [client, setClient] = useState('');
-  const [workType, setWorkType] = useState<WorkType>('Website');
+function AssignWorkModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (data: {
+    title: string;
+    description?: string;
+    client?: string;
+    workType?: WorkType;
+    priority: Priority;
+    dueDate?: string;
+    assigneeId: string;
+  }) => void;
+}) {
+  const managers = runtimePeople.filter((p) => p.role === 'Manager');
+  // If no managers are configured yet, fallback to assignable people so admin is not stuck
+  const targetAssignees = managers.length > 0 ? managers : getAssignablePeople(runtimePeople);
+
+  const [workClientName, setWorkClientName] = useState('');
+  const [managerId, setManagerId] = useState(() => targetAssignees[0]?.id || '');
   const [priority, setPriority] = useState<Priority>('Medium');
-  const [dueDate, setDueDate] = useState('2026-09-25');
-  const [assigneeId, setAssigneeId] = useState(() => assignable[0]?.id || '');
 
   useEffect(() => {
-    if (!assigneeId && assignable.length > 0) {
-      setAssigneeId(assignable[0].id);
+    if (!managerId && targetAssignees.length > 0) {
+      setManagerId(targetAssignees[0].id);
     }
-  }, [assignable, assigneeId]);
+  }, [targetAssignees, managerId]);
 
   return (
-    <Modal title="Assign new work (Founder)" onClose={onClose}>
+    <Modal title="Assign work to Manager" onClose={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (!assigneeId) return;
-          onCreate({ title, description, client, workType, priority, dueDate, assigneeId });
+          if (!workClientName.trim() || !managerId) return;
+          const assigned = person(managerId);
+          onCreate({
+            title: workClientName.trim(),
+            client: workClientName.trim(),
+            description: `Work assigned to ${assigned?.name || 'Manager'}`,
+            workType: 'Other',
+            priority,
+            dueDate: new Date().toISOString().slice(0, 10),
+            assigneeId: managerId,
+          });
         }}
         className="space-y-4"
       >
-        <Field label="Work title" value={title} onChange={setTitle} placeholder="e.g. ABC Website Redesign" required />
-        <Field label="Description" value={description} onChange={setDescription} placeholder="What outcome is needed?" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Client (optional)" value={client} onChange={setClient} placeholder="Client name" />
-          <Field label="Deadline" type="date" value={dueDate} onChange={setDueDate} required />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SelectField label="Work type" value={workType} onChange={(value) => setWorkType(value as WorkType)} options={['Website', 'SEO', 'Graphic Design', 'Internal', 'Other']} />
-          <SelectField label="Priority" value={priority} onChange={(value) => setPriority(value as Priority)} options={['Low', 'Medium', 'High', 'Urgent']} />
-        </div>
-        {assignable.length === 0 ? (
+        <Field
+          label="Work / Client name"
+          value={workClientName}
+          onChange={setWorkClientName}
+          placeholder="e.g. Acme Corp Campaign / Project"
+          required
+        />
+
+        {targetAssignees.length === 0 ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            <strong>No employees found:</strong> Add a Manager or Team member in the People directory first.
+            <strong>No managers found:</strong> Please assign the Manager role to a team member in the People directory first.
           </div>
         ) : (
           <SelectField
-            label="Assign to Manager or Team Member"
-            value={assigneeId}
-            onChange={setAssigneeId}
-            options={assignable.map((item) => item.id)}
-            labels={Object.fromEntries(assignable.map((item) => [item.id, `${item.name} (${item.role})`]))}
+            label="Under which Manager"
+            value={managerId}
+            onChange={setManagerId}
+            options={targetAssignees.map((item) => item.id)}
+            labels={Object.fromEntries(
+              targetAssignees.map((item) => [
+                item.id,
+                `${item.name}${item.title ? ` — ${item.title}` : ''} (${item.role})`
+              ])
+            )}
           />
         )}
+
+        <SelectField
+          label="Priority"
+          value={priority}
+          onChange={(value) => setPriority(value as Priority)}
+          options={['Low', 'Medium', 'High', 'Urgent']}
+        />
+
         <div className="flex justify-end gap-2 pt-3">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={!title.trim() || !assigneeId}>Create assignment</Button>
+          <Button type="submit" disabled={!workClientName.trim() || !managerId}>Assign work</Button>
         </div>
       </form>
     </Modal>
@@ -1586,17 +1624,38 @@ function AppRouter() {
       setComments((all) => [...all, res.item]);
     } catch (err) { console.error(err); }
   };
-  const createWork = async (data: { title: string; description: string; client: string; workType: WorkType; priority: Priority; dueDate: string; assigneeId: string }) => { 
+  const createWork = async (data: { title: string; description?: string; client?: string; workType?: WorkType; priority: Priority; dueDate?: string; assigneeId: string }) => { 
     const assignee = person(data.assigneeId); 
     try {
+      const todayIso = new Date().toISOString().slice(0, 10);
       const workRes = await apiPost<{item: WorkItem}>('/work', {
-        title: data.title, description: data.description || 'New operational work assigned from the command center.', client: data.client || undefined, workType: data.workType, priority: data.priority, dueDate: data.dueDate, founderId: actor.id, managerId: assignee.role === 'Manager' ? assignee.id : assignee.managerId, directAssigneeId: assignee.role === 'Team member' ? assignee.id : undefined, stage: assignee.role === 'Manager' ? 'Planning' : 'Assigned', progress: 5, createdAt: TODAY
+        title: data.title,
+        description: data.description || `Work assigned to ${assignee.name}`,
+        client: data.client || data.title,
+        workType: data.workType || 'Other',
+        priority: data.priority,
+        dueDate: data.dueDate || todayIso,
+        founderId: actor.id,
+        managerId: assignee.role === 'Manager' ? assignee.id : (assignee.managerId || assignee.id),
+        directAssigneeId: assignee.role === 'Team member' ? assignee.id : undefined,
+        stage: assignee.role === 'Manager' ? 'Planning' : 'Assigned',
+        progress: 0,
+        createdAt: todayIso
       });
       setWork((all) => [workRes.item, ...all]); 
       
       if (assignee.role === 'Team member') {
         const taskRes = await apiPost<{item: WorkTask}>('/tasks', {
-          workId: workRes.item.id, title: data.title, instructions: data.description || 'Complete the assigned work and submit it for review.', assigneeId: assignee.id, dueDate: data.dueDate, priority: data.priority, stage: 'Assigned', progress: 0, timeMinutes: 0, estimatedMinutes: 240
+          workId: workRes.item.id,
+          title: data.title,
+          instructions: data.description || 'Complete the assigned work and submit it for review.',
+          assigneeId: assignee.id,
+          dueDate: data.dueDate || todayIso,
+          priority: data.priority,
+          stage: 'Assigned',
+          progress: 0,
+          timeMinutes: 0,
+          estimatedMinutes: 240
         });
         setTasks((all) => [...all, taskRes.item]); 
       }

@@ -41,17 +41,17 @@ router.post("/", async (req, res) => {
     await db.insert(workTable).values({
       id,
       title: payload.title ?? "New Work Item",
-      description: payload.description ?? "Description",
+      description: payload.description || "Assigned work",
       client: payload.client ?? null,
       workType,
       priority,
-      dueDate: payload.dueDate ?? new Date().toISOString().slice(0, 10),
+      dueDate: payload.dueDate || new Date().toISOString().slice(0, 10),
       founderId: payload.founderId || "usr_founder",
       managerId: payload.managerId ?? null,
       directAssigneeId: payload.directAssigneeId ?? null,
       stage,
       progress: Number(payload.progress) || 0,
-      createdAt: payload.createdAt ?? new Date().toISOString().slice(0, 10)
+      createdAt: payload.createdAt || new Date().toISOString().slice(0, 10)
     });
 
     const item = await db.select().from(workTable).where(eq(workTable.id, id)).limit(1).then(r => r[0]);
