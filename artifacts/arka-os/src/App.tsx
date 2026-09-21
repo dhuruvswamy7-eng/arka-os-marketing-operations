@@ -13,7 +13,7 @@ import { ChatWidget } from './components/ChatWidget';
 import { DocumentHub } from './components/DocumentHub';
 
 const queryClient = new QueryClient();
-const TODAY = '2026-09-15';
+const TODAY = new Date().toISOString().slice(0, 10);
 const LOGO_SRC = `${import.meta.env.BASE_URL}assets/arkamedia-logo.png`;
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (
   typeof window !== 'undefined'
@@ -27,25 +27,18 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (
 
 function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const sessionToken = sessionStorage.getItem('arka_token');
-  if (sessionToken) return sessionToken;
-  const localToken = localStorage.getItem('arka_token');
-  if (localToken) {
-    sessionStorage.setItem('arka_token', localToken);
-    localStorage.removeItem('arka_token');
-    return localToken;
-  }
-  return null;
+  return localStorage.getItem('arka_token') || sessionStorage.getItem('arka_token');
 }
 
 function setStoredToken(token: string | null) {
   if (typeof window === 'undefined') return;
   if (token) {
-    sessionStorage.setItem('arka_token', token);
+    try { localStorage.setItem('arka_token', token); } catch {}
+    try { sessionStorage.setItem('arka_token', token); } catch {}
   } else {
-    sessionStorage.removeItem('arka_token');
+    try { localStorage.removeItem('arka_token'); } catch {}
+    try { sessionStorage.removeItem('arka_token'); } catch {}
   }
-  localStorage.removeItem('arka_token');
 }
 
 let isSupersededAlertShown = false;
@@ -72,7 +65,9 @@ async function apiGet<T>(path: string): Promise<T> {
       const errData = await response.clone().json();
       handleAuthFailure(response.status, errData);
     } catch {}
-    throw new Error(`API ${path} responded with ${response.status}`);
+    const err = new Error(`API ${path} responded with ${response.status}`);
+    (err as any).status = response.status;
+    throw err;
   }
   return response.json() as Promise<T>;
 }
@@ -917,16 +912,26 @@ function Login({ onEnter }: { onEnter: (email: string, password: string) => Prom
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isWakingServer, setIsWakingServer] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    const ok = await onEnter(email, password);
-    setLoading(false);
-    if (!ok) setError('Invalid email or password.');
+    setError('');
+    const wakingTimer = setTimeout(() => setIsWakingServer(true), 2500);
+    try {
+      const ok = await onEnter(email, password);
+      if (!ok) setError('Invalid email or password.');
+    } catch {
+      setError('Connection failed. Server might be waking up, please retry in a few seconds.');
+    } finally {
+      clearTimeout(wakingTimer);
+      setIsWakingServer(false);
+      setLoading(false);
+    }
   };
 
-  return <div className="min-h-screen bg-[#101010] text-white"><div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]"><div className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '32px 32px' }} /><div className="relative flex items-center gap-3"><img src={LOGO_SRC} alt="Arka Media" className="h-16 w-auto max-w-[280px] object-contain object-left" /></div><div className="relative my-auto max-w-xl"><Badge className="border-white/20 bg-white/5 text-white/60">INTERNAL OPERATING SYSTEM</Badge><h1 className="mt-7 text-6xl font-black leading-[0.96] tracking-[-0.07em]">See the work.<br /><span className="text-[#f8c329]">Move Arka forward.</span></h1><p className="mt-8 max-w-lg text-lg leading-8 text-white/55">A role-based operating view of ownership, deadlines, effort, workload, review, and what needs attention.</p></div><div className="relative flex justify-between text-[10px] uppercase tracking-[0.12em] text-white/35"><span>Arka Digital Media</span><span>Designed and developed by Dhuruv</span></div></div><div className="flex items-center bg-[#f7f7f5] p-6 text-[#111] md:p-12"><div className="mx-auto w-full max-w-md"><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">Welcome to ARKA OS</div><h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.06em]">Enter your workspace.</h2><form className="mt-9 space-y-4" onSubmit={submit}><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Email<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="you@arkadigitalmedia.com" required /></label><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Password<input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="••••••••" required /></label>{error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</div>}<Button type="submit" disabled={loading}><span>{loading ? 'Entering...' : 'Enter ARKA OS'}</span><ArrowRight className="size-4" /></Button></form></div></div></div></div>;
+  return <div className="min-h-screen bg-[#101010] text-white"><div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]"><div className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '32px 32px' }} /><div className="relative flex items-center gap-3"><img src={LOGO_SRC} alt="Arka Media" className="h-16 w-auto max-w-[280px] object-contain object-left" /></div><div className="relative my-auto max-w-xl"><Badge className="border-white/20 bg-white/5 text-white/60">INTERNAL OPERATING SYSTEM</Badge><h1 className="mt-7 text-6xl font-black leading-[0.96] tracking-[-0.07em]">See the work.<br /><span className="text-[#f8c329]">Move Arka forward.</span></h1><p className="mt-8 max-w-lg text-lg leading-8 text-white/55">A role-based operating view of ownership, deadlines, effort, workload, review, and what needs attention.</p></div><div className="relative flex justify-between text-[10px] uppercase tracking-[0.12em] text-white/35"><span>Arka Digital Media</span><span>Designed and developed by Dhuruv</span></div></div><div className="flex items-center bg-[#f7f7f5] p-6 text-[#111] md:p-12"><div className="mx-auto w-full max-w-md"><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">Welcome to ARKA OS</div><h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.06em]">Enter your workspace.</h2><form className="mt-9 space-y-4" onSubmit={submit}><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Email<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="you@arkadigitalmedia.com" required /></label><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Password<input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="••••••••" required /></label>{isWakingServer && <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800 animate-pulse"><span className="size-2 rounded-full bg-amber-500" />Connecting to secure server (waking up, please wait)...</div>}{error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</div>}<Button type="submit" disabled={loading}><span>{loading ? 'Entering...' : 'Enter ARKA OS'}</span><ArrowRight className="size-4" /></Button></form></div></div></div></div>;
 }
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
@@ -1313,7 +1318,15 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
   const totalSession = rows.reduce((sum, row) => sum + row.total, 0);
   const totalTask = rows.reduce((sum, row) => sum + row.taskMinutes, 0);
   const exportCsv = () => { const header = 'Date,Employee,Role,First Login,Last Logout,Total Session Time,Task Time,Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
-  const changePeriod = (value: string) => { setPeriod(value); if (value === 'Yesterday') setSelectedDate('2026-09-14'); else setSelectedDate(TODAY); };
+  const changePeriod = (value: string) => { 
+    setPeriod(value); 
+    if (value === 'Yesterday') {
+      const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      setSelectedDate(y);
+    } else {
+      setSelectedDate(TODAY);
+    }
+  };
 
   return (
     <>
@@ -1345,56 +1358,60 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
         <Button variant={roleFilter === 'Team member' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('Team member')}>Team Members</Button>
         <Button variant={roleFilter === 'HR Manager' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('HR Manager')}>HR</Button>
       </div>
-      <Card>
-        <div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
-          <span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span>
-        </div>
-        {rows.map((row) => (
-          <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0">
-            <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]">
-              <div>
-                <div className="font-bold">{row.item.name}</div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div>
-              </div>
-              <span className="text-sm">{row.item.role}</span>
-              <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span>
-              <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions.at(-1)?.logoutAt)}</span>
-              <span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span>
-              <span className="text-sm">{hours(row.taskMinutes)}</span>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
-                  {row.status}
-                </Badge>
-                {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.status !== 'ON LEAVE' && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMarkLeaveTarget(row.item);
-                      setLeaveModalReason(`Absent / No login on ${formatDate(selectedDate)}`);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        setMarkLeaveTarget(row.item);
-                      }
-                    }}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-xs"
-                    title="Mark this employee as On Leave for this date"
-                  >
-                    <CalendarDays className="size-3" />
-                    Mark Leave
-                  </span>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <div className="min-w-[680px]">
+            <div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
+              <span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span>
+            </div>
+            {rows.map((row) => (
+              <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0">
+                <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]">
+                  <div>
+                    <div className="font-bold">{row.item.name}</div>
+                    <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div>
+                  </div>
+                  <span className="text-sm">{row.item.role}</span>
+                  <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span>
+                  <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions.at(-1)?.logoutAt)}</span>
+                  <span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span>
+                  <span className="text-sm">{hours(row.taskMinutes)}</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                      {row.status}
+                    </Badge>
+                    {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.status !== 'ON LEAVE' && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMarkLeaveTarget(row.item);
+                          setLeaveModalReason(`Absent / No login on ${formatDate(selectedDate)}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            setMarkLeaveTarget(row.item);
+                          }
+                        }}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-xs"
+                        title="Mark this employee as On Leave for this date"
+                      >
+                        <CalendarDays className="size-3" />
+                        Mark Leave
+                      </span>
+                    )}
+                  </div>
+                </button>
+                {expandedId === row.item.id && (
+                  <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />
                 )}
               </div>
-            </button>
-            {expandedId === row.item.id && (
-              <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />
-            )}
+            ))}
+            {rows.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No employees in this scope.</p>}
           </div>
-        ))}
-        {rows.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No employees in this scope.</p>}
+        </div>
       </Card>
       <WeeklyAttendanceGrid filteredPeople={filteredPeople} onSelectDate={(d: string) => { setSelectedDate(d); setPeriod('Custom date'); setExpandedId(null); }} leaves={leaves} sessions={sessions} />
 
@@ -2005,8 +2022,12 @@ function AppRouter() {
             setSignedIn(true);
           }
         })
-        .catch(() => {
-          setStoredToken(null);
+        .catch((err: any) => {
+          // Only clear token if server explicitly returned 401 Unauthorized
+          // Never wipe token on momentary tablet Wi-Fi drops, sleep wake-ups, or cold starts
+          if (err?.status === 401) {
+            setStoredToken(null);
+          }
         });
     }
   }, []);

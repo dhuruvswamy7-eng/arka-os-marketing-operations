@@ -121,7 +121,8 @@ router.get("/me", async (req, res) => {
       .set({ lastActiveAt: new Date().toISOString() })
       .where(eq(peopleTable.id, user.id));
 
-    res.json({ item: user });
+    const { password: _, ...safeUser } = user;
+    res.json({ item: safeUser });
   } catch (err) {
     res.status(401).json({ message: "Invalid token" });
   }

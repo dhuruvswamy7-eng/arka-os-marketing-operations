@@ -20,7 +20,8 @@ function getUserFromAuthHeader(authHeader?: string) {
 router.get("/", async (_req, res) => {
   try {
     const items = await db.select().from(peopleTable).orderBy(asc(peopleTable.name));
-    res.json({ items });
+    const sanitized = items.map(({ password: _, ...rest }) => rest);
+    res.json({ items: sanitized });
   } catch (err) {
     res.status(503).json({ message: "Database unavailable" });
   }
@@ -35,7 +36,8 @@ router.get("/:id", async (req, res) => {
       return;
     }
 
-    res.json({ item });
+    const { password: _, ...rest } = item;
+    res.json({ item: rest });
   } catch (err) {
     res.status(503).json({ message: "Database unavailable" });
   }
