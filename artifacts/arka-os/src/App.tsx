@@ -326,7 +326,39 @@ export function getAttendanceScope(actor: Pick<Person, 'id' | 'role'>, people: P
 }
 
 export function getAssignablePeople(people: Person[], role?: Role) {
-  return people.filter((item) => item.role !== 'Founder' && item.role !== 'HR Manager' && (!role || item.role === role));
+  return people.filter((item) => item.role !== 'Founder' && (!role || item.role === role));
+}
+
+export function isTaskManagedByManager(task: WorkTask, workList: WorkItem[]): boolean {
+  const parentWork = workList.find((w) => w.id === task.workId);
+  const assignee = person(task.assigneeId);
+  const managerId = parentWork?.managerId || assignee?.managerId;
+  if (!managerId || managerId === 'usr_founder') return false;
+  const m = person(managerId);
+  return m?.role === 'Manager';
+}
+
+export function getTaskManager(task: WorkTask, workList: WorkItem[]): Person | null {
+  const parentWork = workList.find((w) => w.id === task.workId);
+  const assignee = person(task.assigneeId);
+  const mId = parentWork?.managerId || assignee?.managerId;
+  if (!mId || mId === 'usr_founder') return null;
+  const m = person(mId);
+  return m?.role === 'Manager' ? m : null;
+}
+
+export function isTaskPendingManagerReview(task: WorkTask, workList: WorkItem[]): boolean {
+  if (task.stage !== 'Review') return false;
+  if (!isTaskManagedByManager(task, workList)) return false;
+  return !task.submittedAt?.startsWith('Manager Approved');
+}
+
+export function isTaskPendingFounderReview(task: WorkTask, workList: WorkItem[]): boolean {
+  if (task.stage !== 'Review') return false;
+  if (!isTaskManagedByManager(task, workList)) {
+    return true;
+  }
+  return Boolean(task.submittedAt?.startsWith('Manager Approved'));
 }
 
 export function isApprovedLeaveActiveOnDate(leave: LeaveRequest, date: string) {
@@ -481,7 +513,9 @@ function Dashboard({ actor, work, tasks, peopleInScope, reports, leaves = [], on
   const dueToday = active.filter((item) => item.dueDate === TODAY);
   const overdue = active.filter((item) => isOverdue(item.dueDate));
   const blocked = active.filter((item) => item.stage === 'Blocked');
-  const reviews = tasks.filter((task) => task.stage === 'Review');
+  const reviews = actor.role === 'Manager'
+    ? tasks.filter((task) => isTaskPendingManagerReview(task, work))
+    : tasks.filter((task) => isTaskPendingFounderReview(task, work));
   if (actor.role === 'HR Manager') {
     const onlineEmployees = peopleInScope.filter((p) => p.presence === 'Online');
     const onLeaveEmployees = peopleInScope.filter((p) => leaves.some((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, TODAY)));
@@ -493,6 +527,7 @@ function Dashboard({ actor, work, tasks, peopleInScope, reports, leaves = [], on
           eyebrow="HR Executive Command Center"
           title={`Good morning, ${actor.name.split(' ')[0]}.`}
           description="Executive HR oversight — monitor company-wide attendance, review and approve leaves, and observe team workflow."
+          action={<Button onClick={onCreate}><Plus className="size-4" />Add my task</Button>}
         />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Metric
@@ -547,6 +582,7 @@ function Dashboard({ actor, work, tasks, peopleInScope, reports, leaves = [], on
                 item={item}
                 currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)}
                 onOpen={onOpen}
+                onDelete={onDeletePerson && item.role !== 'Founder' ? () => setDeleteTarget(item) : undefined}
               />
             ))}
           </Card>
@@ -607,15 +643,15 @@ function Dashboard({ actor, work, tasks, peopleInScope, reports, leaves = [], on
             <Card className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Workflow Oversight</div>
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Workflow</div>
                   <h2 className="mt-1 text-lg font-black">Active Initiatives</h2>
                 </div>
                 <Button variant="ghost" onClick={() => onNavigate('/work')}>
                   View all <ArrowRight className="size-4" />
                 </Button>
               </div>
-              <div className="mt-4 space-y-2.5">
-                {active.slice(0, 4).map((item) => (
+              <div className="mt-4 space-y-2">
+                {active.slice(0, 5).map((item) => (
                   <button
                     key={item.id}
                     onClick={() => onOpen(item.id)}
@@ -638,13 +674,13 @@ function Dashboard({ actor, work, tasks, peopleInScope, reports, leaves = [], on
       </>
     );
   }
-  if (actor.role === 'Founder') return <><SectionTitle eyebrow="Founder command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here's the current state of Arka. Exception-focused visibility for decisions, not employee surveillance." action={<Button onClick={onCreate}><Plus className="size-4" />Assign work</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Active work" value={active.length} detail="Across the operation" onClick={() => onNavigate('/work')} /><Metric label="Due today" value={dueToday.length} detail="Needs a decision" tone="warning" /><Metric label="Overdue" value={overdue.length} detail="Requires intervention" tone="danger" onClick={() => onNavigate('/work')} /><Metric label="Blocked" value={blocked.length} detail="Waiting on a path forward" tone="danger" /><Metric label="Waiting approval" value={reviews.length} detail="Submitted for review" tone="warning" onClick={() => onNavigate('/approvals')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]"><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Where is everyone?</div><h2 className="mt-1 text-lg font-black">Team presence</h2></div><Button variant="ghost" onClick={() => onNavigate('/people')}>Manage people <ArrowRight className="size-4" /></Button></div>{peopleInScope.map((item) => <PersonRow key={item.id} item={item} currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)} onOpen={onOpen} onDelete={onDeletePerson && item.role !== 'Founder' ? () => setDeleteTarget(item) : undefined} />)}</Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Attention required</div><h2 className="mt-1 text-lg font-black">Founder decisions</h2><div className="mt-5 space-y-3">{[...overdue.slice(0, 2).map((item) => ({ label: 'Overdue work', item })), ...blocked.slice(0, 2).map((item) => ({ label: 'Blocked work', item }))].map(({ label, item }) => <button key={item.id} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><ShieldAlert className="mt-0.5 size-4 text-red-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-red-700">{label}</span><span className="mt-1 block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.managerId ? `Manager: ${person(item.managerId).name}` : 'Direct assignment'}</span></span></button>)}{reports.filter((report) => report.status === 'Submitted').map((report) => <button key={report.id} onClick={() => onNavigate('/reports')} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><FileText className="mt-0.5 size-4 text-[hsl(var(--primary))]" /><span><span className="block text-xs font-bold uppercase tracking-wide text-[hsl(var(--primary))]">Manager report</span><span className="mt-1 block text-sm font-semibold">{report.period} is ready to review</span></span></button>)}{overdue.length + blocked.length + reports.filter((report) => report.status === 'Submitted').length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No founder intervention required.</p>}</div></Card></div>{deleteTarget && <ConfirmDeleteModal targetPerson={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={async () => { if (onDeletePerson) await onDeletePerson(deleteTarget.id); }} />}</>;
+  if (actor.role === 'Founder') return <><SectionTitle eyebrow="Founder command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here's the current state of Arka. Exception-focused visibility for decisions, not employee surveillance." action={<Button onClick={onCreate}><Plus className="size-4" />Assign work</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Active work" value={active.length} detail="Across the operation" onClick={() => onNavigate('/work')} /><Metric label="Due today" value={dueToday.length} detail="Needs a decision" tone="warning" /><Metric label="Overdue" value={overdue.length} detail="Requires intervention" tone="danger" onClick={() => onNavigate('/work')} /><Metric label="Blocked" value={blocked.length} detail="Waiting on a path forward" tone="danger" /><Metric label="Waiting approval" value={reviews.length} detail="Ready for final sign-off" tone="warning" onClick={() => onNavigate('/approvals')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]"><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Where is everyone?</div><h2 className="mt-1 text-lg font-black">Team presence</h2></div><Button variant="ghost" onClick={() => onNavigate('/people')}>Manage people <ArrowRight className="size-4" /></Button></div>{peopleInScope.map((item) => <PersonRow key={item.id} item={item} currentWork={work.find((entry) => entry.managerId === item.id || entry.directAssigneeId === item.id)} onOpen={onOpen} onDelete={onDeletePerson && item.role !== 'Founder' ? () => setDeleteTarget(item) : undefined} />)}</Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Attention required</div><h2 className="mt-1 text-lg font-black">Founder decisions</h2><div className="mt-5 space-y-3">{[...overdue.slice(0, 2).map((item) => ({ label: 'Overdue work', item })), ...blocked.slice(0, 2).map((item) => ({ label: 'Blocked work', item }))].map(({ label, item }) => <button key={item.id} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><ShieldAlert className="mt-0.5 size-4 text-red-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-red-700">{label}</span><span className="mt-1 block text-sm font-semibold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.managerId ? `Manager: ${person(item.managerId).name}` : 'Direct assignment'}</span></span></button>)}{reports.filter((report) => report.status === 'Submitted').map((report) => <button key={report.id} onClick={() => onNavigate('/reports')} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-3 text-left hover:bg-[#fafaf8]"><FileText className="mt-0.5 size-4 text-[hsl(var(--primary))]" /><span><span className="block text-xs font-bold uppercase tracking-wide text-[hsl(var(--primary))]">Manager report</span><span className="mt-1 block text-sm font-semibold">{report.period} is ready to review</span></span></button>)}{overdue.length + blocked.length + reports.filter((report) => report.status === 'Submitted').length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No founder intervention required.</p>}</div></Card></div>{deleteTarget && <ConfirmDeleteModal targetPerson={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={async () => { if (onDeletePerson) await onDeletePerson(deleteTarget.id); }} />}</>;
   if (actor.role === 'Manager') return <><SectionTitle eyebrow="Manager command center" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="What does your team need to execute today?" action={<Button onClick={onCreate}><Plus className="size-4" />Assign task</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Founder assignments" value={work.filter((item) => item.managerId === actor.id && item.stage === 'Planning').length} detail="Waiting to be planned" onClick={() => onNavigate('/assignments')} /><Metric label="Team work" value={tasks.filter((task) => person(task.assigneeId).managerId === actor.id && task.stage !== 'Completed').length} detail="Active team tasks" /><Metric label="Due today" value={dueToday.length} detail="Deadline today" tone="warning" /><Metric label="Blocked" value={blocked.length} detail="Needs resolution" tone="danger" /><Metric label="My reviews" value={reviews.length} detail="Waiting for your review" tone="warning" onClick={() => onNavigate('/reviews')} /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Manager attention</div><h2 className="mt-1 text-lg font-black">Keep execution moving</h2></div><div className="p-5 space-y-3">{[...reviews.map((task) => ({ label: 'Waiting for review', title: task.title, detail: `${person(task.assigneeId).name} submitted this task`, id: task.workId })), ...blocked.map((item) => ({ label: 'Blocked', title: item.title, detail: 'Resolve or escalate the blocker', id: item.id }))].map((item) => <button key={`${item.label}-${item.id}`} onClick={() => onOpen(item.id)} className="flex w-full items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left hover:bg-[#fafaf8]"><Flag className="mt-0.5 size-4 text-amber-600" /><span><span className="block text-xs font-bold uppercase tracking-wide text-amber-700">{item.label}</span><span className="mt-1 block font-bold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.detail}</span></span></button>)}{reviews.length + blocked.length === 0 && <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Your team is clear.</p>}</div></Card><TeamWorkload peopleInScope={peopleInScope} tasks={tasks} /></div></>;
   const ownTasks = tasks.filter((task) => task.assigneeId === actor.id);
   const today = ownTasks.filter((task) => task.dueDate === TODAY);
   const next = ownTasks.filter((task) => task.dueDate > TODAY && task.stage !== 'Completed');
   const blockedMine = ownTasks.filter((task) => task.stage === 'Blocked');
-  return <><SectionTitle eyebrow="Team member workspace" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here is the work that needs your attention. Focus on execution, progress, and clear handoffs." /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Now" value={ownTasks.filter((task) => task.stage === 'In Progress').length} detail="Currently in progress" /><Metric label="Due today" value={today.length} detail="Finish or update today" tone="warning" /><Metric label="Blocked" value={blockedMine.length} detail="Needs a reason" tone="danger" /><Metric label="Waiting review" value={ownTasks.filter((task) => task.stage === 'Review').length} detail="Submitted to manager" tone="success" /></div><div className="mt-6 grid gap-6 lg:grid-cols-2"><TaskColumn title="Today's work" tasks={today} work={work} onOpen={onOpen} empty="Nothing due today." /><TaskColumn title="Next" tasks={next} work={work} onOpen={onOpen} empty="No upcoming work." /></div></>;
+  return <><SectionTitle eyebrow="Team member workspace" title={`Good morning, ${actor.name.split(' ')[0]}.`} description="Here is the work that needs your attention. Focus on execution, progress, and clear handoffs." action={<Button onClick={onCreate}><Plus className="size-4" />Add my task</Button>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Now" value={ownTasks.filter((task) => task.stage === 'In Progress').length} detail="Currently in progress" /><Metric label="Due today" value={today.length} detail="Finish or update today" tone="warning" /><Metric label="Blocked" value={blockedMine.length} detail="Needs a reason" tone="danger" /><Metric label="Waiting review" value={ownTasks.filter((task) => task.stage === 'Review').length} detail="Submitted to manager" tone="success" /></div><div className="mt-6 grid gap-6 lg:grid-cols-2"><TaskColumn title="Today's work" tasks={today} work={work} onOpen={onOpen} empty="Nothing due today." /><TaskColumn title="Next" tasks={next} work={work} onOpen={onOpen} empty="No upcoming work." /></div></>;
 }
 
 function TeamWorkload({ peopleInScope, tasks }: { peopleInScope: Person[]; tasks: WorkTask[] }) {
@@ -671,15 +707,111 @@ function WorkDetail({ actor, item, tasks, activities, comments, onBack, onOpen, 
   const [comment, setComment] = useState('');
   const [taskOpen, setTaskOpen] = useState(false);
   const relatedTasks = tasks.filter((task) => task.workId === item.id && (actor.role !== 'Team member' || task.assigneeId === actor.id));
-  const canManage = actor.role === 'Founder' || actor.role === 'Manager';
-  return <><div className="mb-5 flex items-center justify-between"><button onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><ArrowLeft className="size-4" />Back</button>{actor.role === 'Founder' && onDeleteWork && <button type="button" onClick={() => { if (window.confirm(`Are you sure you want to permanently delete "${item.title}" and all its tasks?`)) onDeleteWork(item.id); }} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/70 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition"><Trash2 className="size-3.5" />Delete Work Initiative</button>}</div><SectionTitle eyebrow="Work detail" title={item.title} description={item.description} action={<Badge className={stageTone[item.stage]}>{item.stage}</Badge>} /><div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]"><div className="space-y-6"><Card><div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4"><Info label="Client" value={item.client || 'Internal'} /><Info label="Work type" value={item.workType} /><Info label="Deadline" value={formatDate(item.dueDate)} valueClass={isOverdue(item.dueDate) ? 'text-red-700' : ''} /><Info label="Manager" value={item.managerId ? person(item.managerId).name : item.directAssigneeId ? `Direct · ${person(item.directAssigneeId).name}` : 'Unassigned'} /></div><div className="border-t border-[hsl(var(--border))] px-5 py-4"><div className="mb-2 flex justify-between text-xs font-bold"><span>Overall progress</span><span>{item.progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#f8c329]" style={{ width: `${item.progress}%` }} /></div></div></Card><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Work hierarchy</div><h2 className="mt-1 text-lg font-black">Tasks and execution</h2></div>{canManage && <Button onClick={() => setTaskOpen(true)}><Plus className="size-4" />Assign task</Button>}</div><div>{relatedTasks.map((task) => <TaskRow key={task.id} actor={actor} task={task} onOpen={() => onOpen(item.id)} onUpdate={onUpdateTask} onStartTimer={onStartTimer} onDelete={onDeleteTask} />)}{relatedTasks.length === 0 && <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No tasks assigned to you for this work item.</p>}</div></Card><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Conversation</div><h2 className="mt-1 text-lg font-black">Comments</h2></div><div className="divide-y divide-[hsl(var(--border))]">{comments.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="px-5 py-4"><div className="text-sm font-bold">{person(entry.authorId).name} <span className="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">{entry.createdAt}</span></div><p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{entry.message}</p></div>)}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) { onComment(comment.trim()); setComment(''); } }} className="flex gap-2 p-5"><input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add an operational comment..." className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none" /><Button type="submit" disabled={!comment.trim()}>Comment</Button></form></div></Card></div><div className="space-y-6"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Activity</div><h2 className="mt-1 text-lg font-black">History</h2></div><div className="p-5 space-y-4">{activities.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="flex gap-3"><div className={`mt-1 size-2 rounded-full ${entry.tone === 'warning' ? 'bg-red-500' : entry.tone === 'success' ? 'bg-emerald-500' : 'bg-[#f8c329]'}`} /><div><div className="text-sm"><span className="font-bold">{person(entry.actorId).name}</span> {entry.message}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{entry.createdAt}</div></div></div>)}</div></Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Responsibility chain</div><div className="mt-4 space-y-3 text-sm"><Chain label="Founder" value={person(item.founderId).name} /><Chain label="Manager" value={item.managerId ? person(item.managerId).name : 'Direct assignment'} /><Chain label="Team tasks" value={actor.role === 'Team member' ? `${relatedTasks.length} assigned to you` : `${relatedTasks.length} assigned`} /><Chain label="Time logged" value={hours(relatedTasks.reduce((sum, task) => sum + task.timeMinutes, 0))} /></div></Card></div></div>{taskOpen && <CreateTaskModal workId={item.id} onClose={() => setTaskOpen(false)} onCreate={(task) => { onAddTask(task); setTaskOpen(false); }} />}</>;
+  const canManage = actor.role === 'Founder' || actor.role === 'Manager' || item.directAssigneeId === actor.id || item.managerId === actor.id || item.founderId === actor.id || actor.role === 'HR Manager' || !actor.managerId || actor.role === 'Team member';
+  return <><div className="mb-5 flex items-center justify-between"><button onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"><ArrowLeft className="size-4" />Back</button>{actor.role === 'Founder' && onDeleteWork && <button type="button" onClick={() => { if (window.confirm(`Are you sure you want to permanently delete "${item.title}" and all its tasks?`)) onDeleteWork(item.id); }} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/70 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition"><Trash2 className="size-3.5" />Delete Work Initiative</button>}</div><SectionTitle eyebrow="Work detail" title={item.title} description={item.description} action={<Badge className={stageTone[item.stage]}>{item.stage}</Badge>} /><div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]"><div className="space-y-6"><Card><div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4"><Info label="Client" value={item.client || 'Internal'} /><Info label="Work type" value={item.workType} /><Info label="Deadline" value={formatDate(item.dueDate)} valueClass={isOverdue(item.dueDate) ? 'text-red-700' : ''} /><Info label="Manager" value={item.managerId ? person(item.managerId).name : item.directAssigneeId ? `Direct · ${person(item.directAssigneeId).name}` : 'Unassigned'} /></div><div className="border-t border-[hsl(var(--border))] px-5 py-4"><div className="mb-2 flex justify-between text-xs font-bold"><span>Overall progress</span><span>{item.progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#f8c329]" style={{ width: `${item.progress}%` }} /></div></div></Card><Card><div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Work hierarchy</div><h2 className="mt-1 text-lg font-black">Tasks and execution</h2></div>{canManage && <Button onClick={() => setTaskOpen(true)}><Plus className="size-4" />{actor.role === 'Team member' ? 'Add my task' : 'Assign task'}</Button>}</div><div>{relatedTasks.map((task) => <TaskRow key={task.id} actor={actor} task={task} parentWork={item} onOpen={() => onOpen(item.id)} onUpdate={onUpdateTask} onStartTimer={onStartTimer} onDelete={onDeleteTask} />)}{relatedTasks.length === 0 && <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">No tasks assigned to you for this work item.</p>}</div></Card><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Conversation</div><h2 className="mt-1 text-lg font-black">Comments</h2></div><div className="divide-y divide-[hsl(var(--border))]">{comments.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="px-5 py-4"><div className="text-sm font-bold">{person(entry.authorId).name} <span className="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">{entry.createdAt}</span></div><p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{entry.message}</p></div>)}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) { onComment(comment.trim()); setComment(''); } }} className="flex gap-2 p-5"><input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add an operational comment..." className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none" /><Button type="submit" disabled={!comment.trim()}>Comment</Button></form></div></Card></div><div className="space-y-6"><Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Activity</div><h2 className="mt-1 text-lg font-black">History</h2></div><div className="p-5 space-y-4">{activities.filter((entry) => entry.workId === item.id).map((entry) => <div key={entry.id} className="flex gap-3"><div className={`mt-1 size-2 rounded-full ${entry.tone === 'warning' ? 'bg-red-500' : entry.tone === 'success' ? 'bg-emerald-500' : 'bg-[#f8c329]'}`} /><div><div className="text-sm"><span className="font-bold">{person(entry.actorId).name}</span> {entry.message}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{entry.createdAt}</div></div></div>)}</div></Card><Card className="p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Responsibility chain</div><div className="mt-4 space-y-3 text-sm"><Chain label="Founder" value={person(item.founderId).name} /><Chain label="Manager" value={item.managerId ? person(item.managerId).name : 'Direct assignment'} /><Chain label="Team tasks" value={actor.role === 'Team member' ? `${relatedTasks.length} assigned to you` : `${relatedTasks.length} assigned`} /><Chain label="Time logged" value={hours(relatedTasks.reduce((sum, task) => sum + task.timeMinutes, 0))} /></div></Card></div></div>{taskOpen && <CreateTaskModal currentUser={actor} workId={item.id} onClose={() => setTaskOpen(false)} onCreate={(task) => { onAddTask(task); setTaskOpen(false); }} />}</>;
 }
 
-function TaskRow({ actor, task, onUpdate, onStartTimer, onDelete }: { actor: Person; task: WorkTask; onOpen: () => void; onUpdate: (taskId: string, patch: Partial<WorkTask>, message: string) => void; onStartTimer: (taskId: string) => void; onDelete?: (taskId: string) => void }) {
+function TaskRow({ actor, task, parentWork, onOpen, onUpdate, onStartTimer, onDelete }: { actor: Person; task: WorkTask; parentWork?: WorkItem; onOpen: () => void; onUpdate: (taskId: string, patch: Partial<WorkTask>, message: string) => void; onStartTimer: (taskId: string) => void; onDelete?: (taskId: string) => void }) {
   const assignee = person(task.assigneeId);
   const isOwner = actor.id === task.assigneeId;
   const canDelete = actor.role === 'Founder' || actor.role === 'Manager';
-  return <div className="border-b border-[hsl(var(--border))] p-5 last:border-0"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{task.title}</h3><Badge className={stageTone[task.stage]}>{task.stage}</Badge></div><p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{task.instructions}</p><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]"><span>Assigned to <strong className="text-[hsl(var(--foreground))]">{assignee.name}</strong></span><span>Due {formatDate(task.dueDate)}</span><span>{hours(task.timeMinutes)} logged</span></div></div><div className="flex flex-wrap items-center gap-2">{isOwner && task.stage !== 'Completed' && <><Button variant="secondary" onClick={() => onStartTimer(task.id)}><Timer className="size-4" />Start timer</Button>{task.stage === 'Assigned' && <Button onClick={() => onUpdate(task.id, { stage: 'In Progress', progress: 10 }, 'started work')}>Start work</Button>}{task.stage === 'In Progress' && <Button onClick={() => onUpdate(task.id, { stage: 'Review', progress: 100, submittedAt: 'Just now' }, 'submitted work for manager review')}>Submit for review</Button>}{task.stage === 'Revision' && <Button onClick={() => onUpdate(task.id, { stage: 'Review', progress: 100, submittedAt: 'Just now' }, 'resubmitted work after revision')}>Resubmit</Button>}</>}{canDelete && onDelete && <button type="button" onClick={() => { if (window.confirm(`Are you sure you want to delete task "${task.title}"?`)) onDelete(task.id); }} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/70 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition" title="Delete task"><Trash2 className="size-3.5" />Delete</button>}</div></div>{task.revisionNote && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><strong>Revision required:</strong> {task.revisionNote}</div>}{(actor.role === 'Manager' || actor.role === 'Founder') && task.stage === 'Review' && <div className="mt-4 flex flex-wrap gap-2 border-t border-[hsl(var(--border))] pt-4"><Button onClick={() => onUpdate(task.id, { stage: 'Approved', progress: 100 }, 'approved the submission')}>Approve</Button><Button variant="secondary" onClick={() => onUpdate(task.id, { stage: 'Revision', progress: 70, revisionNote: 'Update the hero section and mobile spacing.' }, 'requested a revision')}>Request revision</Button></div>}</div>;
+  const isManagerApproved = Boolean(task.submittedAt?.startsWith('Manager Approved'));
+  const hasManager = isTaskManagedByManager(task, parentWork ? [parentWork] : []);
+  const isDirectUnderFounder = !hasManager;
+  const isMyManagedTask = Boolean((parentWork?.managerId && parentWork.managerId === actor.id) || (assignee.managerId && assignee.managerId === actor.id));
+
+  return (
+    <div className="border-b border-[hsl(var(--border))] p-5 last:border-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-bold">{task.title}</h3>
+            <Badge className={stageTone[task.stage]}>{task.stage}</Badge>
+            {task.stage === 'Review' && isManagerApproved && (
+              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">✓ Manager Approved · Waiting Founder Sign-off</Badge>
+            )}
+            {task.stage === 'Review' && !isManagerApproved && hasManager && (
+              <Badge className="border-amber-200 bg-amber-50 text-amber-700">Awaiting Manager Review</Badge>
+            )}
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{task.instructions}</p>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
+            <span>Assigned to <strong className="text-[hsl(var(--foreground))]">{assignee.name}</strong></span>
+            <span>Due {formatDate(task.dueDate)}</span>
+            <span>{hours(task.timeMinutes)} logged</span>
+            {task.submittedAt && <span className="italic text-slate-500">{task.submittedAt}</span>}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {isOwner && task.stage !== 'Completed' && (
+            <>
+              <Button variant="secondary" onClick={() => onStartTimer(task.id)}>
+                <Timer className="size-4" />Start timer
+              </Button>
+              {task.stage === 'Assigned' && (
+                <Button onClick={() => onUpdate(task.id, { stage: 'In Progress', progress: 10 }, 'started work')}>
+                  Start work
+                </Button>
+              )}
+              {task.stage === 'In Progress' && (
+                <Button onClick={() => onUpdate(task.id, { stage: 'Review', progress: 100, submittedAt: 'Submitted today' }, hasManager ? 'submitted work for manager review' : 'submitted work for founder approval')}>
+                  Submit for review
+                </Button>
+              )}
+              {task.stage === 'Revision' && (
+                <Button onClick={() => onUpdate(task.id, { stage: 'Review', progress: 100, submittedAt: 'Resubmitted today' }, hasManager ? 'resubmitted work after revision for manager review' : 'resubmitted work for founder approval')}>
+                  Resubmit
+                </Button>
+              )}
+            </>
+          )}
+
+          {canDelete && onDelete && (
+            <button type="button" onClick={() => { if (window.confirm(`Are you sure you want to delete task "${task.title}"?`)) onDelete(task.id); }} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/70 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition" title="Delete task">
+              <Trash2 className="size-3.5" />Delete
+            </button>
+          )}
+        </div>
+      </div>
+
+      {task.revisionNote && (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <strong>Revision required:</strong> {task.revisionNote}
+        </div>
+      )}
+
+      {/* Level 1: Manager Review Action Buttons */}
+      {actor.role === 'Manager' && isMyManagedTask && task.stage === 'Review' && !isManagerApproved && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[hsl(var(--border))] pt-4">
+          <Button onClick={() => onUpdate(task.id, { submittedAt: `Manager Approved (${actor.name})` }, 'approved task and forwarded to Founder for final sign-off')}>
+            <Check className="size-4" />Approve & Send to Founder
+          </Button>
+          <Button variant="secondary" onClick={() => {
+            const note = window.prompt("Enter revision instructions for team member:") || "Please update and revise this deliverable.";
+            onUpdate(task.id, { stage: 'Revision', progress: 70, revisionNote: note }, 'requested a revision');
+          }}>
+            Request revision
+          </Button>
+        </div>
+      )}
+
+      {/* Level 2: Founder Approval Action Buttons */}
+      {actor.role === 'Founder' && task.stage === 'Review' && (isManagerApproved || isDirectUnderFounder) && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[hsl(var(--border))] pt-4">
+          <Button onClick={() => onUpdate(task.id, { stage: 'Approved', progress: 100, submittedAt: `Approved by Founder (${actor.name})` }, 'approved the submission with final sign-off')}>
+            <Check className="size-4" />Final Approve
+          </Button>
+          <Button variant="secondary" onClick={() => {
+            const note = window.prompt("Enter revision instructions:") || "Revision requested by Founder.";
+            onUpdate(task.id, { stage: 'Revision', progress: 70, revisionNote: note }, 'requested a revision');
+          }}>
+            Request revision
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ReportsPage({ actor, reports, work, onSubmit, onReview }: { actor: Person; reports: ManagerReport[]; work: WorkItem[]; onSubmit: (report: Omit<ManagerReport, 'id' | 'managerId' | 'status' | 'createdAt'>) => void; onReview: (id: string, status: ManagerReport['status']) => void }) {
@@ -688,9 +820,84 @@ function ReportsPage({ actor, reports, work, onSubmit, onReview }: { actor: Pers
   return <><SectionTitle eyebrow={actor.role === 'Founder' ? 'Founder reports' : actor.role === 'Manager' ? 'Reporting to founder' : 'My progress reports'} title={actor.role === 'Founder' ? 'Reports and decisions' : actor.role === 'Manager' ? 'Report to Founder' : 'My reports'} description={actor.role === 'Founder' ? 'Read consolidated manager reporting and turn operational context into decisions.' : 'Keep the next level informed with clear progress, blockers, and decisions needed.'} action={actor.role === 'Manager' && <Button onClick={() => setOpen(true)}><Plus className="size-4" />Create report</Button>} /><div className="grid gap-5">{ownReports.map((report) => <Card key={report.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">{report.period}</div><h2 className="mt-1 text-lg font-black">Report from {person(report.managerId).name}</h2></div><Badge className={report.status === 'Submitted' ? 'border-amber-200 bg-amber-50 text-amber-700' : report.status === 'Reviewed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700'}>{report.status}</Badge></div><div className="mt-5 grid gap-4 text-sm md:grid-cols-2"><ReportBlock title="Completed" value={report.completed} /><ReportBlock title="In progress" value={report.inProgress} /><ReportBlock title="Blockers" value={report.blockers} /><ReportBlock title="Founder decisions" value={report.decisions} /></div>{actor.role === 'Founder' && report.status === 'Submitted' && <div className="mt-5 flex gap-2 border-t border-[hsl(var(--border))] pt-4"><Button onClick={() => onReview(report.id, 'Reviewed')}><Check className="size-4" />Mark reviewed</Button><Button variant="secondary" onClick={() => onReview(report.id, 'Needs revision')}>Request revision</Button></div>}</Card>)}{ownReports.length === 0 && <Card className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No reports yet.</Card>}</div>{open && <ReportModal onClose={() => setOpen(false)} onCreate={(report) => { onSubmit(report); setOpen(false); }} />}</>;
 }
 
-function ApprovalsPage({ tasks, work, onOpen }: { tasks: WorkTask[]; work: WorkItem[]; onOpen: (id: string) => void }) {
-  const pending = tasks.filter((task) => task.stage === 'Review');
-  return <><SectionTitle eyebrow="Founder approval center" title="Approvals" description="Review work and reports at the management level. Small team tasks are normally approved by the Manager first." /><Card>{pending.map((task) => <button key={task.id} onClick={() => onOpen(task.workId)} className="flex w-full flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 text-left last:border-0 hover:bg-[#fafaf8]"><div className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><CheckCircle2 className="size-5" /></div><div className="min-w-[220px] flex-1"><div className="font-bold">{task.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{work.find((item) => item.id === task.workId)?.title} · submitted by {person(task.assigneeId).name}</div></div><div className="text-sm text-[hsl(var(--muted-foreground))]">{task.submittedAt || 'Submitted today'}</div><ArrowRight className="size-4 text-[hsl(var(--muted-foreground))]" /></button>)}{pending.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">Nothing is waiting for approval.</p>}</Card></>;
+function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person; tasks: WorkTask[]; work: WorkItem[]; onOpen: (id: string) => void; onUpdate?: (taskId: string, patch: Partial<WorkTask>, message: string) => void }) {
+  const isManager = actor.role === 'Manager';
+  const pending = tasks.filter((task) => {
+    if (isManager) return isTaskPendingManagerReview(task, work);
+    return isTaskPendingFounderReview(task, work);
+  });
+
+  return (
+    <>
+      <SectionTitle
+        eyebrow={isManager ? "Manager review center" : "Founder approval center"}
+        title={isManager ? "Team Task Reviews" : "Approvals"}
+        description={isManager ? "Review completed work from your team. Approving a task verifies execution and forwards it to Founder for final sign-off." : "Final executive sign-off for manager-verified deliverables and direct report initiatives."}
+      />
+      <Card>
+        {pending.map((task) => {
+          const parentWork = work.find((item) => item.id === task.workId);
+          const assignee = person(task.assigneeId);
+          const isManagerApproved = Boolean(task.submittedAt?.startsWith('Manager Approved'));
+
+          return (
+            <div key={task.id} className="flex w-full flex-wrap items-center justify-between gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0 hover:bg-[#fafaf8]">
+              <button onClick={() => onOpen(task.workId)} className="flex items-center gap-4 text-left min-w-[240px] flex-1">
+                <div className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700">
+                  <CheckCircle2 className="size-5" />
+                </div>
+                <div>
+                  <div className="font-bold hover:text-[hsl(var(--primary))]">{task.title}</div>
+                  <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                    {parentWork?.title || 'Project'} · Submitted by <strong className="text-[hsl(var(--foreground))]">{assignee.name}</strong>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    {isManagerApproved ? (
+                      <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+                        ✓ {task.submittedAt}
+                      </Badge>
+                    ) : (
+                      <Badge className="border-amber-200 bg-amber-50 text-amber-700 text-[10px]">
+                        {isManager ? 'Awaiting Your Review' : 'Direct Report Submission'}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </button>
+
+              {onUpdate && (
+                <div className="flex items-center gap-2">
+                  {isManager ? (
+                    <Button onClick={() => onUpdate(task.id, { submittedAt: `Manager Approved (${actor.name})` }, 'approved task and forwarded to Founder')}>
+                      <Check className="size-4" />Approve & Send to Founder
+                    </Button>
+                  ) : (
+                    <Button onClick={() => onUpdate(task.id, { stage: 'Approved', progress: 100, submittedAt: `Approved by Founder (${actor.name})` }, 'approved deliverable')}>
+                      <Check className="size-4" />Final Approve
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={() => {
+                    const note = window.prompt("Enter revision instructions:") || "Please update and revise.";
+                    onUpdate(task.id, { stage: 'Revision', progress: 70, revisionNote: note }, 'requested revision');
+                  }}>
+                    Revision
+                  </Button>
+                  <Button variant="ghost" onClick={() => onOpen(task.workId)}>
+                    View <ArrowRight className="size-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {pending.length === 0 && (
+          <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
+            {isManager ? 'Your team is clear. No tasks waiting for your review.' : 'Nothing is waiting for approval.'}
+          </p>
+        )}
+      </Card>
+    </>
+  );
 }
 
 function TimePage({ actor, tasks }: { actor: Person; tasks: WorkTask[] }) {
@@ -743,8 +950,12 @@ function AssignWorkModal({ onClose, onCreate }: {
   }) => void;
 }) {
   const managers = runtimePeople.filter((p) => p.role === 'Manager');
-  // If no managers are configured yet, fallback to assignable people so admin is not stuck
-  const targetAssignees = managers.length > 0 ? managers : getAssignablePeople(runtimePeople);
+  const directUnderFounder = runtimePeople.filter((p) =>
+    p.role !== 'Founder' && p.role !== 'Manager' && (!p.managerId || p.managerId === 'usr_founder')
+  );
+  const targetAssignees = [...managers, ...directUnderFounder].length > 0
+    ? [...managers, ...directUnderFounder]
+    : getAssignablePeople(runtimePeople);
 
   const [workClientName, setWorkClientName] = useState('');
   const [managerId, setManagerId] = useState(() => targetAssignees[0]?.id || '');
@@ -757,7 +968,7 @@ function AssignWorkModal({ onClose, onCreate }: {
   }, [targetAssignees, managerId]);
 
   return (
-    <Modal title="Assign work to Manager" onClose={onClose}>
+    <Modal title="Assign work" onClose={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -766,7 +977,7 @@ function AssignWorkModal({ onClose, onCreate }: {
           onCreate({
             title: workClientName.trim(),
             client: workClientName.trim(),
-            description: `Work assigned to ${assigned?.name || 'Manager'}`,
+            description: `Work assigned to ${assigned?.name || 'Assignee'}`,
             workType: 'Other',
             priority,
             dueDate: new Date().toISOString().slice(0, 10),
@@ -785,18 +996,18 @@ function AssignWorkModal({ onClose, onCreate }: {
 
         {targetAssignees.length === 0 ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            <strong>No managers found:</strong> Please assign the Manager role to a team member in the People directory first.
+            <strong>No managers or team members found:</strong> Please add members in the People directory first.
           </div>
         ) : (
           <SelectField
-            label="Under which Manager"
+            label="Under which Manager / Direct Report"
             value={managerId}
             onChange={setManagerId}
             options={targetAssignees.map((item) => item.id)}
             labels={Object.fromEntries(
               targetAssignees.map((item) => [
                 item.id,
-                `${item.name}${item.title ? ` — ${item.title}` : ''} (${item.role})`
+                `${item.name}${item.title ? ` — ${item.title}` : ''} (${item.role === 'Manager' ? 'Manager' : 'Direct under Founder'})`
               ])
             )}
           />
@@ -818,23 +1029,28 @@ function AssignWorkModal({ onClose, onCreate }: {
   );
 }
 
-function CreateTaskModal({ workId: initialWorkId, workList = [], onClose, onCreate }: { workId?: string; workList?: WorkItem[]; onClose: () => void; onCreate: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void }) {
+function CreateTaskModal({ workId: initialWorkId, workList = [], currentUser, onClose, onCreate }: { workId?: string; workList?: WorkItem[]; currentUser?: Person; onClose: () => void; onCreate: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void }) {
   const [workId, setWorkId] = useState(initialWorkId || workList[0]?.id || '');
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
   const assignable = getAssignablePeople(runtimePeople);
-  const [assigneeId, setAssigneeId] = useState(() => assignable[0]?.id || '');
-  const [dueDate, setDueDate] = useState('2026-09-20');
+  const isSelfAssign = currentUser && (currentUser.role === 'Team member' || currentUser.role === 'HR Manager');
+  const [assigneeId, setAssigneeId] = useState(() => (isSelfAssign ? currentUser.id : (assignable[0]?.id || '')));
+  const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [priority, setPriority] = useState<Priority>('Medium');
   const [estimatedMinutes, setEstimatedMinutes] = useState('240');
 
   useEffect(() => {
-    if (!assigneeId && assignable.length > 0) setAssigneeId(assignable[0].id);
+    if (isSelfAssign && currentUser) {
+      setAssigneeId(currentUser.id);
+    } else if (!assigneeId && assignable.length > 0) {
+      setAssigneeId(assignable[0].id);
+    }
     if (!workId && workList.length > 0) setWorkId(workList[0].id);
-  }, [assignable, assigneeId, workId, workList]);
+  }, [assignable, assigneeId, workId, workList, isSelfAssign, currentUser]);
 
   return (
-    <Modal title="Assign task to team member" onClose={onClose}>
+    <Modal title={isSelfAssign ? "Create your task" : "Assign task to team member"} onClose={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -858,10 +1074,17 @@ function CreateTaskModal({ workId: initialWorkId, workList = [], onClose, onCrea
             <strong>No active work projects:</strong> Create a work assignment first from Company Work / Dashboard before assigning tasks.
           </div>
         )}
-        <Field label="Task title" value={title} onChange={setTitle} placeholder="e.g. Mobile optimization & CSS" required />
-        <Field label="Instructions" value={instructions} onChange={setInstructions} placeholder="What should the team member deliver?" />
+        <Field label="Task title" value={title} onChange={setTitle} placeholder="e.g. Client outreach / Review campaign draft" required />
+        <Field label="Instructions / Notes" value={instructions} onChange={setInstructions} placeholder="What is the deliverable or execution goal?" />
         <div className="grid gap-3 sm:grid-cols-2">
-          {assignable.length === 0 ? (
+          {isSelfAssign && currentUser ? (
+            <label className="block space-y-1.5">
+              <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Assignee</span>
+              <div className="rounded-lg border border-[hsl(var(--input))] bg-[#f0f0ee] px-3 py-2.5 text-sm font-semibold text-slate-800">
+                {currentUser.name} ({currentUser.role})
+              </div>
+            </label>
+          ) : assignable.length === 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
               No team members available. Add a team member in the People directory first.
             </div>
@@ -882,7 +1105,9 @@ function CreateTaskModal({ workId: initialWorkId, workList = [], onClose, onCrea
         </div>
         <div className="flex justify-end gap-2 pt-3">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={!title.trim() || !assigneeId || !workId}>Assign task</Button>
+          <Button type="submit" disabled={!title.trim() || !assigneeId || !workId}>
+            {isSelfAssign ? "Create task" : "Assign task"}
+          </Button>
         </div>
       </form>
     </Modal>
@@ -1483,12 +1708,17 @@ function AppRouter() {
     if (actor.role === 'Manager') {
       return tasks.filter((task) => {
         const assignee = person(task.assigneeId);
-        return task.assigneeId === actor.id || assignee.managerId === actor.id;
+        const parentWork = work.find((w) => w.id === task.workId);
+        return (
+          task.assigneeId === actor.id ||
+          assignee.managerId === actor.id ||
+          parentWork?.managerId === actor.id
+        );
       });
     }
     // Team member strictly only sees tasks assigned to themselves
     return tasks.filter((task) => task.assigneeId === actor.id);
-  }, [actor, tasks]);
+  }, [actor, tasks, work]);
 
   const updatePresence = async (presence: Presence, isAuto = false) => {
     if (!actor) return;
@@ -1628,6 +1858,7 @@ function AppRouter() {
     const assignee = person(data.assigneeId); 
     try {
       const todayIso = new Date().toISOString().slice(0, 10);
+      const isManager = assignee.role === 'Manager';
       const workRes = await apiPost<{item: WorkItem}>('/work', {
         title: data.title,
         description: data.description || `Work assigned to ${assignee.name}`,
@@ -1636,15 +1867,15 @@ function AppRouter() {
         priority: data.priority,
         dueDate: data.dueDate || todayIso,
         founderId: actor.id,
-        managerId: assignee.role === 'Manager' ? assignee.id : (assignee.managerId || assignee.id),
-        directAssigneeId: assignee.role === 'Team member' ? assignee.id : undefined,
-        stage: assignee.role === 'Manager' ? 'Planning' : 'Assigned',
+        managerId: isManager ? assignee.id : null,
+        directAssigneeId: !isManager ? assignee.id : undefined,
+        stage: isManager ? 'Planning' : 'Assigned',
         progress: 0,
         createdAt: todayIso
       });
       setWork((all) => [workRes.item, ...all]); 
       
-      if (assignee.role === 'Team member') {
+      if (!isManager) {
         const taskRes = await apiPost<{item: WorkTask}>('/tasks', {
           workId: workRes.item.id,
           title: data.title,
@@ -1849,7 +2080,7 @@ function AppRouter() {
   ) : location === '/reports' ? (
     <ReportsPage actor={actor} reports={reports} work={scopeWork} onSubmit={submitReport} onReview={(id, status) => setReports((all) => all.map((report) => report.id === id ? { ...report, status } : report))} />
   ) : location === '/approvals' || location === '/reviews' ? (
-    <ApprovalsPage tasks={scopeTasks} work={scopeWork} onOpen={openWork} />
+    <ApprovalsPage actor={actor} tasks={scopeTasks} work={scopeWork} onOpen={openWork} onUpdate={updateTask} />
   ) : location === '/time' ? (
     <TimePage actor={actor} tasks={scopeTasks} />
   ) : location === '/insights' ? (
@@ -1863,9 +2094,9 @@ function AppRouter() {
   ) : location === '/team-tasks' ? (
     <WorkListPage title="Team tasks" description="Break manager work into clear assignments for your team." work={scopeWork} tasks={scopeTasks} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Assign team task" />
   ) : location === '/my-work' || location === '/today' || location === '/submissions' || location === '/notifications' || location === '/profile' ? (
-    <WorkListPage title={location === '/today' ? "Today's work" : location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={scopeTasks.filter((task) => location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved')} onOpen={openWork} />
+    <WorkListPage title={location === '/today' ? "Today's work" : location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={scopeTasks.filter((task) => location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved')} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Add my task" />
   ) : (
-    <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : actor.role === 'Manager' ? () => setTaskModalOpen(true) : () => {}} onNavigate={setLocation} onDeletePerson={actor.role === 'Founder' ? deletePerson : undefined} />
+    <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : () => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={actor.role === 'Founder' ? deletePerson : undefined} />
   );
 
   return (
@@ -1880,7 +2111,8 @@ function AppRouter() {
       {createOpen && <AssignWorkModal onClose={() => setCreateOpen(false)} onCreate={createWork} />}
       {taskModalOpen && (
         <CreateTaskModal
-          workList={scopeWork.length > 0 ? scopeWork : work}
+          currentUser={actor}
+          workList={work.length > 0 ? work : scopeWork}
           onClose={() => setTaskModalOpen(false)}
           onCreate={addTask}
         />
