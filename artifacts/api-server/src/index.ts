@@ -20,8 +20,9 @@ initCronJobs();
 async function runStartupMigrations() {
   try {
     await pool.query("ALTER TYPE role ADD VALUE IF NOT EXISTS 'HR Manager';");
+    await pool.query("ALTER TYPE leave_type ADD VALUE IF NOT EXISTS 'Work From Home';");
     await pool.query("UPDATE people SET role = 'HR Manager', title = 'Head of People & HR Operations' WHERE email = 'sanjana.jetty1469@gmail.com' OR name ILIKE '%Sanjana%';");
-    logger.info("Executed startup role migration: Sanjana CK set to HR Manager.");
+    logger.info("Executed startup migrations: role & leave_type.");
   } catch (err: any) {
     logger.warn({ err: err?.message || err }, "Startup migration warning");
   }

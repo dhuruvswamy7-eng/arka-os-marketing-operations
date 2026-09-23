@@ -51,6 +51,7 @@ export const leaveTypeEnum = pgEnum("leave_type", [
   "Casual",
   "Sick",
   "Personal",
+  "Work From Home",
   "Other",
 ]);
 export const reportStatusEnum = pgEnum("report_status", [

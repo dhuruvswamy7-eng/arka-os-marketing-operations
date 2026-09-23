@@ -18,7 +18,7 @@ router.post("/", async (req, res) => {
     const payload = req.body ?? {};
     const id = payload.id ?? `leave-${Date.now()}`;
     
-    const validLeaveTypes = ["Casual", "Sick", "Personal", "Other"] as const;
+    const validLeaveTypes = ["Casual", "Sick", "Personal", "Work From Home", "Other"] as const;
     const rawType = payload.leaveType ?? payload.type ?? "Casual";
     const leaveType = validLeaveTypes.includes(rawType) ? rawType : "Casual";
 
@@ -56,7 +56,7 @@ router.patch("/:id", async (req, res) => {
     const { id, ...updates } = payload;
     
     if (updates.leaveType || updates.type) {
-      const validLeaveTypes = ["Casual", "Sick", "Personal", "Other"] as const;
+      const validLeaveTypes = ["Casual", "Sick", "Personal", "Work From Home", "Other"] as const;
       const t = updates.leaveType ?? updates.type;
       updates.leaveType = validLeaveTypes.includes(t) ? t : "Casual";
       delete updates.type;

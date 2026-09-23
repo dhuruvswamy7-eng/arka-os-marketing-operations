@@ -1,11 +1,12 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { toast } from '@/hooks/use-toast';
 import {
   ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, Clock3, Command,
-  FileText, Flag, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
+  FileText, Flag, Home, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
   MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Timer, Trash2, UserPlus, UserRound, Users, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
@@ -194,7 +195,7 @@ export type ManagerReport = {
   status: ReportStatus; createdAt: string;
 };
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
-export type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Other';
+export type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Work From Home' | 'Other';
 export type LeaveRequest = {
   id: string; userId: string; leaveType: LeaveType; startDate: string; endDate: string; reason: string; note?: string | null;
   status: LeaveStatus; approvedBy?: string | null; createdAt: string;
@@ -342,10 +343,80 @@ export function getTaskManager(task: WorkTask, workList: WorkItem[]): Person | n
   return m?.role === 'Manager' ? m : null;
 }
 
-export function isTaskPendingManagerReview(task: WorkTask, workList: WorkItem[]): boolean {
+export function isTaskPendingManagerReview(task: WorkTask, workList: WorkItem[], managerId?: string): boolean {
   if (task.stage !== 'Review') return false;
   if (!isTaskManagedByManager(task, workList)) return false;
-  return !task.submittedAt?.startsWith('Manager Approved');
+  if (task.submittedAt?.startsWith('Manager Approved')) return false;
+  if (managerId) {
+    const parentWork = workList.find((w) => w.id === task.workId);
+    const assignee = person(task.assigneeId);
+    const mId = parentWork?.managerId || assignee?.managerId;
+    return mId === managerId;
+  }
+  return true;
+}
+
+export function playNotificationChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    const now = ctx.currentTime;
+    // Tone 1: 587.33 Hz (D5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0.2, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.25);
+
+    // Tone 2: 880 Hz (A5)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.15);
+    gain2.gain.setValueAtTime(0.25, now + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.15);
+    osc2.stop(now + 0.45);
+  } catch (e) {
+    console.warn('Audio chime error:', e);
+  }
+}
+
+export function requestNotificationPermission() {
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }
+}
+
+export function getDailyBreakUsage(userId: string): { breaks: number; lunches: number } {
+  try {
+    const raw = localStorage.getItem(`arka_break_counts_${userId}_${TODAY}`);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { breaks: 0, lunches: 0 };
+}
+
+export function recordBreakUsage(userId: string, type: 'Break' | 'Lunch'): { breaks: number; lunches: number } {
+  const current = getDailyBreakUsage(userId);
+  if (type === 'Break') current.breaks = (current.breaks || 0) + 1;
+  if (type === 'Lunch') current.lunches = (current.lunches || 0) + 1;
+  try {
+    localStorage.setItem(`arka_break_counts_${userId}_${TODAY}`, JSON.stringify(current));
+  } catch {}
+  return current;
 }
 
 export function isTaskPendingFounderReview(task: WorkTask, workList: WorkItem[]): boolean {
@@ -407,6 +478,8 @@ function Shell({
   onLogout, 
   onUpdatePresence, 
   timerSecondsRemaining,
+  shiftTargetInfo,
+  breakCounts,
   allPeople,
   children 
 }: { 
@@ -414,6 +487,15 @@ function Shell({
   onLogout: () => void; 
   onUpdatePresence: (p: Presence) => void; 
   timerSecondsRemaining?: number | null;
+  shiftTargetInfo?: {
+    loginTimeStr: string;
+    targetTimeStr: string;
+    totalMinutes: number;
+    isCompleted: boolean;
+    remainingMinutes: number;
+    progressPercent: number;
+  } | null;
+  breakCounts?: { breaks: number; lunches: number };
   allPeople?: Person[];
   children: ReactNode 
 }) {
@@ -445,25 +527,63 @@ function Shell({
         </div>
         <div className="ml-auto flex items-center gap-3 md:gap-4">
           
-          {/* Active Countdown Badge for Break and Lunch */}
-          {(actor.presence === 'Break' || actor.presence === 'Lunch') && timerSecondsRemaining !== null && timerSecondsRemaining !== undefined && (
-            <div className="flex items-center gap-2 rounded-full bg-amber-50 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-900 shadow-sm animate-pulse">
-              <Clock3 className="size-3.5 text-amber-600 animate-spin" style={{ animationDuration: '4s' }} />
+          {/* 9-Hour Shift Tracker Pill */}
+          {shiftTargetInfo && (
+            <div 
+              className={`hidden sm:flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold shadow-xs ${
+                shiftTargetInfo.isCompleted
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                  : 'border-slate-200 bg-white text-slate-700'
+              }`}
+              title={`First login today: ${shiftTargetInfo.loginTimeStr}. Target 9h logout: ${shiftTargetInfo.targetTimeStr}. Total today: ${hours(shiftTargetInfo.totalMinutes)}.`}
+            >
+              <Clock3 className={`size-3.5 ${shiftTargetInfo.isCompleted ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>
-                {actor.presence === 'Break' ? '☕ Break' : '🍱 Lunch'}: {Math.floor(timerSecondsRemaining / 60)}:{String(timerSecondsRemaining % 60).padStart(2, '0')}
+                {shiftTargetInfo.isCompleted ? (
+                  <span className="font-bold text-emerald-700">✓ 9h Shift Done ({hours(shiftTargetInfo.totalMinutes)})</span>
+                ) : (
+                  <span>
+                    <strong className="text-black">{hours(shiftTargetInfo.totalMinutes)}</strong> / 9h · Out by <strong className="text-black">{shiftTargetInfo.targetTimeStr}</strong>
+                    <span className="ml-1 text-[10px] text-slate-500">({hours(shiftTargetInfo.remainingMinutes)} left)</span>
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Active Countdown Badge for Break and Lunch with Strict Auto-Logout Warning */}
+          {(actor.presence === 'Break' || actor.presence === 'Lunch') && timerSecondsRemaining !== null && timerSecondsRemaining !== undefined && (
+            <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold shadow-sm ${
+              timerSecondsRemaining <= 0 
+                ? 'bg-red-100 border border-red-400 text-red-900 animate-pulse' 
+                : 'bg-amber-50 border border-amber-300 text-amber-900 animate-pulse'
+            }`}>
+              <Clock3 className={`size-3.5 ${timerSecondsRemaining <= 0 ? 'text-red-600' : 'text-amber-600 animate-spin'}`} style={{ animationDuration: '4s' }} />
+              <span>
+                {timerSecondsRemaining <= 0 ? (
+                  <span className="text-red-700 font-extrabold">
+                    ⚠️ OVERDUE {actor.presence.toUpperCase()}! Auto-logout in {Math.max(0, 60 + timerSecondsRemaining)}s
+                  </span>
+                ) : (
+                  <span>
+                    {actor.presence === 'Break' ? '☕ Break' : '🍱 Lunch'}: {Math.floor(timerSecondsRemaining / 60)}:{String(timerSecondsRemaining % 60).padStart(2, '0')}
+                  </span>
+                )}
               </span>
               <button
                 type="button"
                 onClick={() => onUpdatePresence('Online')}
-                className="ml-1 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] px-2 py-0.5 transition shadow-sm cursor-pointer"
-                title="End early and switch back to Online"
+                className={`ml-1 rounded-full font-bold text-[10px] px-2 py-0.5 transition shadow-sm cursor-pointer ${
+                  timerSecondsRemaining <= 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'
+                }`}
+                title="End break and return to Online"
               >
                 End early
               </button>
             </div>
           )}
 
-          {/* Presence Dropdown */}
+          {/* Presence Dropdown with Daily Allowance Indicators */}
           <div className="flex items-center gap-2 rounded-full bg-white border border-[hsl(var(--border))] px-3 py-1 shadow-sm">
             <span className={`size-2 rounded-full ${actor.presence === 'Online' ? 'bg-emerald-400' : actor.presence === 'Break' || actor.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-400'}`} /> 
             <select 
@@ -472,14 +592,47 @@ function Shell({
               onChange={(e) => onUpdatePresence(e.target.value as Presence)}
             >
               <option value="Online">Online</option>
-              <option value="Break">On Break (15m)</option>
-              <option value="Lunch">At Lunch (1h)</option>
+              <option 
+                value="Break" 
+                disabled={actor.presence !== 'Break' && (breakCounts?.breaks ?? 0) >= 2}
+              >
+                {`On Break (15m) ${breakCounts ? `[${Math.max(0, 2 - breakCounts.breaks)}/2 left]` : ''}`}
+              </option>
+              <option 
+                value="Lunch" 
+                disabled={actor.presence !== 'Lunch' && (breakCounts?.lunches ?? 0) >= 1}
+              >
+                {`At Lunch (1h) ${breakCounts ? `[${Math.max(0, 1 - breakCounts.lunches)}/1 left]` : ''}`}
+              </option>
               <option value="Idle">Idle</option>
             </select>
           </div>
 
-          <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Search className="size-4" /></button>
-          <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white"><Bell className="size-4" /></button>
+          <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white" title="Search"><Search className="size-4" /></button>
+          
+          {/* Notification Button */}
+          <button 
+            onClick={() => {
+              if (typeof window !== 'undefined' && 'Notification' in window) {
+                if (Notification.permission === 'granted') {
+                  toast({ title: 'Notifications Active', description: 'You will receive popups and sound when new tasks are assigned.' });
+                } else {
+                  Notification.requestPermission().then((perm) => {
+                    if (perm === 'granted') {
+                      toast({ title: 'Notifications Enabled', description: 'Task assignment alerts are now active.' });
+                    } else {
+                      toast({ title: 'Notifications Blocked', description: 'Please enable notifications in browser settings for alerts.' });
+                    }
+                  });
+                }
+              }
+            }}
+            className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-white" 
+            title="Notification alerts"
+          >
+            <Bell className="size-4" />
+          </button>
+
           <div className="grid size-8 place-items-center rounded-full bg-[#111] text-xs font-bold text-[#f8c329]">{actor.name.split(' ').map((part) => part[0]).join('')}</div>
         </div>
       </header>
@@ -686,16 +839,389 @@ function TaskColumn({ title, tasks, work, onOpen, empty }: { title: string; task
   return <Card><div className="border-b border-[hsl(var(--border))] px-5 py-4"><h2 className="text-lg font-black">{title}</h2></div><div>{tasks.map((task) => <button key={task.id} onClick={() => onOpen(task.workId)} className="flex w-full items-start gap-3 border-b border-[hsl(var(--border))] px-5 py-4 text-left last:border-0 hover:bg-[#fafaf8]"><div className="mt-1 size-2 rounded-full bg-[#f8c329]" /><span className="min-w-0 flex-1"><span className="block font-bold">{task.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{work.find((item) => item.id === task.workId)?.title} · due {formatDate(task.dueDate)}</span></span><Badge className={stageTone[task.stage]}>{task.stage}</Badge></button>)}{tasks.length === 0 && <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">{empty}</p>}</div></Card>;
 }
 
-function WorkListPage({ title, description, work, tasks, onOpen, onCreate, createButtonLabel = 'Assign work', filter }: { title: string; description: string; work: WorkItem[]; tasks: WorkTask[]; onOpen: (id: string) => void; onCreate?: () => void; createButtonLabel?: string; filter?: (item: WorkItem) => boolean }) {
+function MemberTasksModal({ 
+  member, 
+  tasks, 
+  work, 
+  onClose, 
+  onOpen 
+}: { 
+  member: Person; 
+  tasks: WorkTask[]; 
+  work: WorkItem[]; 
+  onClose: () => void; 
+  onOpen: (workId: string) => void; 
+}) {
+  const memberTasks = tasks.filter((t) => t.assigneeId === member.id);
+  
+  // Day-wise / Date-wise grouping
+  const todayTasks = memberTasks.filter((t) => t.dueDate === TODAY && t.stage !== 'Completed' && t.stage !== 'Approved');
+  const upcomingTasks = memberTasks.filter((t) => t.dueDate > TODAY && t.stage !== 'Completed' && t.stage !== 'Approved');
+  const overdueTasks = memberTasks.filter((t) => t.dueDate < TODAY && t.stage !== 'Completed' && t.stage !== 'Approved');
+  const completedTasks = memberTasks.filter((t) => t.stage === 'Completed' || t.stage === 'Approved');
+
+  const renderTaskCard = (task: WorkTask) => {
+    const parentWork = work.find((w) => w.id === task.workId);
+    return (
+      <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-4 shadow-xs hover:border-[hsl(var(--primary))] transition">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h4 className="font-bold text-sm text-[hsl(var(--foreground))]">{task.title}</h4>
+            <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              Initiative: <strong className="text-slate-700">{parentWork?.title || 'General Task'}</strong>
+              {parentWork?.client ? ` · Client: ${parentWork.client}` : ''}
+            </div>
+            {task.instructions && (
+              <p className="mt-2 text-xs text-slate-600 line-clamp-2 bg-slate-50 p-2 rounded-md">
+                {task.instructions}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Badge className={priorityTone[task.priority] + ' text-[10px]'}>{task.priority}</Badge>
+              <Badge className={stageTone[task.stage] + ' text-[10px]'}>{task.stage}</Badge>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+              <CalendarDays className="size-3 text-slate-400" />
+              <span>Due: {formatDate(task.dueDate)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--border))] pt-2.5 text-xs text-[hsl(var(--muted-foreground))]">
+          <span>Time logged: <strong className="text-slate-700">{hours(task.timeMinutes)}</strong></span>
+          <Button variant="ghost" onClick={() => { onClose(); onOpen(task.workId); }}>
+            Open Task <ArrowRight className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Modal title={`Tasks — ${member.name}`} onClose={onClose}>
+      <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1 custom-scrollbar">
+        {/* Member Header Banner */}
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-[hsl(var(--border))] p-3">
+          <div>
+            <div className="font-bold text-sm">{member.name}</div>
+            <div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`size-2.5 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            <span className="text-xs font-semibold">{member.presence}</span>
+            <Badge className="ml-2 text-xs">{memberTasks.length} Total Tasks</Badge>
+          </div>
+        </div>
+
+        {memberTasks.length === 0 ? (
+          <p className="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+            No tasks currently assigned to {member.name}.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {todayTasks.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-700">
+                  <CalendarDays className="size-4" />
+                  <span>Today's Tasks ({todayTasks.length}) — {formatDate(TODAY)}</span>
+                </div>
+                <div className="space-y-2.5">
+                  {todayTasks.map(renderTaskCard)}
+                </div>
+              </div>
+            )}
+
+            {overdueTasks.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-700">
+                  <Flag className="size-4" />
+                  <span>Overdue Tasks ({overdueTasks.length})</span>
+                </div>
+                <div className="space-y-2.5">
+                  {overdueTasks.map(renderTaskCard)}
+                </div>
+              </div>
+            )}
+
+            {upcomingTasks.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-700">
+                  <Clock3 className="size-4" />
+                  <span>Upcoming Tasks ({upcomingTasks.length})</span>
+                </div>
+                <div className="space-y-2.5">
+                  {upcomingTasks.map(renderTaskCard)}
+                </div>
+              </div>
+            )}
+
+            {completedTasks.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-700">
+                  <CheckCircle2 className="size-4" />
+                  <span>Completed & Approved ({completedTasks.length})</span>
+                </div>
+                <div className="space-y-2.5">
+                  {completedTasks.map(renderTaskCard)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function WorkListPage({ 
+  title, 
+  description, 
+  work, 
+  tasks, 
+  onOpen, 
+  onCreate, 
+  createButtonLabel = 'Assign work', 
+  filter 
+}: { 
+  title: string; 
+  description: string; 
+  work: WorkItem[]; 
+  tasks: WorkTask[]; 
+  onOpen: (id: string) => void; 
+  onCreate?: () => void; 
+  createButtonLabel?: string; 
+  filter?: (item: WorkItem) => boolean 
+}) {
   const [query, setQuery] = useState('');
-  const visible = work.filter(filter || (() => true)).filter((item) => `${item.title} ${item.client || ''}`.toLowerCase().includes(query.toLowerCase()));
-  return <><SectionTitle eyebrow="Work" title={title} description={description} action={onCreate && <Button onClick={onCreate}><Plus className="size-4" />{createButtonLabel}</Button>} /><Card><div className="flex flex-wrap items-center gap-3 border-b border-[hsl(var(--border))] p-4"><div className="relative min-w-[240px] flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search work..." className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[hsl(var(--primary))]" /></div><Button variant="secondary"><ListFilter className="size-4" />Filter</Button></div><div className="grid grid-cols-[1.4fr_0.6fr_0.65fr_0.7fr_auto] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Work</span><span>Owner</span><span>Priority</span><span>Deadline</span><span>Stage</span></div>{visible.map((item) => <WorkRow key={item.id} item={item} tasks={tasks.filter((task) => task.workId === item.id)} onOpen={onOpen} />)}{visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No work matches this view.</p>}</Card></>;
+  const isMemberWork = createButtonLabel === 'Add my task';
+  const [viewMode, setViewMode] = useState<'tasks' | 'work'>(isMemberWork ? 'tasks' : 'work');
+
+  const visibleWork = work.filter(filter || (() => true)).filter((item) => `${item.title} ${item.client || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const visibleTasks = tasks.filter((t) => `${t.title} ${t.instructions || ''}`.toLowerCase().includes(query.toLowerCase()));
+
+  // Date-wise task categories
+  const todayTasks = visibleTasks.filter((t) => t.dueDate === TODAY && t.stage !== 'Completed' && t.stage !== 'Approved');
+  const upcomingTasks = visibleTasks.filter((t) => t.dueDate > TODAY && t.stage !== 'Completed' && t.stage !== 'Approved');
+  const overdueTasks = visibleTasks.filter((t) => t.dueDate < TODAY && t.stage !== 'Completed' && t.stage !== 'Approved');
+  const completedTasks = visibleTasks.filter((t) => t.stage === 'Completed' || t.stage === 'Approved');
+
+  const renderTaskRow = (task: WorkTask) => {
+    const parentWork = work.find((w) => w.id === task.workId);
+    return (
+      <div key={task.id} className="flex flex-wrap items-center justify-between gap-4 border-b border-[hsl(var(--border))] px-5 py-4 last:border-0 hover:bg-[#fafaf8] transition">
+        <div className="min-w-[240px] flex-1">
+          <button onClick={() => onOpen(task.workId)} className="text-left font-bold hover:text-[hsl(var(--primary))] transition">
+            {task.title}
+          </button>
+          <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            Initiative: <strong className="text-slate-700">{parentWork?.title || 'General'}</strong>
+            {parentWork?.client ? ` · Client: ${parentWork.client}` : ''}
+          </div>
+          {task.instructions && (
+            <p className="mt-1 text-xs text-slate-500 line-clamp-1">{task.instructions}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge className={priorityTone[task.priority] + ' text-[10px]'}>{task.priority}</Badge>
+          <Badge className={stageTone[task.stage] + ' text-[10px]'}>{task.stage}</Badge>
+          <div className="flex items-center gap-1 text-xs font-semibold text-slate-600 min-w-[90px]">
+            <CalendarDays className="size-3.5 text-slate-400" />
+            <span>{formatDate(task.dueDate)}</span>
+          </div>
+          <Button variant="ghost" onClick={() => onOpen(task.workId)}>
+            Open <ArrowRight className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <SectionTitle 
+        eyebrow="Work" 
+        title={title} 
+        description={description} 
+        action={onCreate && <Button onClick={onCreate}><Plus className="size-4" />{createButtonLabel}</Button>} 
+      />
+
+      {/* View Switcher Tabs */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex rounded-lg border border-[hsl(var(--border))] bg-white p-1 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setViewMode('tasks')}
+            className={`rounded-md px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              viewMode === 'tasks' ? 'bg-[#f8c329] text-black shadow-xs' : 'text-slate-600 hover:text-black'
+            }`}
+          >
+            📅 Date-wise Tasks ({visibleTasks.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('work')}
+            className={`rounded-md px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              viewMode === 'work' ? 'bg-[#f8c329] text-black shadow-xs' : 'text-slate-600 hover:text-black'
+            }`}
+          >
+            📁 Initiatives / Projects ({visibleWork.length})
+          </button>
+        </div>
+
+        <div className="relative min-w-[220px] max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+          <input 
+            value={query} 
+            onChange={(event) => setQuery(event.target.value)} 
+            placeholder={viewMode === 'tasks' ? "Search tasks..." : "Search work..."} 
+            className="w-full rounded-lg border border-[hsl(var(--input))] bg-white py-1.5 pl-9 pr-3 text-xs outline-none focus:border-[hsl(var(--primary))]" 
+          />
+        </div>
+      </div>
+
+      {viewMode === 'tasks' ? (
+        <div className="space-y-5">
+          {/* Today */}
+          <Card>
+            <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-amber-50/50 px-5 py-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900">
+                <CalendarDays className="size-4 text-amber-600" />
+                <span>Today's Tasks ({todayTasks.length}) — {formatDate(TODAY)}</span>
+              </div>
+            </div>
+            {todayTasks.map(renderTaskRow)}
+            {todayTasks.length === 0 && <p className="p-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No active tasks due today.</p>}
+          </Card>
+
+          {/* Overdue */}
+          {overdueTasks.length > 0 && (
+            <Card>
+              <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-red-50/50 px-5 py-3">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-900">
+                  <Flag className="size-4 text-red-600" />
+                  <span>Overdue Tasks ({overdueTasks.length})</span>
+                </div>
+              </div>
+              {overdueTasks.map(renderTaskRow)}
+            </Card>
+          )}
+
+          {/* Upcoming */}
+          <Card>
+            <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-blue-50/50 px-5 py-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-900">
+                <Clock3 className="size-4 text-blue-600" />
+                <span>Upcoming Tasks ({upcomingTasks.length})</span>
+              </div>
+            </div>
+            {upcomingTasks.map(renderTaskRow)}
+            {upcomingTasks.length === 0 && <p className="p-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No upcoming tasks scheduled.</p>}
+          </Card>
+
+          {/* Completed */}
+          {completedTasks.length > 0 && (
+            <Card>
+              <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-emerald-50/50 px-5 py-3">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-900">
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                  <span>Completed & Approved Tasks ({completedTasks.length})</span>
+                </div>
+              </div>
+              {completedTasks.slice(0, 10).map(renderTaskRow)}
+            </Card>
+          )}
+        </div>
+      ) : (
+        <Card>
+          <div className="grid grid-cols-[1.4fr_0.6fr_0.65fr_0.7fr_auto] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
+            <span>Work</span><span>Owner</span><span>Priority</span><span>Deadline</span><span>Stage</span>
+          </div>
+          {visibleWork.map((item) => (
+            <WorkRow key={item.id} item={item} tasks={tasks.filter((task) => task.workId === item.id)} onOpen={onOpen} />
+          ))}
+          {visibleWork.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No work matches this view.</p>}
+        </Card>
+      )}
+    </>
+  );
 }
 
 function TeamPage({ actor, work, tasks, onOpen }: { actor: Person; work: WorkItem[]; tasks: WorkTask[]; onOpen: (id: string) => void }) {
   const isExec = actor.role === 'Founder' || actor.role === 'HR Manager';
   const scope = isExec ? runtimePeople : runtimePeople.filter((item) => item.managerId === actor.id || item.id === actor.id);
-  return <><SectionTitle eyebrow={isExec ? 'Operational view' : 'My team'} title={isExec ? 'Where is everyone?' : 'Team execution'} description="Presence exists to establish availability, work state, and operational visibility—not to judge productivity by hours." /><Card><div className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><span>Person</span><span>Presence</span><span>Login Timestamp</span><span>Current work</span><span>Workload</span></div>{scope.map((member) => { const currentTask = tasks.find((task) => task.assigneeId === member.id && task.stage !== 'Completed'); const currentWork = currentTask ? work.find((item) => item.id === currentTask.workId) : work.find((item) => item.managerId === member.id && item.stage !== 'Completed'); const count = tasks.filter((task) => task.assigneeId === member.id && task.stage !== 'Completed').length; return <div key={member.id} className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0"><div><div className="font-bold">{member.name}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div></div><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />{member.presence}</div><div className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimestamp(member.loginAt) || (member.logoutAt ? `Out: ${formatTimestamp(member.logoutAt)}` : '—')}</div><div>{currentWork ? <button onClick={() => onOpen(currentWork.id)} className="text-left font-semibold hover:text-[hsl(var(--primary))]">{currentTask?.title || currentWork.title}<div className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div></button> : <span className="text-[hsl(var(--muted-foreground))]">No current work</span>}</div><Badge className={count >= 3 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>{count >= 3 ? 'High' : `${count} active`}</Badge></div>; })}</Card></>;
+  const [selectedMember, setSelectedMember] = useState<Person | null>(null);
+
+  return (
+    <>
+      <SectionTitle 
+        eyebrow={isExec ? 'Operational view' : 'My team'} 
+        title={isExec ? 'Where is everyone?' : 'Team execution'} 
+        description="Presence and task allocation across your team. Click any member to inspect their day-wise task breakdown." 
+      />
+      <Card>
+        <div className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
+          <span>Person (Click to view tasks)</span><span>Presence</span><span>Login Timestamp</span><span>Current work</span><span>Workload</span>
+        </div>
+        {scope.map((member) => { 
+          const currentTask = tasks.find((task) => task.assigneeId === member.id && task.stage !== 'Completed'); 
+          const currentWork = currentTask ? work.find((item) => item.id === currentTask.workId) : work.find((item) => item.managerId === member.id && item.stage !== 'Completed'); 
+          const memberTaskList = tasks.filter((task) => task.assigneeId === member.id && task.stage !== 'Completed');
+          const count = memberTaskList.length; 
+          return (
+            <div 
+              key={member.id} 
+              onClick={() => setSelectedMember(member)}
+              className="grid grid-cols-[1.2fr_0.7fr_0.8fr_1.2fr_0.9fr] items-center border-b border-[hsl(var(--border))] px-5 py-4 text-sm last:border-0 hover:bg-[#fafaf8] cursor-pointer transition"
+            >
+              <div>
+                <div className="font-bold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] flex items-center gap-1.5">
+                  {member.name}
+                  <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.2 font-semibold">
+                    View Tasks
+                  </span>
+                </div>
+                <div className="text-xs text-[hsl(var(--muted-foreground))]">{member.role} · {member.title}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`size-2 rounded-full ${member.presence === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                {member.presence}
+              </div>
+              <div className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimestamp(member.loginAt) || (member.logoutAt ? `Out: ${formatTimestamp(member.logoutAt)}` : '—')}</div>
+              <div>
+                {currentWork ? (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onOpen(currentWork.id); }} 
+                    className="text-left font-semibold hover:text-[hsl(var(--primary))]"
+                  >
+                    {currentTask?.title || currentWork.title}
+                    <div className="text-xs font-normal text-[hsl(var(--muted-foreground))]">{currentWork.stage}</div>
+                  </button>
+                ) : (
+                  <span className="text-[hsl(var(--muted-foreground))]">No current work</span>
+                )}
+              </div>
+              <div>
+                <Badge className={count >= 3 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>
+                  {count >= 3 ? 'High' : `${count} active`}
+                </Badge>
+              </div>
+            </div>
+          ); 
+        })}
+      </Card>
+
+      {selectedMember && (
+        <MemberTasksModal 
+          member={selectedMember} 
+          tasks={tasks} 
+          work={work} 
+          onClose={() => setSelectedMember(null)} 
+          onOpen={(id) => { setSelectedMember(null); onOpen(id); }} 
+        />
+      )}
+    </>
+  );
 }
 
 function WorkDetail({ actor, item, tasks, activities, comments, onBack, onOpen, onUpdateTask, onAddTask, onComment, onStartTimer, onDeleteTask, onDeleteWork }: { actor: Person; item: WorkItem; tasks: WorkTask[]; activities: Activity[]; comments: Comment[]; onBack: () => void; onOpen: (id: string) => void; onUpdateTask: (taskId: string, patch: Partial<WorkTask>, message: string) => void; onAddTask: (task: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void; onComment: (message: string) => void; onStartTimer: (taskId: string) => void; onDeleteTask?: (taskId: string) => void; onDeleteWork?: (workId: string) => void }) {
@@ -817,18 +1343,88 @@ function ReportsPage({ actor, reports, work, onSubmit, onReview }: { actor: Pers
 
 function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person; tasks: WorkTask[]; work: WorkItem[]; onOpen: (id: string) => void; onUpdate?: (taskId: string, patch: Partial<WorkTask>, message: string) => void }) {
   const isManager = actor.role === 'Manager';
+  const isFounderOrHR = actor.role === 'Founder' || actor.role === 'HR Manager';
+  const managers = runtimePeople.filter((p) => p.role === 'Manager');
+
+  // Filter tab for Founder/HR: 'all' | 'direct' | managerId
+  const [selectedManagerTab, setSelectedManagerTab] = useState<string>('all');
+
   const pending = tasks.filter((task) => {
-    if (isManager) return isTaskPendingManagerReview(task, work);
-    return isTaskPendingFounderReview(task, work);
+    if (isManager) return isTaskPendingManagerReview(task, work, actor.id);
+
+    // Founder / HR view
+    if (!isTaskPendingFounderReview(task, work)) return false;
+    if (selectedManagerTab === 'all') return true;
+
+    const parentWork = work.find((item) => item.id === task.workId);
+    const assignee = person(task.assigneeId);
+    const mId = parentWork?.managerId || assignee?.managerId;
+
+    if (selectedManagerTab === 'direct') {
+      return !mId || mId === 'usr_founder' || person(mId).role !== 'Manager';
+    }
+    return mId === selectedManagerTab;
   });
 
   return (
     <>
       <SectionTitle
         eyebrow={isManager ? "Manager review center" : "Founder approval center"}
-        title={isManager ? "Team Task Reviews" : "Approvals"}
-        description={isManager ? "Review completed work from your team. Approving a task verifies execution and forwards it to Founder for final sign-off." : "Final executive sign-off for manager-verified deliverables and direct report initiatives."}
+        title={isManager ? "Team Task Reviews" : "Approvals & Sign-offs"}
+        description={isManager ? `Review completed work from your team. Approving a task verifies execution and forwards it to Founder for final sign-off.` : "Final executive sign-off for manager-verified deliverables and direct report initiatives."}
       />
+
+      {/* Separate Manager Tabs for Founder / HR */}
+      {isFounderOrHR && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button 
+            variant={selectedManagerTab === 'all' ? 'primary' : 'secondary'} 
+            onClick={() => setSelectedManagerTab('all')}
+          >
+            All Reviews ({tasks.filter(t => isTaskPendingFounderReview(t, work)).length})
+          </Button>
+
+          {managers.map((m) => {
+            const mCount = tasks.filter((t) => {
+              if (!isTaskPendingFounderReview(t, work)) return false;
+              const parentWork = work.find((w) => w.id === t.workId);
+              const assignee = person(t.assigneeId);
+              const mId = parentWork?.managerId || assignee?.managerId;
+              return mId === m.id;
+            }).length;
+
+            return (
+              <Button 
+                key={m.id} 
+                variant={selectedManagerTab === m.id ? 'primary' : 'secondary'} 
+                onClick={() => setSelectedManagerTab(m.id)}
+              >
+                {m.name}'s Team ({mCount})
+              </Button>
+            );
+          })}
+
+          {(() => {
+            const directCount = tasks.filter((t) => {
+              if (!isTaskPendingFounderReview(t, work)) return false;
+              const parentWork = work.find((w) => w.id === t.workId);
+              const assignee = person(t.assigneeId);
+              const mId = parentWork?.managerId || assignee?.managerId;
+              return !mId || mId === 'usr_founder' || person(mId).role !== 'Manager';
+            }).length;
+
+            return (
+              <Button 
+                variant={selectedManagerTab === 'direct' ? 'primary' : 'secondary'} 
+                onClick={() => setSelectedManagerTab('direct')}
+              >
+                Direct / Founder Team ({directCount})
+              </Button>
+            );
+          })()}
+        </div>
+      )}
+
       <Card>
         {pending.map((task) => {
           const parentWork = work.find((item) => item.id === task.workId);
@@ -844,7 +1440,7 @@ function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person
                 <div>
                   <div className="font-bold hover:text-[hsl(var(--primary))]">{task.title}</div>
                   <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                    {parentWork?.title || 'Project'} · Submitted by <strong className="text-[hsl(var(--foreground))]">{assignee.name}</strong>
+                    {parentWork?.title || 'Project'} · Submitted by <strong className="text-[hsl(var(--foreground))]">{assignee.name}</strong> ({assignee.role})
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     {isManagerApproved ? (
@@ -856,6 +1452,7 @@ function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person
                         {isManager ? 'Awaiting Your Review' : 'Direct Report Submission'}
                       </Badge>
                     )}
+                    <span className="text-[11px] text-slate-500 font-medium">Due: {formatDate(task.dueDate)}</span>
                   </div>
                 </div>
               </button>
@@ -887,7 +1484,7 @@ function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person
         })}
         {pending.length === 0 && (
           <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
-            {isManager ? 'Your team is clear. No tasks waiting for your review.' : 'Nothing is waiting for approval.'}
+            {isManager ? 'Your team is clear. No tasks waiting for your review.' : 'Nothing is waiting for approval in this view.'}
           </p>
         )}
       </Card>
@@ -1314,10 +1911,40 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
   const sessionsFor = (userId: string) => sessions.filter((session) => session.userId === userId && session.date === selectedDate);
   const leaveFor = (userId: string) => leaves.find((leave) => leave.userId === userId && isApprovedLeaveActiveOnDate(leave, selectedDate));
   const taskMinutesFor = (item: Person) => { const taskRows = tasks.filter((task) => task.assigneeId === item.id); return taskRows.length ? taskRows.reduce((sum, task) => sum + task.timeMinutes, 0) : item.taskMinutes || 0; };
-  const rows = filteredPeople.map((item) => { const sess = sessionsFor(item.id); const leave = leaveFor(item.id); const total = sess.reduce((sum, s) => sum + s.durationMinutes, 0); const open = sess.some((s) => !s.logoutAt); return { item, sessions: sess, leave, total, taskMinutes: taskMinutesFor(item), status: leave ? 'ON LEAVE' : sess.length === 0 ? 'NO LOGIN' : open ? 'ACTIVE' : 'PRESENT' }; });
+  const rows = filteredPeople.map((item) => { 
+    const sess = sessionsFor(item.id); 
+    const leave = leaveFor(item.id); 
+    const total = sess.reduce((sum, s) => sum + s.durationMinutes, 0); 
+    const open = sess.some((s) => !s.logoutAt); 
+    
+    // 9-Hour Shift calculation
+    const firstLogin = sess[0]?.loginAt;
+    let targetLogoutStr: string | null = null;
+    if (firstLogin) {
+      try {
+        const t = new Date(new Date(firstLogin).getTime() + 9 * 60 * 60 * 1000);
+        targetLogoutStr = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch {}
+    }
+
+    const isWfh = leave?.leaveType === 'Work From Home';
+    const status = isWfh ? 'WORK FROM HOME' : leave ? 'ON LEAVE' : sess.length === 0 ? 'NO LOGIN' : open ? 'ACTIVE' : 'PRESENT';
+
+    return { 
+      item, 
+      sessions: sess, 
+      leave, 
+      total, 
+      firstLogin,
+      targetLogoutStr,
+      taskMinutes: taskMinutesFor(item), 
+      status,
+      isWfh
+    }; 
+  });
   const totalSession = rows.reduce((sum, row) => sum + row.total, 0);
   const totalTask = rows.reduce((sum, row) => sum + row.taskMinutes, 0);
-  const exportCsv = () => { const header = 'Date,Employee,Role,First Login,Last Logout,Total Session Time,Task Time,Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
+  const exportCsv = () => { const header = 'Date,Employee,Role,First Login,9h Target Out,Last Logout,Total Session Time,Task Time,Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.targetLogoutStr || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
   const changePeriod = (value: string) => { 
     setPeriod(value); 
     if (value === 'Yesterday') {
@@ -1333,7 +1960,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
       <SectionTitle
         eyebrow={actor.role === 'Founder' ? 'Founder attendance & work time' : actor.role === 'HR Manager' ? 'HR attendance & work time' : actor.role === 'Manager' ? 'My team attendance' : 'My attendance'}
         title={`Attendance — ${formatDate(selectedDate)}`}
-        description="Session presence and task time are separate signals. Every visible employee remains in the table, including no-login and approved leave records."
+        description="Shift duration goal is 9 hours from first login. Work From Home and approved leaves are tracked distinctly from absences."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={() => navigateDate(-1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowLeft className="size-4" /></button>
@@ -1348,9 +1975,9 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Total employees" value={rows.length} detail="Complete visible scope" />
         <Metric label="Logged in" value={rows.filter((row) => row.sessions.length > 0).length} detail="Have a session record" />
-        <Metric label="Not logged in" value={rows.filter((row) => row.sessions.length === 0 && !row.leave).length} detail="Still represented in table" />
-        <Metric label="On leave" value={rows.filter((row) => row.leave).length} detail="Approved leave" tone="warning" />
-        <Metric label="Session / task time" value={`${hours(totalSession)} / ${hours(totalTask)}`} detail="Separate measurements" />
+        <Metric label="Work From Home" value={rows.filter((row) => row.isWfh).length} detail="Approved remote workday" tone="success" />
+        <Metric label="On leave" value={rows.filter((row) => row.status === 'ON LEAVE').length} detail="Approved leave" tone="warning" />
+        <Metric label="9h Compliance" value={`${rows.filter((row) => row.total >= 540).length} / ${rows.filter((row) => row.sessions.length > 0).length}`} detail="Met 9h shift requirement" tone="success" />
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
         <Button variant={roleFilter === 'All' ? 'primary' : 'secondary'} onClick={() => setRoleFilter('All')}>All</Button>
@@ -1360,27 +1987,40 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
       </div>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <div className="min-w-[680px]">
-            <div className="hidden grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
-              <span>Employee</span><span>Role</span><span>First login</span><span>Last logout</span><span>Session</span><span>Task time</span><span>Status</span>
+          <div className="min-w-[760px]">
+            <div className="hidden grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.75fr_0.75fr_1fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
+              <span>Employee</span><span>Role</span><span>First login</span><span>9h Target Out</span><span>Session</span><span>Task time</span><span>Status & Shift</span>
             </div>
             {rows.map((row) => (
               <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0">
-                <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.7fr_0.85fr_0.85fr_0.8fr_0.8fr_0.8fr]">
+                <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.75fr_0.75fr_1fr]">
                   <div>
                     <div className="font-bold">{row.item.name}</div>
                     <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div>
                   </div>
                   <span className="text-sm">{row.item.role}</span>
-                  <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span>
-                  <span className="text-sm">{row.leave ? '—' : formatTimestamp(row.sessions.at(-1)?.logoutAt)}</span>
-                  <span className="text-sm">{row.leave ? '0h' : hours(row.total)}</span>
+                  <span className="text-sm">{row.leave && !row.isWfh ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span>
+                  <span className="text-sm font-semibold text-slate-700">{row.targetLogoutStr ? row.targetLogoutStr : '—'}</span>
+                  <span className="text-sm">{row.leave && !row.isWfh ? '0h' : hours(row.total)}</span>
                   <span className="text-sm">{hours(row.taskMinutes)}</span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
-                      {row.status}
-                    </Badge>
-                    {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.status !== 'ON LEAVE' && (
+                    {row.isWfh ? (
+                      <Badge className="border-indigo-300 bg-indigo-50 text-indigo-700">
+                        🏠 WFH (Approved)
+                      </Badge>
+                    ) : (
+                      <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                        {row.status}
+                      </Badge>
+                    )}
+
+                    {row.sessions.length > 0 && (
+                      <Badge className={row.total >= 540 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 text-[10px]' : row.status === 'ACTIVE' ? 'border-blue-200 bg-blue-50 text-blue-700 text-[10px]' : 'border-amber-200 bg-amber-50 text-amber-700 text-[10px]'}>
+                        {row.total >= 540 ? '✓ 9h Complete' : row.status === 'ACTIVE' ? `In Progress` : `Short: ${hours(540 - row.total)}`}
+                      </Badge>
+                    )}
+
+                    {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.status !== 'ON LEAVE' && !row.isWfh && (
                       <span
                         role="button"
                         tabIndex={0}
@@ -1405,7 +2045,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
                   </div>
                 </button>
                 {expandedId === row.item.id && (
-                  <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} />
+                  <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} targetLogoutStr={row.targetLogoutStr} />
                 )}
               </div>
             ))}
@@ -1426,7 +2066,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
                 leaveType: leaveModalType,
                 startDate: selectedDate,
                 endDate: selectedDate,
-                reason: leaveModalReason.trim() || `Marked by ${actor.role} (Absent)`,
+                reason: leaveModalReason.trim() || `Marked by ${actor.role}`,
                 status: 'Approved',
                 approvedBy: actor.id
               });
@@ -1446,13 +2086,13 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
               label="Leave type"
               value={leaveModalType}
               onChange={(value) => setLeaveModalType(value as LeaveType)}
-              options={['Casual', 'Sick', 'Personal', 'Other']}
+              options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Other']}
             />
             <Field
               label="Reason"
               value={leaveModalReason}
               onChange={setLeaveModalReason}
-              placeholder="e.g. Absent / Called in sick / Emergency"
+              placeholder="e.g. Absent / Called in sick / Emergency / Remote"
               required
             />
             <div className="flex justify-end gap-2 pt-3">
@@ -1468,8 +2108,8 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
   );
 }
 
-function AttendanceDetail({ item, sessions, tasks, leave, selectedDate, total, taskMinutes }: { item: Person; sessions: SessionRecord[]; tasks: WorkTask[]; leave?: LeaveRequest; selectedDate: string; total: number; taskMinutes: number }) {
-  return <div className="grid gap-5 border-t border-[hsl(var(--border))] bg-[#fafaf8] p-5 lg:grid-cols-[1fr_1fr_0.8fr]"><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Session history</div><div className="mt-3 space-y-2">{sessions.length ? sessions.map((session) => <div key={session.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm"><div className="flex justify-between gap-3 font-semibold"><span>{formatTimestamp(session.loginAt)} → {session.logoutAt ? formatTimestamp(session.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</span><span>{hours(session.durationMinutes)}</span></div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{selectedDate}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No login record for this date.</p>}</div><div className="mt-3 text-sm font-bold">Total session time: {hours(total)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Task / work time</div><div className="mt-3 space-y-2">{tasks.length ? tasks.map((task) => <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3"><div className="text-sm font-semibold">{task.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{task.stage} · {hours(task.timeMinutes)}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No task time recorded.</p>}</div><div className="mt-3 text-sm font-bold">Total task time: {hours(taskMinutes)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Daily summary</div><div className="mt-3 space-y-3"><Chain label="Employee" value={item.name} /><Chain label="Role" value={item.role} /><Chain label="Leave" value={leave ? `${leave.status} · ${leave.leaveType}` : '—'} /><Chain label="Last activity" value={item.lastActiveAt} /></div></div></div>;
+function AttendanceDetail({ item, sessions, tasks, leave, selectedDate, total, taskMinutes, targetLogoutStr }: { item: Person; sessions: SessionRecord[]; tasks: WorkTask[]; leave?: LeaveRequest; selectedDate: string; total: number; taskMinutes: number; targetLogoutStr?: string | null }) {
+  return <div className="grid gap-5 border-t border-[hsl(var(--border))] bg-[#fafaf8] p-5 lg:grid-cols-[1fr_1fr_0.8fr]"><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Session history</div><div className="mt-3 space-y-2">{sessions.length ? sessions.map((session) => <div key={session.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm"><div className="flex justify-between gap-3 font-semibold"><span>{formatTimestamp(session.loginAt)} → {session.logoutAt ? formatTimestamp(session.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</span><span>{hours(session.durationMinutes)}</span></div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{selectedDate}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No login record for this date.</p>}</div><div className="mt-3 text-sm font-bold">Total session time: {hours(total)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Task / work time</div><div className="mt-3 space-y-2">{tasks.length ? tasks.map((task) => <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3"><div className="text-sm font-semibold">{task.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{task.stage} · {hours(task.timeMinutes)}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No task time recorded.</p>}</div><div className="mt-3 text-sm font-bold">Total task time: {hours(taskMinutes)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Daily shift summary</div><div className="mt-3 space-y-3"><Chain label="Employee" value={item.name} /><Chain label="Role" value={item.role} /><Chain label="Leave / WFH" value={leave ? `${leave.status} · ${leave.leaveType}` : 'Normal'} /><Chain label="9h Target Out" value={targetLogoutStr || '—'} /><Chain label="9h Compliance" value={total >= 540 ? '✓ Completed (9h)' : `${hours(total)} / 9h (${hours(Math.max(0, 540 - total))} left)`} /><Chain label="Last activity" value={item.lastActiveAt} /></div></div></div>;
 }
 
 function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions = [] }: { filteredPeople: Person[]; onSelectDate: (date: string) => void; leaves: LeaveRequest[]; sessions?: SessionRecord[] }) {
@@ -1503,62 +2143,172 @@ function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions =
   </Card>;
 }
 
+function LeaveDetailModal({
+  leave,
+  applicant,
+  canDecide,
+  onDecision,
+  onClose
+}: {
+  leave: LeaveRequest;
+  applicant: Person;
+  canDecide: boolean;
+  onDecision: (id: string, status: LeaveStatus) => void;
+  onClose: () => void;
+}) {
+  const isWfh = leave.leaveType === 'Work From Home';
+  return (
+    <Modal title={isWfh ? "Work From Home Request" : "Leave Application Details"} onClose={onClose}>
+      <div className="space-y-4">
+        {/* Applicant Header */}
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-[hsl(var(--border))] p-4">
+          <div>
+            <div className="font-bold text-base">{applicant.name}</div>
+            <div className="text-xs text-[hsl(var(--muted-foreground))]">{applicant.role} · {applicant.title}</div>
+          </div>
+          <Badge className={isWfh ? 'border-indigo-300 bg-indigo-50 text-indigo-700 font-bold' : 'border-blue-200 bg-blue-50 text-blue-700'}>
+            {isWfh ? '🏠 Work From Home' : leave.leaveType}
+          </Badge>
+        </div>
+
+        {/* Date Details */}
+        <div className="grid grid-cols-2 gap-3 rounded-lg border border-[hsl(var(--border))] p-3 text-xs">
+          <div>
+            <span className="text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider block">Duration</span>
+            <span className="text-sm font-semibold mt-0.5 block">{formatDate(leave.startDate)} – {formatDate(leave.endDate)}</span>
+          </div>
+          <div>
+            <span className="text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider block">Status</span>
+            <span className="mt-0.5 inline-block">
+              <Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                {leave.status}
+              </Badge>
+            </span>
+          </div>
+        </div>
+
+        {/* Full Reason Box */}
+        <div>
+          <label className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] block mb-1">
+            Submitted Reason
+          </label>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm font-medium leading-relaxed text-slate-800 whitespace-pre-wrap">
+            {leave.reason || 'No reason provided.'}
+          </div>
+        </div>
+
+        {/* Optional Notes */}
+        {leave.note && (
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] block mb-1">
+              Additional Notes
+            </label>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+              {leave.note}
+            </div>
+          </div>
+        )}
+
+        {/* Decision Actions */}
+        <div className="flex items-center justify-between border-t border-[hsl(var(--border))] pt-4">
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+          {canDecide && leave.status === 'Pending' && (
+            <div className="flex gap-2">
+              <Button 
+                variant="primary" 
+                onClick={() => { onDecision(leave.id, 'Approved'); onClose(); }}
+              >
+                <Check className="size-4" />
+                {isWfh ? 'Approve WFH' : 'Approve Leave'}
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={() => { onDecision(leave.id, 'Rejected'); onClose(); }}
+              >
+                Reject Request
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { actor: Person; people: Person[]; leaves: LeaveRequest[]; onApply: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void; onDecision: (id: string, status: LeaveStatus) => void; onRefresh?: () => void }) {
   const [open, setOpen] = useState(false);
   const [founderRecordOpen, setFounderRecordOpen] = useState(false);
+  const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
   const [targetUserId, setTargetUserId] = useState(() => people.find(p => p.role !== 'Founder')?.id || people[0]?.id || '');
   const [founderLeaveType, setFounderLeaveType] = useState<LeaveType>('Casual');
   const [founderStartDate, setFounderStartDate] = useState(TODAY);
   const [founderEndDate, setFounderEndDate] = useState(TODAY);
-  const [founderReason, setFounderReason] = useState('Approved by Founder');
+  const [founderReason, setFounderReason] = useState('Approved by Management');
   const [founderNote, setFounderNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const visiblePeople = getVisiblePeopleForRole(actor, people);
   const visible = leaves.filter((leave) => visiblePeople.some((item) => item.id === leave.userId));
   const pending = visible.filter((leave) => leave.status === 'Pending').length;
-
   const isManagement = actor.role === 'Founder' || actor.role === 'HR Manager';
 
   return (
     <>
       <SectionTitle
-        eyebrow={isManagement ? 'Leave management' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
-        title={isManagement ? 'Leave applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave'}
-        description={isManagement ? 'Approve or reject leave while keeping approved dates visible as On leave in attendance.' : actor.role === 'Manager' ? 'Plan your team around approved and pending leave. You can also apply for your own leave.' : 'Apply for leave and track pending, approved, rejected, and past requests.'}
+        eyebrow={isManagement ? 'Leave & Remote Management' : actor.role === 'Manager' ? 'Team leave' : 'My leave & WFH'}
+        title={isManagement ? 'Leave & WFH Applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave & WFH'}
+        description="Click any application to inspect full reasons and notes. Work From Home requests can be reviewed and approved directly."
         action={
           isManagement ? (
-            <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave</Button>
+            <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave/WFH</Button>
           ) : (
-            <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave</Button>
+            <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave / WFH</Button>
           )
         }
       />
-      <div className="mb-5 grid gap-3 sm:grid-cols-3">
-        <Metric label="Pending" value={pending} detail={isManagement ? "Awaiting decision" : "Awaiting Founder decision"} tone={pending ? 'warning' : 'default'} />
+      <div className="mb-5 grid gap-3 sm:grid-cols-4">
+        <Metric label="Pending" value={pending} detail={isManagement ? "Awaiting your decision" : "Awaiting approval"} tone={pending ? 'warning' : 'default'} />
         <Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" />
-        <Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future leave" />
+        <Metric label="Work From Home" value={visible.filter((leave) => leave.leaveType === 'Work From Home' && leave.status === 'Approved').length} detail="Approved remote days" tone="success" />
+        <Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future dates" />
       </div>
       <Card>
         {visible.map((leave) => {
           const employee = person(leave.userId);
+          const isWfh = leave.leaveType === 'Work From Home';
+          const canDecide = isManagement || (actor.role === 'Manager' && employee.managerId === actor.id);
+
           return (
-            <div key={leave.id} className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0">
-              <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700">
-                <CalendarDays className="size-5" />
+            <div 
+              key={leave.id} 
+              onClick={() => setSelectedLeave(leave)}
+              className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0 hover:bg-[#fafaf8] cursor-pointer transition"
+            >
+              <div className={`grid size-10 place-items-center rounded-xl ${isWfh ? 'bg-indigo-50 text-indigo-700' : 'bg-blue-50 text-blue-700'}`}>
+                {isWfh ? <Home className="size-5" /> : <CalendarDays className="size-5" />}
               </div>
               <div className="min-w-[200px] flex-1">
-                <div className="font-bold">{employee.name}</div>
+                <div className="font-bold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] flex items-center gap-2">
+                  {employee.name}
+                  <span className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.2 font-semibold">
+                    View Reason
+                  </span>
+                </div>
                 <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {employee.role} · {leave.leaveType} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
+                  {employee.role} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
                 </div>
               </div>
-              <div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--muted-foreground))]">{leave.reason}</div>
+              <div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--foreground))] line-clamp-1 italic">
+                "{leave.reason}"
+              </div>
+              <Badge className={isWfh ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-700'}>
+                {isWfh ? '🏠 WFH' : leave.leaveType}
+              </Badge>
               <Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
                 {leave.status}
               </Badge>
-              {(isManagement || (actor.role === 'Manager' && person(leave.userId).managerId === actor.id)) && leave.status === 'Pending' && (
-                <div className="flex gap-2">
+              {canDecide && leave.status === 'Pending' && (
+                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                   <Button onClick={() => onDecision(leave.id, 'Approved')}><Check className="size-4" />Approve</Button>
                   <Button variant="secondary" onClick={() => onDecision(leave.id, 'Rejected')}>Reject</Button>
                 </div>
@@ -1566,12 +2316,23 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
             </div>
           );
         })}
-        {visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No leave applications in this scope.</p>}
+        {visible.length === 0 && <p className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">No leave or WFH applications in this scope.</p>}
       </Card>
+
+      {selectedLeave && (
+        <LeaveDetailModal
+          leave={selectedLeave}
+          applicant={person(selectedLeave.userId)}
+          canDecide={isManagement || (actor.role === 'Manager' && person(selectedLeave.userId).managerId === actor.id)}
+          onDecision={onDecision}
+          onClose={() => setSelectedLeave(null)}
+        />
+      )}
+
       {open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}
 
       {founderRecordOpen && (
-        <Modal title={`Record Employee Leave (${actor.role === 'Founder' ? 'Founder' : 'HR'} Approved)`} onClose={() => setFounderRecordOpen(false)}>
+        <Modal title={`Record Employee Leave/WFH (${actor.role === 'Founder' ? 'Founder' : 'HR'} Approved)`} onClose={() => setFounderRecordOpen(false)}>
           <form onSubmit={async (e) => {
             e.preventDefault();
             setIsSaving(true);
@@ -1605,18 +2366,18 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
               label="Leave type"
               value={founderLeaveType}
               onChange={(value) => setFounderLeaveType(value as LeaveType)}
-              options={['Casual', 'Sick', 'Personal', 'Other']}
+              options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Other']}
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Start date" type="date" value={founderStartDate} onChange={setFounderStartDate} required />
               <Field label="End date" type="date" value={founderEndDate} onChange={setFounderEndDate} required />
             </div>
-            <Field label="Reason" value={founderReason} onChange={setFounderReason} placeholder="e.g. Absent / Vacation / Personal" required />
+            <Field label="Reason" value={founderReason} onChange={setFounderReason} placeholder="e.g. Work From Home / Absent / Medical" required />
             <Field label="Optional note" value={founderNote} onChange={setFounderNote} placeholder="Additional notes or context" />
             <div className="flex justify-end gap-2 pt-3">
               <Button variant="secondary" onClick={() => setFounderRecordOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={isSaving || !founderReason.trim()}>
-                {isSaving ? 'Saving...' : 'Record Approved Leave'}
+                {isSaving ? 'Saving...' : 'Record Approved Leave / WFH'}
               </Button>
             </div>
           </form>
@@ -1667,7 +2428,7 @@ function EmployeeModal({ people, onClose, onCreate }: { people: Person[]; onClos
 
 function LeaveModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void }) {
   const [leaveType, setLeaveType] = useState<LeaveType>('Casual'); const [startDate, setStartDate] = useState(TODAY); const [endDate, setEndDate] = useState(TODAY); const [reason, setReason] = useState(''); const [note, setNote] = useState('');
-  return <Modal title="Apply for leave" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ leaveType, startDate, endDate, reason, note }); }} className="space-y-4"><SelectField label="Leave type" value={leaveType} onChange={(value) => setLeaveType(value as LeaveType)} options={['Casual', 'Sick', 'Personal', 'Other']} /><div className="grid gap-3 sm:grid-cols-2"><Field label="Start date" type="date" value={startDate} onChange={setStartDate} required /><Field label="End date" type="date" value={endDate} onChange={setEndDate} required /></div><Field label="Reason" value={reason} onChange={setReason} placeholder="Why are you requesting leave?" required /><Field label="Optional note" value={note} onChange={setNote} placeholder="Additional context" /><div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!reason.trim()}>Submit leave request</Button></div></form></Modal>;
+  return <Modal title="Apply for leave / Work From Home" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ leaveType, startDate, endDate, reason, note }); }} className="space-y-4"><SelectField label="Leave type" value={leaveType} onChange={(value) => setLeaveType(value as LeaveType)} options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Other']} /><div className="grid gap-3 sm:grid-cols-2"><Field label="Start date" type="date" value={startDate} onChange={setStartDate} required /><Field label="End date" type="date" value={endDate} onChange={setEndDate} required /></div><Field label="Reason" value={reason} onChange={setReason} placeholder="Why are you requesting leave or remote work?" required /><Field label="Optional note" value={note} onChange={setNote} placeholder="Additional context" /><div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!reason.trim()}>Submit request</Button></div></form></Modal>;
 }
 
 function AppRouter() {
@@ -1684,6 +2445,15 @@ function AppRouter() {
   const [sessions, setSessions] = useState<SessionRecord[]>(initialSessions);
   const [createOpen, setCreateOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const knownTaskIdsRef = useRef<Set<string> | null>(null);
+
+  const [breakCounts, setBreakCounts] = useState<{ breaks: number; lunches: number }>(() => {
+    return getDailyBreakUsage(actorId);
+  });
+  useEffect(() => {
+    if (actorId) setBreakCounts(getDailyBreakUsage(actorId));
+  }, [actorId]);
+
   const [timerSecondsRemaining, setTimerSecondsRemaining] = useState<number | null>(() => {
     try {
       const raw = localStorage.getItem('arka_presence_timer');
@@ -1691,7 +2461,7 @@ function AppRouter() {
         const parsed = JSON.parse(raw);
         if (parsed.expiresAt) {
           const diff = Math.ceil((parsed.expiresAt - Date.now()) / 1000);
-          return diff > 0 ? diff : 0;
+          return diff;
         }
       }
     } catch {}
@@ -1711,6 +2481,106 @@ function AppRouter() {
 
   runtimePeople = directory;
   const actor = person(actorId) || directory[0] || initialPeople[0];
+
+  const handleLogout = useCallback(async (customAlert?: string) => {
+    try { 
+      await apiPost('/auth/logout', {}); 
+    } catch(e){} 
+    setStoredToken(null); 
+    localStorage.removeItem('arka_presence_timer'); 
+    setSignedIn(false); 
+    if (customAlert) {
+      alert(customAlert);
+    }
+    setLocation('/'); 
+  }, [setLocation]);
+
+  // Request browser notification permissions on sign-in
+  useEffect(() => {
+    if (signedIn) {
+      requestNotificationPermission();
+    }
+  }, [signedIn]);
+
+  // Dynamic 9-Hour Workday Shift Calculation
+  const todaySessions = useMemo(() => {
+    if (!actor) return [];
+    return sessions
+      .filter((s) => s.userId === actor.id && s.date === TODAY)
+      .sort((a, b) => (a.loginAt || '').localeCompare(b.loginAt || ''));
+  }, [sessions, actor?.id]);
+
+  const firstLoginToday = todaySessions[0]?.loginAt || actor?.loginAt || null;
+
+  const shiftTargetInfo = useMemo(() => {
+    if (!firstLoginToday) return null;
+    try {
+      const loginD = new Date(firstLoginToday);
+      if (isNaN(loginD.getTime())) return null;
+      const targetD = new Date(loginD.getTime() + 9 * 60 * 60 * 1000);
+      const targetTimeStr = targetD.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const totalMinutes = todaySessions.reduce((sum, s) => {
+        if (!s.logoutAt) {
+          const live = Math.max(0, Math.floor((Date.now() - new Date(s.loginAt).getTime()) / 60000));
+          return sum + live;
+        }
+        return sum + s.durationMinutes;
+      }, 0);
+
+      const isCompleted = totalMinutes >= 540;
+      const remainingMinutes = Math.max(0, 540 - totalMinutes);
+      const progressPercent = Math.min(100, Math.round((totalMinutes / 540) * 100));
+
+      return {
+        loginTimeStr: loginD.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        targetTimeStr,
+        totalMinutes,
+        isCompleted,
+        remainingMinutes,
+        progressPercent
+      };
+    } catch {
+      return null;
+    }
+  }, [firstLoginToday, todaySessions]);
+
+  // New Task Assignment Background Notification & Chime
+  useEffect(() => {
+    if (!signedIn || !actor) return;
+    const myCurrentTasks = tasks.filter((t) => t.assigneeId === actor.id);
+
+    if (knownTaskIdsRef.current !== null) {
+      const newTasks = myCurrentTasks.filter((t) => !knownTaskIdsRef.current!.has(t.id));
+      if (newTasks.length > 0) {
+        newTasks.forEach((task) => {
+          playNotificationChime();
+          toast({
+            title: '🔔 New Task Assigned!',
+            description: `"${task.title}" — Due: ${formatDate(task.dueDate)}`,
+          });
+
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              const notif = new Notification('ARKA OS — New Task Assigned', {
+                body: `"${task.title}" has been assigned to you.\nDue: ${task.dueDate || 'Today'}`,
+                icon: LOGO_SRC,
+                tag: `task-${task.id}`
+              });
+              notif.onclick = () => {
+                window.focus();
+                setLocation(actor.role === 'Team member' ? '/my-work' : `/work/${task.workId}`);
+              };
+            } catch (err) {
+              console.warn('Desktop notification error:', err);
+            }
+          }
+        });
+      }
+    }
+    knownTaskIdsRef.current = new Set(myCurrentTasks.map((t) => t.id));
+  }, [tasks, signedIn, actor?.id, setLocation]);
+
   const selectedId = location.startsWith('/work/') ? location.split('/')[2] : null;
   const selected = selectedId ? work.find((item) => item.id === selectedId) : null;
   const scopeWork = useMemo(() => {
@@ -1743,11 +2613,33 @@ function AppRouter() {
       const prevPresence = actor.presence;
 
       if (presence === 'Break') {
+        const counts = getDailyBreakUsage(actor.id);
+        if (counts.breaks >= 2) {
+          toast({
+            title: 'Daily Break Limit Reached',
+            description: 'You have already used your 2 allowed 15-minute breaks for today.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        recordBreakUsage(actor.id, 'Break');
+        setBreakCounts(getDailyBreakUsage(actor.id));
         const expiresAt = Date.now() + 15 * 60 * 1000;
         localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Break', expiresAt }));
         setTimerSecondsRemaining(15 * 60);
         await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 15-minute Break', tone: 'warning' });
       } else if (presence === 'Lunch') {
+        const counts = getDailyBreakUsage(actor.id);
+        if (counts.lunches >= 1) {
+          toast({
+            title: 'Daily Lunch Limit Reached',
+            description: 'You have already used your 1-hour lunch break for today.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        recordBreakUsage(actor.id, 'Lunch');
+        setBreakCounts(getDailyBreakUsage(actor.id));
         const expiresAt = Date.now() + 60 * 60 * 1000;
         localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Lunch', expiresAt }));
         setTimerSecondsRemaining(60 * 60);
@@ -1757,7 +2649,7 @@ function AppRouter() {
         setTimerSecondsRemaining(null);
 
         if (prevPresence === 'Break' || prevPresence === 'Lunch') {
-          const reason = isAuto ? `automatically returned from ${prevPresence}` : `returned early from ${prevPresence}`;
+          const reason = isAuto ? `returned from ${prevPresence}` : `returned early from ${prevPresence}`;
           await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' });
         }
       }
@@ -1799,10 +2691,18 @@ function AppRouter() {
 
       const tick = () => {
         const diff = Math.ceil((expiresAt - Date.now()) / 1000);
-        if (diff <= 0) {
-          setTimerSecondsRemaining(0);
+        // Auto-logout at minute 16 for Break (diff <= -60) or minute 61 for Lunch (diff <= -60)
+        if (diff <= -60) {
+          setTimerSecondsRemaining(null);
           localStorage.removeItem('arka_presence_timer');
-          updatePresence('Online', true);
+          const p = actor.presence;
+          const limitMsg = p === 'Break'
+            ? 'Session ended: Your 15-minute break was not resumed within 16 minutes. You have been automatically logged out.'
+            : 'Session ended: Your 1-hour lunch was not resumed within 61 minutes. You have been automatically logged out.';
+          
+          void apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: Exceeded ${p} duration`, tone: 'warning' }).catch(() => {});
+          void apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
+          void handleLogout(limitMsg);
         } else {
           setTimerSecondsRemaining(diff);
         }
@@ -1816,7 +2716,7 @@ function AppRouter() {
       setTimerSecondsRemaining(null);
       return () => {};
     }
-  }, [signedIn, actor?.id, actor?.presence]);
+  }, [signedIn, actor?.id, actor?.presence, handleLogout]);
   const addActivity = async (workId: string, message: string, tone: Activity['tone'] = 'normal') => { 
     try {
       const res = await apiPost<{item: Activity}>('/activities', { workId, actorId: actor.id, message, tone });
@@ -2064,9 +2964,11 @@ function AppRouter() {
   if (selected) return (
     <Shell
       actor={actor}
-      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setStoredToken(null); localStorage.removeItem('arka_presence_timer'); setSignedIn(false); setLocation('/'); }}
+      onLogout={() => handleLogout()}
       onUpdatePresence={updatePresence}
       timerSecondsRemaining={timerSecondsRemaining}
+      shiftTargetInfo={shiftTargetInfo}
+      breakCounts={breakCounts}
       allPeople={runtimePeople}
     >
       <WorkDetail
@@ -2123,9 +3025,11 @@ function AppRouter() {
   return (
     <Shell
       actor={actor}
-      onLogout={async () => { try { await apiPost('/auth/logout', {}); } catch(e){} setStoredToken(null); localStorage.removeItem('arka_presence_timer'); setSignedIn(false); setLocation('/'); }}
+      onLogout={() => handleLogout()}
       onUpdatePresence={updatePresence}
       timerSecondsRemaining={timerSecondsRemaining}
+      shiftTargetInfo={shiftTargetInfo}
+      breakCounts={breakCounts}
       allPeople={runtimePeople}
     >
       {page}
