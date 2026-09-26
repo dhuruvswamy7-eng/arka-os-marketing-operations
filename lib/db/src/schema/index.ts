@@ -178,6 +178,25 @@ export const sessionsTable = pgTable("sessions", {
   durationMinutes: integer("duration_minutes").notNull().default(0),
 });
 
+export const contentCalendarTable = pgTable("content_calendar", {
+  id: text("id").primaryKey(),
+  client: text("client").notNull(),
+  date: text("date").notNull(),
+  day: text("day").notNull(),
+  format: text("format").notNull(),
+  contentTheme: text("content_theme").notNull(),
+  scriptDescription: text("script_description"),
+  updateStatus: text("update_status").notNull().default("Yet to Design"),
+  references: text("references"),
+  shootDate: text("shoot_date"),
+  shootStatus: text("shoot_status").notNull().default("No Shoot Needed"),
+  driveLink: text("drive_link"),
+  assignedTo: text("assigned_to"),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at"),
+});
+
 export const insertPeopleSchema = createInsertSchema(peopleTable).omit({ id: true });
 export const insertWorkSchema = createInsertSchema(workTable).omit({ id: true });
 export const insertTasksSchema = createInsertSchema(tasksTable).omit({ id: true });
@@ -188,6 +207,7 @@ export const insertLeavesSchema = createInsertSchema(leavesTable).omit({ id: tru
 export const insertSessionsSchema = createInsertSchema(sessionsTable).omit({ id: true });
 export const insertMessagesSchema = createInsertSchema(messagesTable).omit({ id: true });
 export const insertDocumentsSchema = createInsertSchema(documentsTable).omit({ id: true });
+export const insertContentCalendarSchema = createInsertSchema(contentCalendarTable).omit({ id: true });
 
 export type PersonInsert = z.infer<typeof insertPeopleSchema>;
 export type WorkInsert = z.infer<typeof insertWorkSchema>;
@@ -197,6 +217,7 @@ export type CommentInsert = z.infer<typeof insertCommentsSchema>;
 export type ReportInsert = z.infer<typeof insertReportsSchema>;
 export type LeaveInsert = z.infer<typeof insertLeavesSchema>;
 export type SessionInsert = z.infer<typeof insertSessionsSchema>;
+export type ContentCalendarInsert = z.infer<typeof insertContentCalendarSchema>;
 
 export type Person = typeof peopleTable.$inferSelect;
 export type WorkItem = typeof workTable.$inferSelect;
@@ -208,3 +229,4 @@ export type LeaveRequest = typeof leavesTable.$inferSelect;
 export type SessionRecord = typeof sessionsTable.$inferSelect;
 export type Message = typeof messagesTable.$inferSelect;
 export type Document = typeof documentsTable.$inferSelect;
+export type ContentCalendarItem = typeof contentCalendarTable.$inferSelect;

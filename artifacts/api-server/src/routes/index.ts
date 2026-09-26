@@ -15,6 +15,7 @@ import commentsRouter from "./comments";
 import leavesRouter from "./leaves";
 import sessionsRouter from "./sessions";
 import messagesRouter from "./messages";
+import contentCalendarRouter from "./content-calendar";
 
 const router: IRouter = Router();
 
@@ -33,5 +34,6 @@ router.use("/comments", commentsRouter);
 router.use("/leaves", leavesRouter);
 router.use("/sessions", sessionsRouter);
 router.use("/messages", messagesRouter);
+router.use("/content-calendar", contentCalendarRouter);
 
 export default router;

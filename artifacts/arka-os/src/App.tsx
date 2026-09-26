@@ -5,9 +5,10 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import {
-  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, Clock3, Command,
-  FileText, Flag, Home, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
-  MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Timer, Trash2, UserPlus, UserRound, Users, X, Zap
+  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
+  Clock3, Command, Copy, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
+  Home, Image, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
+  MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, UserPlus, UserRound, Users, Video, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { ChatWidget } from './components/ChatWidget';
@@ -204,6 +205,59 @@ export type SessionRecord = {
   id: string; userId: string; date: string; loginAt: string; logoutAt?: string; durationMinutes: number;
 };
 
+export interface ContentCalendarItem {
+  id: string;
+  client: string;
+  date: string;
+  day: string;
+  format: string;
+  contentTheme: string;
+  scriptDescription?: string;
+  updateStatus: 'Posted' | 'Yet to Design' | 'In Progress' | 'Ready to Post' | 'Review';
+  references?: string;
+  shootDate?: string;
+  shootStatus: 'Shoot Completed' | 'Shoot Pending' | 'No Shoot Needed';
+  driveLink?: string;
+  assignedTo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const INITIAL_CLIENTS: string[] = [
+  'Animal Gym',
+  'FMA',
+  'Iron Revolution',
+  'Sutra Fitness',
+  'Bluecaps',
+  'Nailco',
+  'Nail Stories',
+  'Earlyschool House',
+  'Sri Ram',
+  'Pilates HSR',
+  'Pilates Bellandur',
+  'Pilates Koramangala',
+  'Pilates Equipments',
+  'Aura Unisex Salon',
+  'Velvet and Mirror',
+  'Smartlook Unisex Salon',
+  'Raagi',
+  'Just Bakes',
+  'Ashva',
+  'HSR Fitness World',
+  'Aspire Tennis',
+  'Kick and Hit',
+  'Ahana',
+  'Clarus',
+  'The Border Bells',
+  'DNS Party Hall',
+  'Rocks Fitness Panathur',
+  'Rocks Fitness Balagere',
+  'Gravity Fitness TC Palya',
+  'Bespoke Odyssey',
+  'Paripoorna',
+];
+
 const initialPeople: Person[] = [
   { id: 'usr_founder', name: 'Arka Founder', role: 'Founder', title: 'Founder / CEO', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
   { id: 'usr_hr', name: 'HR Manager', email: 'hr@arka.com', password: '1234', role: 'HR Manager', title: 'Head of People & HR Operations', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
@@ -236,6 +290,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
   Founder: [
     { label: 'Command Center', path: '/dashboard', icon: Command },
     { label: 'Company Work', path: '/work', icon: Inbox },
+    { label: 'Content Calendar', path: '/content-calendar', icon: CalendarDays },
     { label: 'People', path: '/people', icon: UserPlus },
     { label: 'Team Presence', path: '/team', icon: Users },
     { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
@@ -258,6 +313,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
   ],
   Manager: [
     { label: 'My Dashboard', path: '/dashboard', icon: Command },
+    { label: 'Content Calendar', path: '/content-calendar', icon: CalendarDays },
     { label: 'Founder Assignments', path: '/assignments', icon: Flag },
     { label: 'Team Tasks', path: '/team-tasks', icon: KanbanSquare },
     { label: 'My Team', path: '/team', icon: Users },
@@ -2431,6 +2487,1143 @@ function LeaveModal({ onClose, onCreate }: { onClose: () => void; onCreate: (dat
   return <Modal title="Apply for leave / Work From Home" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ leaveType, startDate, endDate, reason, note }); }} className="space-y-4"><SelectField label="Leave type" value={leaveType} onChange={(value) => setLeaveType(value as LeaveType)} options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Other']} /><div className="grid gap-3 sm:grid-cols-2"><Field label="Start date" type="date" value={startDate} onChange={setStartDate} required /><Field label="End date" type="date" value={endDate} onChange={setEndDate} required /></div><Field label="Reason" value={reason} onChange={setReason} placeholder="Why are you requesting leave or remote work?" required /><Field label="Optional note" value={note} onChange={setNote} placeholder="Additional context" /><div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!reason.trim()}>Submit request</Button></div></form></Modal>;
 }
 
+function getDayOfWeekName(dateStr: string): string {
+  if (!dateStr) return 'Monday';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[d.getDay()] || 'Monday';
+  }
+  return 'Monday';
+}
+
+function getFormatBadge(format: string) {
+  switch (format) {
+    case 'Reel':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-pink-200 bg-pink-50 px-2 py-0.5 text-xs font-bold text-pink-700"><Video className="size-3" /> Reel</span>;
+    case 'Static Post':
+    case 'Post':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700"><Image className="size-3" /> Post</span>;
+    case 'Carousel':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700"><FileSpreadsheet className="size-3" /> Carousel</span>;
+    case 'Story':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700"><Sparkles className="size-3" /> Story</span>;
+    case 'LinkedIn Post':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">💼 LinkedIn</span>;
+    case 'Quora Blog':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-700">✍️ Quora</span>;
+    case 'YouTube Video':
+      return <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">▶️ YouTube</span>;
+    default:
+      return <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-bold text-slate-700">{format}</span>;
+  }
+}
+
+function AddClientModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name: string) => void }) {
+  const [name, setName] = useState('');
+  return (
+    <Modal title="Add New Client" onClose={onClose}>
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) {
+          onAdd(name.trim());
+          onClose();
+        }
+      }} className="space-y-4">
+        <Field label="Client Name" value={name} onChange={setName} placeholder="e.g. Acme Fitness / Luxe Salon" required />
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!name.trim()}>Add Client</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ReadScriptModal({ item, onClose, onEdit }: { item: ContentCalendarItem; onClose: () => void; onEdit: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    if (item.scriptDescription) {
+      navigator.clipboard.writeText(item.scriptDescription);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: 'Copied', description: 'Script copied to clipboard' });
+    }
+  };
+
+  return (
+    <Modal title={`${item.client} — Script & Creative Brief`} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{item.day}, {formatDate(item.date)}</div>
+            <h3 className="mt-1 text-base font-black text-slate-900">{item.contentTheme}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {getFormatBadge(item.format)}
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold text-white ${
+              item.updateStatus === 'Posted' ? 'bg-emerald-600' :
+              item.updateStatus === 'Yet to Design' ? 'bg-rose-600' :
+              item.updateStatus === 'In Progress' ? 'bg-amber-500' :
+              item.updateStatus === 'Ready to Post' ? 'bg-purple-600' :
+              'bg-blue-600'
+            }`}>
+              {item.updateStatus}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Script / Caption / Copy:</span>
+            {item.scriptDescription && (
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+              >
+                <Copy className="size-3.5" />
+                {copied ? 'Copied!' : 'Copy Script'}
+              </button>
+            )}
+          </div>
+          <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs font-normal leading-relaxed text-slate-800 custom-scrollbar">
+            {item.scriptDescription || <span className="italic text-slate-400">No script or description provided yet.</span>}
+          </div>
+        </div>
+
+        {item.references && (
+          <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
+            <span className="font-bold text-slate-500 block mb-1">References / Inspiration:</span>
+            {item.references.startsWith('http') ? (
+              <a href={item.references} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-bold text-blue-600 hover:underline">
+                {item.references} <ExternalLink className="size-3" />
+              </a>
+            ) : (
+              <span className="text-slate-700">{item.references}</span>
+            )}
+          </div>
+        )}
+
+        {item.driveLink && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-xs flex items-center justify-between">
+            <div>
+              <span className="font-bold text-blue-900 block">Creative Assets & Google Drive</span>
+              <span className="text-[11px] text-blue-700 truncate max-w-sm block">{item.driveLink}</span>
+            </div>
+            <a
+              href={item.driveLink.startsWith('http') ? item.driveLink : `https://${item.driveLink}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition shadow-xs"
+            >
+              <FolderOpen className="size-3.5" /> Open Drive <ExternalLink className="size-3" />
+            </a>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          <Button onClick={() => { onClose(); onEdit(); }}>Edit Deliverable</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ContentCalendarModal({
+  initialItem,
+  defaultClient,
+  defaultDate,
+  allClients,
+  allPeople,
+  onClose,
+  onSave
+}: {
+  initialItem?: ContentCalendarItem | null;
+  defaultClient: string;
+  defaultDate?: string;
+  allClients: string[];
+  allPeople: Person[];
+  onClose: () => void;
+  onSave: (data: any) => Promise<void>;
+}) {
+  const [client, setClient] = useState(initialItem?.client || defaultClient);
+  const [date, setDate] = useState(initialItem?.date || defaultDate || TODAY);
+  const [format, setFormat] = useState(initialItem?.format || 'Reel');
+  const [contentTheme, setContentTheme] = useState(initialItem?.contentTheme || '');
+  const [scriptDescription, setScriptDescription] = useState(initialItem?.scriptDescription || '');
+  const [updateStatus, setUpdateStatus] = useState<ContentCalendarItem['updateStatus']>(initialItem?.updateStatus || 'Yet to Design');
+  const [references, setReferences] = useState(initialItem?.references || '');
+  const [shootDate, setShootDate] = useState(initialItem?.shootDate || '');
+  const [shootStatus, setShootStatus] = useState<ContentCalendarItem['shootStatus']>(initialItem?.shootStatus || 'No Shoot Needed');
+  const [driveLink, setDriveLink] = useState(initialItem?.driveLink || '');
+  const [assignedTo, setAssignedTo] = useState(initialItem?.assignedTo || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const day = getDayOfWeekName(date);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contentTheme.trim() || !client.trim()) return;
+    setIsSaving(true);
+    try {
+      await onSave({
+        ...(initialItem?.id ? { id: initialItem.id } : {}),
+        client: client.trim(),
+        date,
+        day,
+        format,
+        contentTheme: contentTheme.trim(),
+        scriptDescription: scriptDescription.trim(),
+        updateStatus,
+        references: references.trim(),
+        shootDate: shootDate || null,
+        shootStatus,
+        driveLink: driveLink.trim(),
+        assignedTo: assignedTo || null
+      });
+      onClose();
+    } catch {
+      alert('Failed to save deliverable');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={initialItem ? `Edit Deliverable — ${client}` : `Schedule Deliverable — ${client}`} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1.5">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Client</span>
+            <select
+              value={client}
+              onChange={(e) => setClient(e.target.value)}
+              className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none focus:border-[hsl(var(--primary))]"
+              required
+            >
+              {allClients.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+
+          <SelectField
+            label="Format"
+            value={format}
+            onChange={setFormat}
+            options={['Reel', 'Static Post', 'Carousel', 'Story', 'LinkedIn Post', 'Quora Blog', 'YouTube Video', 'Other']}
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Publish Date"
+            type="date"
+            value={date}
+            onChange={setDate}
+            required
+          />
+          <label className="block space-y-1.5">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Day (Auto-calculated)</span>
+            <input
+              type="text"
+              value={day}
+              readOnly
+              className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none cursor-not-allowed"
+            />
+          </label>
+        </div>
+
+        <Field
+          label="Content Theme / Topic / Hook"
+          value={contentTheme}
+          onChange={setContentTheme}
+          placeholder="e.g. 5 Common Mistakes in Pilates / Weight Loss vs Fat Loss"
+          required
+        />
+
+        <label className="block space-y-1.5">
+          <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Script / Caption / Description</span>
+          <textarea
+            value={scriptDescription}
+            onChange={(e) => setScriptDescription(e.target.value)}
+            placeholder="Paste hook, full script, copywriting caption, creator notes, and execution brief..."
+            rows={4}
+            className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-xs outline-none focus:border-[hsl(var(--primary))] custom-scrollbar"
+          />
+        </label>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SelectField
+            label="Update Status"
+            value={updateStatus}
+            onChange={(v) => setUpdateStatus(v as ContentCalendarItem['updateStatus'])}
+            options={['Yet to Design', 'In Progress', 'Ready to Post', 'Review', 'Posted']}
+          />
+
+          <Field
+            label="References / Inspiration Link"
+            value={references}
+            onChange={setReferences}
+            placeholder="e.g. https://instagram.com/reel/... or style note"
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Shoot Date (Optional)"
+            type="date"
+            value={shootDate}
+            onChange={setShootDate}
+          />
+
+          <SelectField
+            label="Shoot Status"
+            value={shootStatus}
+            onChange={(v) => setShootStatus(v as ContentCalendarItem['shootStatus'])}
+            options={['No Shoot Needed', 'Shoot Pending', 'Shoot Completed']}
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Google Drive Link"
+            value={driveLink}
+            onChange={setDriveLink}
+            placeholder="https://drive.google.com/drive/folders/..."
+          />
+
+          <label className="block space-y-1.5">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Assigned Team Member</span>
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              className="w-full rounded-lg border border-[hsl(var(--input))] bg-[#fafaf8] px-3 py-2.5 text-sm outline-none focus:border-[hsl(var(--primary))]"
+            >
+              <option value="">None / Unassigned</option>
+              {allPeople.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({p.role} — {p.title})</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={isSaving || !contentTheme.trim() || !client.trim()}>
+            {isSaving ? 'Saving...' : (initialItem ? 'Save Changes' : 'Schedule Deliverable')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ContentCalendarPage({
+  actor,
+  allPeople,
+  work
+}: {
+  actor: Person;
+  allPeople: Person[];
+  work: WorkItem[];
+}) {
+  const [items, setItems] = useState<ContentCalendarItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [customClients, setCustomClients] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('arka_custom_clients');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const allClients = useMemo(() => {
+    const set = new Set<string>();
+    INITIAL_CLIENTS.forEach((c) => set.add(c.trim()));
+    customClients.forEach((c) => set.add(c.trim()));
+    work.forEach((w) => { if (w.client?.trim()) set.add(w.client.trim()); });
+    items.forEach((i) => { if (i.client?.trim()) set.add(i.client.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [customClients, work, items]);
+
+  const [selectedClient, setSelectedClient] = useState<string>(() => {
+    try {
+      return localStorage.getItem('arka_selected_cal_client') || 'Animal Gym';
+    } catch {
+      return 'Animal Gym';
+    }
+  });
+
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modals
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ContentCalendarItem | null>(null);
+  const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+  const [readingScriptItem, setReadingScriptItem] = useState<ContentCalendarItem | null>(null);
+  const [preselectedDate, setPreselectedDate] = useState<string>('');
+
+  // Calendar View month navigation
+  const [calDate, setCalDate] = useState<Date>(() => new Date());
+
+  const fetchCalendar = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await apiGet<{ items: ContentCalendarItem[] }>('/content-calendar');
+      if (res && Array.isArray(res.items)) {
+        setItems(res.items);
+      }
+    } catch (err) {
+      console.error('Failed to load content calendar:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchCalendar();
+  }, [fetchCalendar]);
+
+  const handleSelectClient = (c: string) => {
+    setSelectedClient(c);
+    try {
+      localStorage.setItem('arka_selected_cal_client', c);
+    } catch {}
+    setIsClientDropdownOpen(false);
+    setClientSearch('');
+  };
+
+  const handleAddCustomClient = (newClient: string) => {
+    const trimmed = newClient.trim();
+    if (!trimmed) return;
+    const updated = Array.from(new Set([...customClients, trimmed]));
+    setCustomClients(updated);
+    try {
+      localStorage.setItem('arka_custom_clients', JSON.stringify(updated));
+    } catch {}
+    handleSelectClient(trimmed);
+    toast({ title: 'Client Added', description: `${trimmed} added to Content Calendar.` });
+  };
+
+  // Filter items for current selected client
+  const clientItems = useMemo(() => {
+    return items.filter((i) => i.client.toLowerCase() === selectedClient.toLowerCase());
+  }, [items, selectedClient]);
+
+  // Months available for selected client
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    clientItems.forEach((item) => {
+      if (item.date && item.date.length >= 7) {
+        set.add(item.date.slice(0, 7));
+      }
+    });
+    // Ensure current month is an option
+    set.add(TODAY.slice(0, 7));
+    return Array.from(set).sort().reverse();
+  }, [clientItems]);
+
+  const filteredItems = useMemo(() => {
+    return clientItems.filter((item) => {
+      if (selectedMonth !== 'all' && !item.date.startsWith(selectedMonth)) {
+        return false;
+      }
+      if (statusFilter !== 'all' && item.updateStatus !== statusFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matches =
+          item.contentTheme.toLowerCase().includes(q) ||
+          item.format.toLowerCase().includes(q) ||
+          (item.scriptDescription && item.scriptDescription.toLowerCase().includes(q)) ||
+          (item.references && item.references.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [clientItems, selectedMonth, statusFilter, searchQuery]);
+
+  // Metrics
+  const totalCount = clientItems.length;
+  const postedCount = clientItems.filter((i) => i.updateStatus === 'Posted').length;
+  const pendingDesignCount = clientItems.filter((i) => i.updateStatus === 'Yet to Design' || i.updateStatus === 'In Progress').length;
+  const pendingShootCount = clientItems.filter((i) => i.shootStatus === 'Shoot Pending').length;
+
+  const handleSaveItem = async (data: any) => {
+    if (editingItem?.id) {
+      // Optimistic update
+      setItems((prev) => prev.map((i) => (i.id === editingItem.id ? { ...i, ...data } : i)));
+      await apiPatch(`/content-calendar/${editingItem.id}`, data);
+      toast({ title: 'Deliverable Updated', description: `${data.contentTheme} has been updated.` });
+    } else {
+      const res = await apiPost<{ item: ContentCalendarItem }>('/content-calendar', data);
+      if (res?.item) {
+        setItems((prev) => [...prev, res.item]);
+      } else {
+        void fetchCalendar();
+      }
+      toast({ title: 'Deliverable Scheduled', description: `${data.contentTheme} scheduled for ${selectedClient}.` });
+    }
+  };
+
+  const handleQuickStatusChange = async (item: ContentCalendarItem, newStatus: ContentCalendarItem['updateStatus']) => {
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, updateStatus: newStatus } : i)));
+    try {
+      await apiPatch(`/content-calendar/${item.id}`, { updateStatus: newStatus });
+      toast({ title: 'Status Updated', description: `${item.contentTheme} is now ${newStatus}.` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
+      void fetchCalendar();
+    }
+  };
+
+  const handleQuickShootStatusChange = async (item: ContentCalendarItem, newShootStatus: ContentCalendarItem['shootStatus']) => {
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, shootStatus: newShootStatus } : i)));
+    try {
+      await apiPatch(`/content-calendar/${item.id}`, { shootStatus: newShootStatus });
+      toast({ title: 'Shoot Status Updated', description: `${item.contentTheme} shoot is now ${newShootStatus}.` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update shoot status', variant: 'destructive' });
+      void fetchCalendar();
+    }
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this content deliverable?')) return;
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    try {
+      await apiDelete(`/content-calendar/${id}`);
+      toast({ title: 'Deliverable Deleted', description: 'Item removed from content calendar.' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete item', variant: 'destructive' });
+      void fetchCalendar();
+    }
+  };
+
+  const handleExportCsv = () => {
+    const headers = ['Date', 'Day', 'Format', 'Content Theme', 'Script / Description', 'Update', 'References', 'Shoot Dates', 'Shoot Status', 'Drive Link'];
+    const rows = filteredItems.map((item) => [
+      item.date,
+      item.day,
+      item.format,
+      `"${(item.contentTheme || '').replace(/"/g, '""')}"`,
+      `"${(item.scriptDescription || '').replace(/"/g, '""')}"`,
+      item.updateStatus,
+      item.references || '',
+      item.shootDate || '',
+      item.shootStatus,
+      item.driveLink || ''
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${selectedClient.replace(/[^a-zA-Z0-9_-]/g, '_')}_Content_Calendar_${TODAY}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: 'CSV Exported', description: `Exported ${filteredItems.length} rows for ${selectedClient}.` });
+  };
+
+  // Calendar calculations
+  const year = calDate.getFullYear();
+  const month = calDate.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const daysInMonth = lastDayOfMonth.getDate();
+  const startingDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7; // Monday as 0
+
+  const calMonthTitle = firstDayOfMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  return (
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <Card className="p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">ARKA MEDIA CREATIVE PIPELINE</span>
+              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">Founder & Manager Access</span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900">Client Content Calendar</h1>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Manage scripts, shoot schedules, design deliverables, and Google Drive assets per client.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Client Selector Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsClientDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-900 shadow-xs hover:border-[#f8c329] focus:ring-2 focus:ring-[#f8c329]/20 transition cursor-pointer"
+              >
+                <span className="text-slate-400 font-normal">Active Client:</span>
+                <span className="font-black text-black max-w-[150px] truncate">{selectedClient}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                  {clientItems.length}
+                </span>
+                <ChevronDown className="size-3.5 text-slate-400" />
+              </button>
+
+              {isClientDropdownOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1.5 w-80 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xl">
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Search 31+ clients..."
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-8.5 pr-3 text-xs outline-none focus:border-[#f8c329]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
+                    {allClients
+                      .filter((c) => c.toLowerCase().includes(clientSearch.toLowerCase()))
+                      .map((c) => {
+                        const count = items.filter((i) => i.client.toLowerCase() === c.toLowerCase()).length;
+                        const isSel = c.toLowerCase() === selectedClient.toLowerCase();
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => handleSelectClient(c)}
+                            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold transition cursor-pointer ${
+                              isSel ? 'bg-[#f8c329] text-black font-bold shadow-xs' : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="truncate pr-2">{c}</span>
+                            {count > 0 && (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                isSel ? 'bg-black/15 text-black' : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                {count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <div className="mt-2 border-t border-slate-100 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsClientDropdownOpen(false);
+                        setIsAddClientOpen(true);
+                      }}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition cursor-pointer"
+                    >
+                      <Plus className="size-3.5" /> Add New Client
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Export CSV Button */}
+            <Button variant="secondary" onClick={handleExportCsv}>
+              <Download className="size-3.5" />
+              <span>Export Sheet</span>
+            </Button>
+
+            {/* Schedule Deliverable Button */}
+            <Button onClick={() => { setPreselectedDate(''); setIsCreateOpen(true); }}>
+              <Plus className="size-4" />
+              <span>Schedule Deliverable</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* 4 Metric Counters */}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-[#fafaf8] p-3.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Scheduled</div>
+            <div className="mt-1 text-2xl font-black text-slate-900">{totalCount}</div>
+            <div className="mt-0.5 text-[11px] text-slate-500">For {selectedClient}</div>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Posted</div>
+            <div className="mt-1 text-2xl font-black text-emerald-700">{postedCount}</div>
+            <div className="mt-0.5 text-[11px] text-emerald-600">Live on channels</div>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">In Design / WIP</div>
+            <div className="mt-1 text-2xl font-black text-amber-700">{pendingDesignCount}</div>
+            <div className="mt-0.5 text-[11px] text-amber-600">Pending post</div>
+          </div>
+
+          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-rose-800">Shoot Pending</div>
+            <div className="mt-1 text-2xl font-black text-rose-700">{pendingShootCount}</div>
+            <div className="mt-0.5 text-[11px] text-rose-600">Production needed</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Control & Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* View Switcher: Table View vs Calendar Grid */}
+        <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              viewMode === 'table' ? 'bg-[#f8c329] text-black shadow-xs' : 'text-slate-600 hover:text-black'
+            }`}
+          >
+            <FileSpreadsheet className="size-3.5" />
+            <span>Spreadsheet View</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('calendar')}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              viewMode === 'calendar' ? 'bg-[#f8c329] text-black shadow-xs' : 'text-slate-600 hover:text-black'
+            }`}
+          >
+            <CalendarDays className="size-3.5" />
+            <span>Monthly Calendar</span>
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Month selector */}
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none shadow-xs cursor-pointer focus:border-[#f8c329]"
+          >
+            <option value="all">All Months</option>
+            {availableMonths.map((m) => {
+              const [y, mn] = m.split('-');
+              const d = new Date(Number(y), Number(mn) - 1, 1);
+              const label = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+              return <option key={m} value={m}>{label}</option>;
+            })}
+          </select>
+
+          {/* Status filter pills */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none shadow-xs cursor-pointer focus:border-[#f8c329]"
+          >
+            <option value="all">All Statuses</option>
+            <option value="Posted">Posted</option>
+            <option value="Yet to Design">Yet to Design</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Ready to Post">Ready to Post</option>
+            <option value="Review">Review</option>
+          </select>
+
+          {/* Search bar */}
+          <div className="relative min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter theme, format, script..."
+              className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-8.5 pr-3 text-xs outline-none shadow-xs focus:border-[#f8c329]"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* VIEW 1: SPREADSHEET TABLE VIEW (Matches Google Sheets) */}
+      {viewMode === 'table' && (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-[#f9f9f8] text-[11px] font-black uppercase tracking-wider text-slate-600">
+                  <th className="py-3.5 pl-5 pr-3">Date</th>
+                  <th className="px-3 py-3.5">Day</th>
+                  <th className="px-3 py-3.5">Format</th>
+                  <th className="px-3 py-3.5 min-w-[200px]">Content Theme</th>
+                  <th className="px-3 py-3.5 min-w-[240px]">Script / Description</th>
+                  <th className="px-3 py-3.5">Update</th>
+                  <th className="px-3 py-3.5">References</th>
+                  <th className="px-3 py-3.5">Shoot Dates</th>
+                  <th className="px-3 py-3.5">Shoot Status</th>
+                  <th className="px-3 py-3.5">Drive Link</th>
+                  <th className="py-3.5 pl-3 pr-5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/70 transition">
+                    {/* Date */}
+                    <td className="py-3.5 pl-5 pr-3 font-bold text-slate-900 whitespace-nowrap">
+                      {formatDate(item.date)}
+                    </td>
+
+                    {/* Day */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                        {item.day}
+                      </span>
+                    </td>
+
+                    {/* Format */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      {getFormatBadge(item.format)}
+                    </td>
+
+                    {/* Content Theme */}
+                    <td className="px-3 py-3.5">
+                      <div className="font-bold text-slate-900 text-xs leading-snug">
+                        {item.contentTheme}
+                      </div>
+                    </td>
+
+                    {/* Script / Description */}
+                    <td className="px-3 py-3.5">
+                      {item.scriptDescription ? (
+                        <div className="max-w-[260px]">
+                          <p className="line-clamp-2 text-xs text-slate-600 leading-relaxed font-normal">
+                            {item.scriptDescription}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setReadingScriptItem(item)}
+                            className="mt-1 text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            Read full script →
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem(item)}
+                          className="text-[11px] font-medium text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                        >
+                          + Add script
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Update (Status) - Quick Dropdown */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <select
+                        value={item.updateStatus}
+                        onChange={(e) => handleQuickStatusChange(item, e.target.value as ContentCalendarItem['updateStatus'])}
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-black outline-none cursor-pointer shadow-xs transition ${
+                          item.updateStatus === 'Posted' ? 'bg-emerald-600 text-white' :
+                          item.updateStatus === 'Yet to Design' ? 'bg-rose-600 text-white' :
+                          item.updateStatus === 'In Progress' ? 'bg-amber-500 text-white' :
+                          item.updateStatus === 'Ready to Post' ? 'bg-purple-600 text-white' :
+                          'bg-blue-600 text-white'
+                        }`}
+                      >
+                        <option value="Yet to Design" className="bg-white text-slate-900">Yet to Design</option>
+                        <option value="In Progress" className="bg-white text-slate-900">In Progress</option>
+                        <option value="Ready to Post" className="bg-white text-slate-900">Ready to Post</option>
+                        <option value="Review" className="bg-white text-slate-900">Review</option>
+                        <option value="Posted" className="bg-white text-slate-900">Posted</option>
+                      </select>
+                    </td>
+
+                    {/* References */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      {item.references ? (
+                        item.references.startsWith('http') ? (
+                          <a
+                            href={item.references}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition"
+                          >
+                            <span>Ref</span>
+                            <ExternalLink className="size-2.5" />
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-600 truncate max-w-[120px] block" title={item.references}>
+                            {item.references}
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+
+                    {/* Shoot Dates */}
+                    <td className="px-3 py-3.5 whitespace-nowrap text-slate-700 font-semibold">
+                      {item.shootDate ? formatDate(item.shootDate) : <span className="text-slate-300">—</span>}
+                    </td>
+
+                    {/* Shoot Status - Quick Dropdown */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <select
+                        value={item.shootStatus}
+                        onChange={(e) => handleQuickShootStatusChange(item, e.target.value as ContentCalendarItem['shootStatus'])}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-bold outline-none cursor-pointer shadow-xs transition ${
+                          item.shootStatus === 'Shoot Completed' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' :
+                          item.shootStatus === 'Shoot Pending' ? 'border-rose-300 bg-rose-100 text-rose-800' :
+                          'border-slate-200 bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <option value="No Shoot Needed" className="bg-white text-slate-900">No Shoot Needed</option>
+                        <option value="Shoot Pending" className="bg-white text-slate-900">Shoot Pending</option>
+                        <option value="Shoot Completed" className="bg-white text-slate-900">Shoot Completed</option>
+                      </select>
+                    </td>
+
+                    {/* Drive Link */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      {item.driveLink ? (
+                        <a
+                          href={item.driveLink.startsWith('http') ? item.driveLink : `https://${item.driveLink}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition shadow-xs"
+                          title={item.driveLink}
+                        >
+                          <FolderOpen className="size-3 text-blue-600" />
+                          <span>Drive</span>
+                          <ExternalLink className="size-2.5 opacity-70" />
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem(item)}
+                          className="text-[11px] font-medium text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                        >
+                          + Add Drive
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 pl-3 pr-5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem(item)}
+                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-black transition cursor-pointer"
+                          title="Edit deliverable"
+                        >
+                          <Edit2 className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item.id)}
+                          className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition cursor-pointer"
+                          title="Delete deliverable"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredItems.length === 0 && (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                      <div className="mx-auto max-w-sm space-y-2">
+                        <FileSpreadsheet className="mx-auto size-8 text-slate-300" />
+                        <div className="font-bold text-slate-700">No deliverables found for {selectedClient}</div>
+                        <p className="text-xs text-slate-400">
+                          Click below to schedule your first post, reel, or story for this client.
+                        </p>
+                        <Button onClick={() => { setPreselectedDate(''); setIsCreateOpen(true); }} className="mt-2">
+                          <Plus className="size-3.5" /> Schedule Deliverable
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* VIEW 2: MONTHLY CALENDAR GRID VIEW */}
+      {viewMode === 'calendar' && (
+        <Card className="p-5">
+          {/* Month Header Navigation */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-black text-slate-900">{calMonthTitle}</h2>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+                {selectedClient}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCalDate(new Date(year, month - 1, 1))}
+                className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Previous month"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalDate(new Date())}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalDate(new Date(year, month + 1, 1))}
+                className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                title="Next month"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Weekday Labels (Mon - Sun) */}
+          <div className="mt-4 grid grid-cols-7 gap-px border-b border-slate-200 pb-2 text-center text-xs font-black uppercase tracking-wider text-slate-500">
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+            <div>Sun</div>
+          </div>
+
+          {/* Days Grid */}
+          <div className="mt-2 grid grid-cols-7 gap-2">
+            {/* Blank leading days */}
+            {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+              <div key={`blank-${i}`} className="min-h-[110px] rounded-xl bg-slate-50/40 p-2" />
+            ))}
+
+            {/* Actual month days */}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const dayNum = i + 1;
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+              const isToday = dateStr === TODAY;
+              const dayDeliverables = clientItems.filter((item) => item.date === dateStr);
+
+              return (
+                <div
+                  key={dateStr}
+                  className={`group relative flex flex-col justify-between min-h-[110px] rounded-xl border p-2 transition ${
+                    isToday
+                      ? 'border-[#f8c329] bg-[#f8c329]/5 ring-2 ring-[#f8c329]/40'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-black ${
+                      isToday ? 'rounded-full bg-[#f8c329] px-1.5 py-0.2 text-black' : 'text-slate-800'
+                    }`}>
+                      {dayNum}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreselectedDate(dateStr);
+                        setIsCreateOpen(true);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 rounded-md p-0.5 text-slate-400 hover:bg-slate-100 hover:text-black transition cursor-pointer"
+                      title="Add deliverable on this day"
+                    >
+                      <Plus className="size-3" />
+                    </button>
+                  </div>
+
+                  {/* Deliverables on this day */}
+                  <div className="mt-1.5 flex-1 space-y-1 overflow-y-auto max-h-24 custom-scrollbar">
+                    {dayDeliverables.map((del) => (
+                      <button
+                        key={del.id}
+                        type="button"
+                        onClick={() => setEditingItem(del)}
+                        className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-[11px] font-bold shadow-2xs transition cursor-pointer ${
+                          del.updateStatus === 'Posted' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                          del.updateStatus === 'Yet to Design' ? 'bg-rose-50 text-rose-800 border border-rose-200' :
+                          del.updateStatus === 'In Progress' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                          del.updateStatus === 'Ready to Post' ? 'bg-purple-50 text-purple-800 border border-purple-200' :
+                          'bg-blue-50 text-blue-800 border border-blue-200'
+                        }`}
+                        title={`${del.format}: ${del.contentTheme} (${del.updateStatus})`}
+                      >
+                        <span className={`size-1.5 rounded-full shrink-0 ${
+                          del.updateStatus === 'Posted' ? 'bg-emerald-500' :
+                          del.updateStatus === 'Yet to Design' ? 'bg-rose-500' :
+                          del.updateStatus === 'In Progress' ? 'bg-amber-500' :
+                          del.updateStatus === 'Ready to Post' ? 'bg-purple-500' :
+                          'bg-blue-500'
+                        }`} />
+                        <span className="truncate flex-1">{del.contentTheme}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* MODAL 1: SCHEDULE / EDIT DELIVERABLE */}
+      {(isCreateOpen || editingItem) && (
+        <ContentCalendarModal
+          initialItem={editingItem}
+          defaultClient={selectedClient}
+          defaultDate={preselectedDate || TODAY}
+          allClients={allClients}
+          allPeople={allPeople}
+          onClose={() => {
+            setIsCreateOpen(false);
+            setEditingItem(null);
+            setPreselectedDate('');
+          }}
+          onSave={handleSaveItem}
+        />
+      )}
+
+      {/* MODAL 2: ADD NEW CLIENT */}
+      {isAddClientOpen && (
+        <AddClientModal
+          onClose={() => setIsAddClientOpen(false)}
+          onAdd={handleAddCustomClient}
+        />
+      )}
+
+      {/* MODAL 3: READ FULL SCRIPT / CREATIVE BRIEF */}
+      {readingScriptItem && (
+        <ReadScriptModal
+          item={readingScriptItem}
+          onClose={() => setReadingScriptItem(null)}
+          onEdit={() => {
+            const itm = readingScriptItem;
+            setReadingScriptItem(null);
+            setEditingItem(itm);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
 function AppRouter() {
   const [location, setLocation] = useLocation();
   const [signedIn, setSignedIn] = useState(false);
@@ -2501,6 +3694,13 @@ function AppRouter() {
       requestNotificationPermission();
     }
   }, [signedIn]);
+
+  // Route guard: strictly restrict /content-calendar to Founder and Manager
+  useEffect(() => {
+    if (location === '/content-calendar' && actor.role !== 'Founder' && actor.role !== 'Manager') {
+      setLocation('/dashboard');
+    }
+  }, [location, actor.role, setLocation]);
 
   // Dynamic 9-Hour Workday Shift Calculation
   const todaySessions = useMemo(() => {
@@ -2992,7 +4192,13 @@ function AppRouter() {
     </Shell>
   );
 
-  const page = location === '/people' ? (
+  const page = location === '/content-calendar' ? (
+    actor.role === 'Founder' || actor.role === 'Manager' ? (
+      <ContentCalendarPage actor={actor} allPeople={runtimePeople} work={scopeWork} />
+    ) : (
+      <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : () => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={actor.role === 'Founder' ? deletePerson : undefined} />
+    )
+  ) : location === '/people' ? (
     <PeoplePage actor={actor} people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onUpdateRole={updatePersonRole} onDeletePerson={deletePerson} />
   ) : location === '/attendance' ? (
     <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} onRefresh={refresh} />

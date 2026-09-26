@@ -22,7 +22,27 @@ async function runStartupMigrations() {
     await pool.query("ALTER TYPE role ADD VALUE IF NOT EXISTS 'HR Manager';");
     await pool.query("ALTER TYPE leave_type ADD VALUE IF NOT EXISTS 'Work From Home';");
     await pool.query("UPDATE people SET role = 'HR Manager', title = 'Head of People & HR Operations' WHERE email = 'sanjana.jetty1469@gmail.com' OR name ILIKE '%Sanjana%';");
-    logger.info("Executed startup migrations: role & leave_type.");
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS content_calendar (
+        id TEXT PRIMARY KEY,
+        client TEXT NOT NULL,
+        date TEXT NOT NULL,
+        day TEXT NOT NULL,
+        format TEXT NOT NULL,
+        content_theme TEXT NOT NULL,
+        script_description TEXT,
+        update_status TEXT NOT NULL DEFAULT 'Yet to Design',
+        "references" TEXT,
+        shoot_date TEXT,
+        shoot_status TEXT NOT NULL DEFAULT 'No Shoot Needed',
+        drive_link TEXT,
+        assigned_to TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT
+      );
+    `);
+    logger.info("Executed startup migrations: role, leave_type & content_calendar table.");
   } catch (err: any) {
     logger.warn({ err: err?.message || err }, "Startup migration warning");
   }
