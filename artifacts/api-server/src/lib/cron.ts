@@ -32,40 +32,13 @@ export function initCronJobs() {
         const diffMinutes = (now - last) / (1000 * 60);
 
         if ((u.presence === "Break" && diffMinutes >= 15) || (u.presence === "Lunch" && diffMinutes >= 60)) {
-          logger.info(`Auto-reverting user ${u.name} (${u.id}) from ${u.presence} to Online (expired: ${Math.round(diffMinutes)}m)`);
-          await db
-            .update(peopleTable)
-            .set({ presence: "Online", lastActiveAt: new Date().toISOString() })
-            .where(eq(peopleTable.id, u.id));
-
-          try {
-            const io = getIO();
-            io.emit("presence:update", { userId: u.id, status: "Online" });
-          } catch {}
-        }
-      }
-
-      // 2. Inactive user auto-logout watchdog (no activity/heartbeat > 2.5 mins)
-      const nonOfflineUsers = await db
-        .select()
-        .from(peopleTable)
-        .where(ne(peopleTable.presence, "Offline"));
-
-      for (const u of nonOfflineUsers) {
-        if (!u.lastActiveAt) continue;
-        const last = new Date(u.lastActiveAt).getTime();
-        if (isNaN(last)) continue;
-        const diffMinutes = (now - last) / (1000 * 60);
-
-        if (diffMinutes >= 2.5) {
-          logger.info(`Auto-logging out inactive user ${u.name} (${u.id}) - inactive for ${Math.round(diffMinutes)}m`);
-          const logoutIso = u.lastActiveAt;
-
+          logger.info(`Break/Lunch countdown expired for ${u.name} (${u.id}) - auto-logging out`);
+          const logoutIso = new Date().toISOString();
           await db
             .update(peopleTable)
             .set({ 
               presence: "Offline", 
-              logoutAt: logoutIso,
+              logoutAt: logoutIso, 
               activeSessionId: null 
             })
             .where(eq(peopleTable.id, u.id));

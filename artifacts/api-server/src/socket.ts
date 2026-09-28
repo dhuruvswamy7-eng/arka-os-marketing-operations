@@ -74,8 +74,7 @@ export function initSocket(server: HttpServer) {
     });
 
     socket.on("disconnect", () => {
-      console.log(`User disconnected: ${user.email}`);
-      socket.broadcast.emit("presence:update", { userId: user.id, status: "Offline" });
+      console.log(`User socket disconnected: ${user.email}`);
     });
   });
 }

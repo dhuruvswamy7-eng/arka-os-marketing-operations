@@ -6,9 +6,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import {
   ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
-  Clock3, Command, Copy, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
+  Clock3, Coffee, Command, Copy, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
   Home, Image, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
-  MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, UserPlus, UserRound, Users, Video, X, Zap
+  MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, UserPlus, UserRound, Users, Utensils, Video, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { ChatWidget } from './components/ChatWidget';
@@ -529,6 +529,98 @@ function SectionTitle({ eyebrow, title, description, action }: { eyebrow?: strin
   return <div className="mb-6 flex items-end justify-between gap-4"><div>{eyebrow && <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(var(--primary))]">{eyebrow}</div>}<h1 className="text-2xl font-black tracking-[-0.04em] md:text-3xl">{title}</h1>{description && <p className="mt-2 max-w-2xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{description}</p>}</div>{action}</div>;
 }
 
+function BreakLunchFreezeOverlay({
+  presence,
+  secondsRemaining,
+  onResumeWork,
+}: {
+  presence: 'Break' | 'Lunch';
+  secondsRemaining: number | null;
+  onResumeWork: () => void;
+}) {
+  const isBreak = presence === 'Break';
+  const totalSeconds = isBreak ? 15 * 60 : 60 * 60;
+  const currentSecs = Math.max(0, secondsRemaining ?? totalSeconds);
+  const minutes = Math.floor(currentSecs / 60);
+  const seconds = currentSecs % 60;
+  const progressPercent = Math.max(0, Math.min(100, ((totalSeconds - currentSecs) / totalSeconds) * 100));
+
+  useEffect(() => {
+    const origOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = origOverflow;
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#0d0d0d]/95 backdrop-blur-2xl text-white p-6 select-none animate-in fade-in duration-200">
+      <div className="mx-auto flex w-full max-w-lg flex-col items-center text-center">
+        {/* Animated Badge */}
+        <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-black uppercase tracking-widest ${
+          isBreak 
+            ? 'border-amber-400/40 bg-amber-400/10 text-amber-300 ring-2 ring-amber-400/20' 
+            : 'border-blue-400/40 bg-blue-400/10 text-blue-300 ring-2 ring-blue-400/20'
+        }`}>
+          {isBreak ? <Coffee className="size-4 animate-bounce" /> : <Utensils className="size-4 animate-bounce" />}
+          <span>{isBreak ? '15-Minute Break in Progress' : '1-Hour Lunch Break in Progress'}</span>
+        </div>
+
+        {/* Title */}
+        <h1 className="mt-6 text-3xl sm:text-4xl font-black tracking-tight">
+          Workspace Frozen
+        </h1>
+        <p className="mt-2 text-sm text-white/65 max-w-md">
+          {isBreak
+            ? 'Your 15-minute break timer is running. Screen is locked so you can step away, relax, and recharge.'
+            : 'Your 1-hour lunch timer is running. Enjoy your meal away from the desk!'}
+        </p>
+
+        {/* Big Countdown Timer Card */}
+        <div className="mt-8 w-full rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-sm">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40">
+            Time Remaining Before Auto-Logout
+          </div>
+          <div className="mt-3 text-7xl sm:text-8xl font-black font-mono tracking-tight text-[#f8c329] drop-shadow-[0_0_35px_rgba(248,195,41,0.25)]">
+            {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#f8c329] to-amber-500 transition-all duration-1000 ease-linear"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {/* Warning banner */}
+          <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-left text-xs text-amber-200/90">
+            <span className="text-base leading-none">⚠️</span>
+            <span>
+              <strong>Auto-Logout Notice:</strong> When the countdown reaches <strong>00:00</strong>, your session will automatically end and you will be logged out.
+            </span>
+          </div>
+        </div>
+
+        {/* Action Button: End Break & Resume Work */}
+        <div className="mt-8 flex flex-col items-center gap-3 w-full">
+          <button
+            type="button"
+            onClick={onResumeWork}
+            className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#f8c329] px-8 py-4 text-base font-extrabold text-black shadow-xl hover:brightness-110 active:scale-[0.99] transition cursor-pointer"
+          >
+            <span>{isBreak ? 'End Break & Resume Work' : 'End Lunch & Resume Work'}</span>
+            <ArrowRight className="size-5" />
+          </button>
+          <span className="text-xs text-white/40">
+            Returning early will unfreeze your screen and continue your 9-hour shift.
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Shell({ 
   actor, 
   onLogout, 
@@ -559,6 +651,14 @@ function Shell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = roleNavigation[actor.role];
   return <div className="min-h-screen bg-[#f7f7f5] text-[hsl(var(--foreground))]">
+    {/* Full-Screen Freeze Overlay when on Break or Lunch */}
+    {(actor.presence === 'Break' || actor.presence === 'Lunch') && (
+      <BreakLunchFreezeOverlay
+        presence={actor.presence}
+        secondsRemaining={timerSecondsRemaining ?? null}
+        onResumeWork={() => onUpdatePresence('Online')}
+      />
+    )}
     <aside className={`fixed inset-y-0 left-0 z-30 flex w-[260px] flex-col border-r border-[hsl(var(--border))] bg-[#101010] p-5 text-white transition-transform lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex items-center gap-3 px-2"><img src={LOGO_SRC} alt="Arka Media" className="h-12 w-auto max-w-[190px] object-contain object-left" /></div>
       <div className="mt-10 rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[#f8c329]">{actor.role} workspace</div><div className="mt-1 text-sm font-bold">{actor.name}</div><div className="mt-1 text-xs text-white/45">{actor.title}</div></div>
@@ -3443,9 +3543,11 @@ function ContentCalendarPage({
                         <p className="text-xs text-slate-400">
                           Click below to schedule your first post, reel, or story for this client.
                         </p>
-                        <Button onClick={() => { setPreselectedDate(''); setIsCreateOpen(true); }} className="mt-2">
-                          <Plus className="size-3.5" /> Schedule Deliverable
-                        </Button>
+                        <div className="mt-2">
+                          <Button onClick={() => { setPreselectedDate(''); setIsCreateOpen(true); }}>
+                            <Plus className="size-3.5" /> Schedule Deliverable
+                          </Button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -3891,16 +3993,16 @@ function AppRouter() {
 
       const tick = () => {
         const diff = Math.ceil((expiresAt - Date.now()) / 1000);
-        // Auto-logout at minute 16 for Break (diff <= -60) or minute 61 for Lunch (diff <= -60)
-        if (diff <= -60) {
-          setTimerSecondsRemaining(null);
+        // Auto-logout immediately when countdown reaches 00:00 (diff <= 0)
+        if (diff <= 0) {
+          setTimerSecondsRemaining(0);
           localStorage.removeItem('arka_presence_timer');
           const p = actor.presence;
           const limitMsg = p === 'Break'
-            ? 'Session ended: Your 15-minute break was not resumed within 16 minutes. You have been automatically logged out.'
-            : 'Session ended: Your 1-hour lunch was not resumed within 61 minutes. You have been automatically logged out.';
+            ? 'Session ended: Your 15-minute break has ended. You have been automatically logged out.'
+            : 'Session ended: Your 1-hour lunch break has ended. You have been automatically logged out.';
           
-          void apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: Exceeded ${p} duration`, tone: 'warning' }).catch(() => {});
+          void apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: ${p} countdown completed`, tone: 'warning' }).catch(() => {});
           void apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
           void handleLogout(limitMsg);
         } else {
@@ -4196,7 +4298,7 @@ function AppRouter() {
     actor.role === 'Founder' || actor.role === 'Manager' ? (
       <ContentCalendarPage actor={actor} allPeople={runtimePeople} work={scopeWork} />
     ) : (
-      <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : () => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={actor.role === 'Founder' ? deletePerson : undefined} />
+      <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={undefined} />
     )
   ) : location === '/people' ? (
     <PeoplePage actor={actor} people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onUpdateRole={updatePersonRole} onDeletePerson={deletePerson} />

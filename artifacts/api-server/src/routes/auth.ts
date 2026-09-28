@@ -205,8 +205,16 @@ router.post("/heartbeat", async (req, res) => {
         return;
       }
 
+      const updates: any = { lastActiveAt: new Date().toISOString() };
+      if (!user.activeSessionId && payload.sessionId) {
+        updates.activeSessionId = payload.sessionId;
+        if (user.presence === "Offline") {
+          updates.presence = "Online";
+        }
+      }
+
       await db.update(peopleTable)
-        .set({ lastActiveAt: new Date().toISOString() })
+        .set(updates)
         .where(eq(peopleTable.id, payload.id));
       res.json({ success: true });
       return;
