@@ -32,6 +32,31 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get("/health", async (_req, res) => {
+  try {
+    const rawUrl = process.env.DATABASE_URL || "NOT_SET";
+    const maskedUrl = rawUrl.replace(/:[^:@]+@/, ":****@");
+    const { pool } = await import("@workspace/db");
+    const q = await pool.query("SELECT count(*) as count FROM people;");
+    res.json({
+      status: "ok",
+      database: "connected",
+      dbUrl: maskedUrl,
+      peopleCount: q.rows[0].count,
+    });
+  } catch (err: any) {
+    const rawUrl = process.env.DATABASE_URL || "NOT_SET";
+    const maskedUrl = rawUrl.replace(/:[^:@]+@/, ":****@");
+    res.status(500).json({
+      status: "error",
+      database: "disconnected",
+      dbUrl: maskedUrl,
+      errorMessage: err?.message || String(err),
+      errorCode: err?.code,
+    });
+  }
+});
+
 app.use("/api", router);
 
 // Serve frontend static build if present

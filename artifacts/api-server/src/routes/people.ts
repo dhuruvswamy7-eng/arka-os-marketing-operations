@@ -22,8 +22,8 @@ router.get("/", async (_req, res) => {
     const items = await db.select().from(peopleTable).orderBy(asc(peopleTable.name));
     const sanitized = items.map(({ password: _, ...rest }) => rest);
     res.json({ items: sanitized });
-  } catch (err) {
-    res.status(503).json({ message: "Database unavailable" });
+  } catch (err: any) {
+    res.status(503).json({ message: "Database unavailable", error: err?.message || String(err), code: err?.code });
   }
 });
 
