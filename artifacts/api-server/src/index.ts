@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";

@@ -10,15 +10,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const useSsl =
-  process.env.DATABASE_URL.includes("render.com") ||
-  process.env.DATABASE_URL.includes("neon.tech") ||
-  process.env.DATABASE_URL.includes("sslmode") ||
-  process.env.NODE_ENV === "production";
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+const rawUrl = process.env.DATABASE_URL;
+// Remove sslmode query param so it doesn't conflict with our explicit ssl config
+const cleanUrl = rawUrl.replace(/(\?|&)sslmode=[^&]+/g, "");
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+  connectionString: cleanUrl,
+  ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
