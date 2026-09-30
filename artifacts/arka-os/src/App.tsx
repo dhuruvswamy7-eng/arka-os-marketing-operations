@@ -196,7 +196,7 @@ export type ManagerReport = {
   status: ReportStatus; createdAt: string;
 };
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
-export type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Work From Home' | 'Other';
+export type LeaveType = 'Casual' | 'Sick' | 'Personal' | 'Work From Home' | 'Early Logout' | 'Early Login' | 'Other';
 export type LeaveRequest = {
   id: string; userId: string; leaveType: LeaveType; startDate: string; endDate: string; reason: string; note?: string | null;
   status: LeaveStatus; approvedBy?: string | null; createdAt: string;
@@ -628,6 +628,9 @@ function EarlyLogoutModal({
   onReasonChange,
   onConfirm,
   onClose,
+  leaves,
+  onRequestEarlyLogout,
+  allPeople,
 }: {
   actor: Person;
   shiftInfo: {
@@ -638,30 +641,85 @@ function EarlyLogoutModal({
   } | null;
   reason: string;
   onReasonChange: (val: string) => void;
-  onConfirm: () => void;
+  onConfirm: (options?: { isEmergency?: boolean; isApproved?: boolean }) => void;
   onClose: () => void;
+  leaves: LeaveRequest[];
+  onRequestEarlyLogout: (data: { plannedTime: string; reason: string; note?: string }) => Promise<void>;
+  allPeople?: Person[];
 }) {
   const workedHours = shiftInfo ? Math.floor(shiftInfo.totalMinutes / 60) : 0;
   const workedMins = shiftInfo ? shiftInfo.totalMinutes % 60 : 0;
   const remainHours = shiftInfo ? Math.floor(shiftInfo.remainingMinutes / 60) : 0;
   const remainMins = shiftInfo ? shiftInfo.remainingMinutes % 60 : 0;
 
+  const localToday = new Date().toLocaleDateString('en-CA');
+  const todayEarlyLeave = leaves.find(
+    (l) => l.userId === actor.id &&
+           l.leaveType === 'Early Logout' &&
+           (l.startDate === TODAY || l.startDate === localToday || (l.startDate <= TODAY && l.endDate >= TODAY))
+  );
+
+  const isApproved = todayEarlyLeave?.status === 'Approved';
+  const isPending = todayEarlyLeave?.status === 'Pending';
+  const isRejected = todayEarlyLeave?.status === 'Rejected';
+  const approver = todayEarlyLeave?.approvedBy ? allPeople?.find((p) => p.id === todayEarlyLeave.approvedBy)?.name : null;
+
+  const [plannedTime, setPlannedTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
+  const [requestReason, setRequestReason] = useState(reason || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [showEmergency, setShowEmergency] = useState(false);
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestReason.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await onRequestEarlyLogout({ plannedTime, reason: requestReason.trim() });
+      setSubmittedSuccess(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-3xl border border-amber-300/40 bg-white p-6 shadow-2xl">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 ring-4 ring-amber-500/10">
-            <AlertCircle className="size-6" />
+      <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        {/* Header based on status */}
+        {isApproved ? (
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 ring-4 ring-emerald-500/10">
+              <CheckCircle2 className="size-6" />
+            </div>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Founder / HR Authorized</div>
+              <h2 className="text-xl font-black text-slate-900">Early Logout Approved</h2>
+            </div>
           </div>
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-wider text-amber-700">9-Hour Shift Incomplete</div>
-            <h2 className="text-xl font-black text-slate-900">Confirm Early Logout</h2>
+        ) : isPending || submittedSuccess ? (
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 ring-4 ring-amber-500/10">
+              <Clock3 className="size-6" />
+            </div>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-wider text-amber-700">Awaiting Founder or HR Review</div>
+              <h2 className="text-xl font-black text-slate-900">Request Pending Approval</h2>
+            </div>
           </div>
-        </div>
-
-        <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-          Your scheduled 9-hour workday ends at <strong className="text-black">{shiftInfo?.targetTimeStr || '7:00 PM'}</strong>. You still have time remaining on your shift today.
-        </p>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 ring-4 ring-amber-500/10">
+              <ShieldAlert className="size-6" />
+            </div>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-wider text-amber-700">9-Hour Workday Incomplete</div>
+              <h2 className="text-xl font-black text-slate-900">Approval Required to Log Out</h2>
+            </div>
+          </div>
+        )}
 
         {/* Shift metrics */}
         <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs">
@@ -683,37 +741,213 @@ function EarlyLogoutModal({
           </div>
         </div>
 
-        {/* Reason for Early Logout */}
-        <div className="mt-4">
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Reason for Early Departure <span className="text-slate-400 font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={reason}
-            onChange={(e) => onReasonChange(e.target.value)}
-            placeholder="e.g., Medical appointment, personal emergency, permission from manager..."
-            rows={2}
-            className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-          />
-        </div>
+        {/* Status Body */}
+        {isApproved ? (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-900">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-sm">
+                <Check className="size-4 text-emerald-600" />
+                <span>Approved by {approver || 'Founder / HR Manager'}</span>
+              </div>
+              <p className="mt-1.5 text-slate-600">
+                <strong>Reason:</strong> {todayEarlyLeave.reason}
+              </p>
+              {todayEarlyLeave.note && (
+                <p className="mt-1 text-slate-500">
+                  <strong>Details:</strong> {todayEarlyLeave.note}
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">
+              Your early logout request has been granted. Click below to safely complete your checkout for the day.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl bg-slate-100 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Continue Working
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm({ isApproved: true })}
+                className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm shadow-emerald-600/20"
+              >
+                Proceed & Log Out
+              </button>
+            </div>
+          </div>
+        ) : isPending || submittedSuccess ? (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
+              <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
+                <Clock3 className="size-4 text-amber-600 animate-pulse" />
+                <span>Pending Founder / HR Approval</span>
+              </div>
+              <p className="mt-1.5 text-slate-600">
+                <strong>Reason:</strong> {todayEarlyLeave?.reason || requestReason}
+              </p>
+              <p className="mt-1 text-slate-500">
+                <strong>Departure:</strong> {todayEarlyLeave?.note || `Planned Time: ${plannedTime}`}
+              </p>
+              <p className="mt-2 text-[11px] text-amber-700">
+                Please wait for the Founder or HR to approve your request. You can continue working in the meantime.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-black transition cursor-pointer shadow-sm"
+              >
+                Continue Working
+              </button>
+            </div>
 
-        {/* Action Buttons */}
-        <div className="mt-5 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-black transition cursor-pointer shadow-sm"
-          >
-            Continue Working
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="flex-1 rounded-xl border border-red-200 bg-red-50 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer"
-          >
-            Confirm Early Logout
-          </button>
-        </div>
+            {/* Emergency override trigger */}
+            <div className="pt-2 text-center">
+              {!showEmergency ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEmergency(true)}
+                  className="text-[11px] text-rose-500 hover:text-rose-700 underline font-medium cursor-pointer"
+                >
+                  Unforeseen emergency? Need to leave immediately without waiting
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-left">
+                  <div className="text-xs font-bold text-rose-800">⚠️ Unapproved Emergency Checkout</div>
+                  <p className="mt-1 text-[11px] text-rose-600 leading-normal">
+                    Logging out before 9 hours without Founder/HR approval will be recorded as an unapproved departure and flagged to management.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmergency(false)}
+                      className="flex-1 rounded-xl bg-white border border-slate-200 py-2 text-xs font-bold text-slate-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onConfirm({ isEmergency: true })}
+                      className="flex-1 rounded-xl bg-rose-600 py-2 text-xs font-bold text-white hover:bg-rose-700"
+                    >
+                      Confirm Unapproved Exit
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {isRejected && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                <span className="font-bold">Notice:</span> A previous early departure request for today was rejected by management. Please consult with the Founder or HR.
+              </div>
+            )}
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Company policy requires <strong>Founder or HR approval</strong> to check out before completing your 9-hour workday. Apply below for immediate review:
+            </p>
+
+            <form onSubmit={handleSubmitRequest} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Date</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={TODAY}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-100 p-2 text-xs text-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Planned Logout Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={plannedTime}
+                    onChange={(e) => setPlannedTime(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Reason for Early Departure <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={requestReason}
+                  onChange={(e) => {
+                    setRequestReason(e.target.value);
+                    onReasonChange(e.target.value);
+                  }}
+                  placeholder="e.g. Doctor's appointment, urgent family matter, approved by Founder..."
+                  className="w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !requestReason.trim()}
+                className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 py-2.5 text-xs font-bold text-white transition cursor-pointer shadow-sm shadow-amber-500/20"
+              >
+                {isSubmitting ? 'Submitting to Founder & HR...' : 'Submit Request to Founder & HR'}
+              </button>
+            </form>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-black transition cursor-pointer shadow-sm"
+              >
+                Continue Working (9h Shift)
+              </button>
+            </div>
+
+            {/* Emergency override trigger */}
+            <div className="pt-1 text-center">
+              {!showEmergency ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEmergency(true)}
+                  className="text-[11px] text-rose-500 hover:text-rose-700 underline font-medium cursor-pointer"
+                >
+                  Medical / Urgent emergency? Force logout without approval
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-left">
+                  <div className="text-xs font-bold text-rose-800">⚠️ Unapproved Emergency Checkout</div>
+                  <p className="mt-1 text-[11px] text-rose-600 leading-normal">
+                    Logging out before 9 hours without Founder/HR approval will be recorded as an unapproved departure and flagged to management.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmergency(false)}
+                      className="flex-1 rounded-xl bg-white border border-slate-200 py-2 text-xs font-bold text-slate-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onConfirm({ isEmergency: true })}
+                      className="flex-1 rounded-xl bg-rose-600 py-2 text-xs font-bold text-white hover:bg-rose-700"
+                    >
+                      Confirm Unapproved Exit
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2411,8 +2645,18 @@ function LeaveDetailModal({
   onClose: () => void;
 }) {
   const isWfh = leave.leaveType === 'Work From Home';
+  const isEarlyLogout = leave.leaveType === 'Early Logout';
+  const isEarlyLogin = leave.leaveType === 'Early Login';
+  const modalTitle = isWfh
+    ? "Work From Home Request"
+    : isEarlyLogout
+    ? "Early Logout Permission Request"
+    : isEarlyLogin
+    ? "Early Login Permission Request"
+    : "Leave Application Details";
+
   return (
-    <Modal title={isWfh ? "Work From Home Request" : "Leave Application Details"} onClose={onClose}>
+    <Modal title={modalTitle} onClose={onClose}>
       <div className="space-y-4">
         {/* Applicant Header */}
         <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-[hsl(var(--border))] p-4">
@@ -2420,16 +2664,23 @@ function LeaveDetailModal({
             <div className="font-bold text-base">{applicant.name}</div>
             <div className="text-xs text-[hsl(var(--muted-foreground))]">{applicant.role} · {applicant.title}</div>
           </div>
-          <Badge className={isWfh ? 'border-indigo-300 bg-indigo-50 text-indigo-700 font-bold' : 'border-blue-200 bg-blue-50 text-blue-700'}>
-            {isWfh ? '🏠 Work From Home' : leave.leaveType}
+          <Badge className={
+            isWfh ? 'border-indigo-300 bg-indigo-50 text-indigo-700 font-bold' :
+            isEarlyLogout ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold' :
+            isEarlyLogin ? 'border-sky-300 bg-sky-50 text-sky-800 font-bold' :
+            'border-blue-200 bg-blue-50 text-blue-700 font-bold'
+          }>
+            {isWfh ? '🏠 Work From Home' : isEarlyLogout ? '⏰ Early Logout' : isEarlyLogin ? '🌅 Early Login' : leave.leaveType}
           </Badge>
         </div>
 
         {/* Date Details */}
         <div className="grid grid-cols-2 gap-3 rounded-lg border border-[hsl(var(--border))] p-3 text-xs">
           <div>
-            <span className="text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider block">Duration</span>
-            <span className="text-sm font-semibold mt-0.5 block">{formatDate(leave.startDate)} – {formatDate(leave.endDate)}</span>
+            <span className="text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider block">Duration / Date</span>
+            <span className="text-sm font-semibold mt-0.5 block">
+              {leave.startDate === leave.endDate ? formatDate(leave.startDate) : `${formatDate(leave.startDate)} – ${formatDate(leave.endDate)}`}
+            </span>
           </div>
           <div>
             <span className="text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider block">Status</span>
@@ -2455,9 +2706,9 @@ function LeaveDetailModal({
         {leave.note && (
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] block mb-1">
-              Additional Notes
+              Additional Details / Target Time
             </label>
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700">
               {leave.note}
             </div>
           </div>
@@ -2473,7 +2724,7 @@ function LeaveDetailModal({
                 onClick={() => { onDecision(leave.id, 'Approved'); onClose(); }}
               >
                 <Check className="size-4" />
-                {isWfh ? 'Approve WFH' : 'Approve Leave'}
+                {isWfh ? 'Approve WFH' : isEarlyLogout ? 'Approve Early Logout' : isEarlyLogin ? 'Approve Early Login' : 'Approve Leave'}
               </Button>
               <Button 
                 variant="danger" 
@@ -2497,6 +2748,7 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
   const [founderLeaveType, setFounderLeaveType] = useState<LeaveType>('Casual');
   const [founderStartDate, setFounderStartDate] = useState(TODAY);
   const [founderEndDate, setFounderEndDate] = useState(TODAY);
+  const [founderTime, setFounderTime] = useState('16:30');
   const [founderReason, setFounderReason] = useState('Approved by Management');
   const [founderNote, setFounderNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -2509,14 +2761,14 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
   return (
     <>
       <SectionTitle
-        eyebrow={isManagement ? 'Leave & Remote Management' : actor.role === 'Manager' ? 'Team leave' : 'My leave & WFH'}
-        title={isManagement ? 'Leave & WFH Applications' : actor.role === 'Manager' ? 'Team leave' : 'My leave & WFH'}
-        description="Click any application to inspect full reasons and notes. Work From Home requests can be reviewed and approved directly."
+        eyebrow={isManagement ? 'Leave, Remote & Shift Management' : actor.role === 'Manager' ? 'Team leave & shifts' : 'My leave & shifts'}
+        title={isManagement ? 'Leave, WFH & Shift Approvals' : actor.role === 'Manager' ? 'Team leave & shifts' : 'My leave, WFH & shift requests'}
+        description="Submit and review leave applications, Work From Home days, early logouts, and early login requests. Approved early logouts grant checkout permission."
         action={
           isManagement ? (
-            <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave/WFH</Button>
+            <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave/Shift</Button>
           ) : (
-            <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave / WFH</Button>
+            <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave / shift flex</Button>
           )
         }
       />
@@ -2524,12 +2776,14 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
         <Metric label="Pending" value={pending} detail={isManagement ? "Awaiting your decision" : "Awaiting approval"} tone={pending ? 'warning' : 'default'} />
         <Metric label="Approved" value={visible.filter((leave) => leave.status === 'Approved').length} detail="Recognized by attendance" tone="success" />
         <Metric label="Work From Home" value={visible.filter((leave) => leave.leaveType === 'Work From Home' && leave.status === 'Approved').length} detail="Approved remote days" tone="success" />
-        <Metric label="Upcoming" value={visible.filter((leave) => leave.startDate > TODAY && leave.status === 'Approved').length} detail="Approved future dates" />
+        <Metric label="Early Logouts" value={visible.filter((leave) => leave.leaveType === 'Early Logout' && leave.status === 'Approved').length} detail="Approved early departures" />
       </div>
       <Card>
         {visible.map((leave) => {
           const employee = person(leave.userId);
           const isWfh = leave.leaveType === 'Work From Home';
+          const isEarlyLogout = leave.leaveType === 'Early Logout';
+          const isEarlyLogin = leave.leaveType === 'Early Login';
           const canDecide = isManagement || (actor.role === 'Manager' && employee.managerId === actor.id);
 
           return (
@@ -2538,25 +2792,35 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
               onClick={() => setSelectedLeave(leave)}
               className="flex flex-wrap items-center gap-4 border-b border-[hsl(var(--border))] px-5 py-5 last:border-0 hover:bg-[#fafaf8] cursor-pointer transition"
             >
-              <div className={`grid size-10 place-items-center rounded-xl ${isWfh ? 'bg-indigo-50 text-indigo-700' : 'bg-blue-50 text-blue-700'}`}>
-                {isWfh ? <Home className="size-5" /> : <CalendarDays className="size-5" />}
+              <div className={`grid size-10 place-items-center rounded-xl ${
+                isWfh ? 'bg-indigo-50 text-indigo-700' :
+                isEarlyLogout ? 'bg-amber-50 text-amber-700' :
+                isEarlyLogin ? 'bg-sky-50 text-sky-700' :
+                'bg-blue-50 text-blue-700'
+              }`}>
+                {isWfh ? <Home className="size-5" /> : isEarlyLogout ? <Clock3 className="size-5" /> : isEarlyLogin ? <Zap className="size-5" /> : <CalendarDays className="size-5" />}
               </div>
               <div className="min-w-[200px] flex-1">
                 <div className="font-bold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] flex items-center gap-2">
                   {employee.name}
                   <span className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.2 font-semibold">
-                    View Reason
+                    View Details
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {employee.role} · {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
+                  {employee.role} · {leave.startDate === leave.endDate ? formatDate(leave.startDate) : `${formatDate(leave.startDate)} – ${formatDate(leave.endDate)}`}
                 </div>
               </div>
               <div className="min-w-[180px] flex-1 text-sm text-[hsl(var(--foreground))] line-clamp-1 italic">
                 "{leave.reason}"
               </div>
-              <Badge className={isWfh ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-700'}>
-                {isWfh ? '🏠 WFH' : leave.leaveType}
+              <Badge className={
+                isWfh ? 'border-indigo-300 bg-indigo-50 text-indigo-700 font-bold' :
+                isEarlyLogout ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold' :
+                isEarlyLogin ? 'border-sky-300 bg-sky-50 text-sky-800 font-bold' :
+                'border-slate-200 bg-slate-50 text-slate-700 font-bold'
+              }>
+                {isWfh ? '🏠 WFH' : isEarlyLogout ? '⏰ Early Out' : isEarlyLogin ? '🌅 Early In' : leave.leaveType}
               </Badge>
               <Badge className={leave.status === 'Approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : leave.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
                 {leave.status}
@@ -2586,18 +2850,23 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
       {open && <LeaveModal onClose={() => setOpen(false)} onCreate={(data) => { onApply(data); setOpen(false); }} />}
 
       {founderRecordOpen && (
-        <Modal title={`Record Employee Leave/WFH (${actor.role === 'Founder' ? 'Founder' : 'HR'} Approved)`} onClose={() => setFounderRecordOpen(false)}>
+        <Modal title={`Record Employee Leave / Shift (${actor.role === 'Founder' ? 'Founder' : 'HR'} Approved)`} onClose={() => setFounderRecordOpen(false)}>
           <form onSubmit={async (e) => {
             e.preventDefault();
             setIsSaving(true);
             try {
+              const isTiming = founderLeaveType === 'Early Logout' || founderLeaveType === 'Early Login';
+              const finalEndDate = isTiming ? founderStartDate : founderEndDate;
+              const finalNote = isTiming && founderTime
+                ? `Planned Time: ${founderTime}${founderNote.trim() ? ` | ${founderNote.trim()}` : ''}`
+                : (founderNote.trim() || null);
               await apiPost('/leaves', {
                 userId: targetUserId,
                 leaveType: founderLeaveType,
                 startDate: founderStartDate,
-                endDate: founderEndDate,
+                endDate: finalEndDate,
                 reason: founderReason.trim() || `Approved by ${actor.role}`,
-                note: founderNote.trim() || null,
+                note: finalNote,
                 status: 'Approved',
                 approvedBy: actor.id
               });
@@ -2617,21 +2886,54 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
               labels={Object.fromEntries(people.map((p) => [p.id, `${p.name} (${p.role})`]))}
             />
             <SelectField
-              label="Leave type"
+              label="Leave or Shift Request Type"
               value={founderLeaveType}
-              onChange={(value) => setFounderLeaveType(value as LeaveType)}
-              options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Other']}
+              onChange={(value) => {
+                const nextType = value as LeaveType;
+                setFounderLeaveType(nextType);
+                if (nextType === 'Early Logout') setFounderTime('16:30');
+                if (nextType === 'Early Login') setFounderTime('08:30');
+              }}
+              options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Early Logout', 'Early Login', 'Other']}
+              labels={{
+                'Casual': 'Casual Leave',
+                'Sick': 'Sick Leave',
+                'Personal': 'Personal Leave',
+                'Work From Home': '🏠 Work From Home (WFH)',
+                'Early Logout': '⏰ Early Logout (Approved Departure)',
+                'Early Login': '🌅 Early Login (Approved Flex Start)',
+                'Other': 'Other'
+              }}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Start date" type="date" value={founderStartDate} onChange={setFounderStartDate} required />
-              <Field label="End date" type="date" value={founderEndDate} onChange={setFounderEndDate} required />
-            </div>
-            <Field label="Reason" value={founderReason} onChange={setFounderReason} placeholder="e.g. Work From Home / Absent / Medical" required />
+            {founderLeaveType === 'Early Logout' || founderLeaveType === 'Early Login' ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field
+                  label={founderLeaveType === 'Early Logout' ? 'Date of Early Logout' : 'Date of Early Login'}
+                  type="date"
+                  value={founderStartDate}
+                  onChange={(v) => { setFounderStartDate(v); setFounderEndDate(v); }}
+                  required
+                />
+                <Field
+                  label={founderLeaveType === 'Early Logout' ? 'Approved Logout Time' : 'Approved Login Time'}
+                  type="time"
+                  value={founderTime}
+                  onChange={setFounderTime}
+                  required
+                />
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Start date" type="date" value={founderStartDate} onChange={setFounderStartDate} required />
+                <Field label="End date" type="date" value={founderEndDate} onChange={setFounderEndDate} required />
+              </div>
+            )}
+            <Field label="Reason / Justification" value={founderReason} onChange={setFounderReason} placeholder="e.g. Early departure approved, personal matter, WFH" required />
             <Field label="Optional note" value={founderNote} onChange={setFounderNote} placeholder="Additional notes or context" />
             <div className="flex justify-end gap-2 pt-3">
               <Button variant="secondary" onClick={() => setFounderRecordOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={isSaving || !founderReason.trim()}>
-                {isSaving ? 'Saving...' : 'Record Approved Leave / WFH'}
+                {isSaving ? 'Saving...' : 'Record Approved Request'}
               </Button>
             </div>
           </form>
@@ -2681,8 +2983,122 @@ function EmployeeModal({ people, onClose, onCreate }: { people: Person[]; onClos
 }
 
 function LeaveModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: Omit<LeaveRequest, 'id' | 'userId' | 'status' | 'approvedBy' | 'createdAt'>) => void }) {
-  const [leaveType, setLeaveType] = useState<LeaveType>('Casual'); const [startDate, setStartDate] = useState(TODAY); const [endDate, setEndDate] = useState(TODAY); const [reason, setReason] = useState(''); const [note, setNote] = useState('');
-  return <Modal title="Apply for leave / Work From Home" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onCreate({ leaveType, startDate, endDate, reason, note }); }} className="space-y-4"><SelectField label="Leave type" value={leaveType} onChange={(value) => setLeaveType(value as LeaveType)} options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Other']} /><div className="grid gap-3 sm:grid-cols-2"><Field label="Start date" type="date" value={startDate} onChange={setStartDate} required /><Field label="End date" type="date" value={endDate} onChange={setEndDate} required /></div><Field label="Reason" value={reason} onChange={setReason} placeholder="Why are you requesting leave or remote work?" required /><Field label="Optional note" value={note} onChange={setNote} placeholder="Additional context" /><div className="flex justify-end gap-2 pt-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!reason.trim()}>Submit request</Button></div></form></Modal>;
+  const [leaveType, setLeaveType] = useState<LeaveType>('Casual');
+  const [startDate, setStartDate] = useState(TODAY);
+  const [endDate, setEndDate] = useState(TODAY);
+  const [targetTime, setTargetTime] = useState('16:30');
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+
+  const isTimingRequest = leaveType === 'Early Logout' || leaveType === 'Early Login';
+
+  useEffect(() => {
+    if (leaveType === 'Early Logout') {
+      setTargetTime('16:30');
+    } else if (leaveType === 'Early Login') {
+      setTargetTime('08:30');
+    }
+  }, [leaveType]);
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const finalEndDate = isTimingRequest ? startDate : endDate;
+    const finalNote = isTimingRequest
+      ? `Planned Time: ${targetTime}${note.trim() ? ` | ${note.trim()}` : ''}`
+      : note.trim();
+    onCreate({
+      leaveType,
+      startDate,
+      endDate: finalEndDate,
+      reason: reason.trim(),
+      note: finalNote
+    });
+  };
+
+  const modalTitle = leaveType === 'Early Logout'
+    ? 'Apply for Early Logout'
+    : leaveType === 'Early Login'
+      ? 'Apply for Early Login / Flex Shift'
+      : leaveType === 'Work From Home'
+        ? 'Request Work From Home'
+        : 'Apply for Leave';
+
+  return (
+    <Modal title={modalTitle} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <SelectField
+          label="Request type"
+          value={leaveType}
+          onChange={(value) => setLeaveType(value as LeaveType)}
+          options={['Casual', 'Sick', 'Personal', 'Work From Home', 'Early Logout', 'Early Login', 'Other']}
+          labels={{
+            'Casual': 'Casual Leave',
+            'Sick': 'Sick Leave',
+            'Personal': 'Personal Leave',
+            'Work From Home': '🏠 Work From Home (WFH)',
+            'Early Logout': '⏰ Early Logout (Before 9h Shift End)',
+            'Early Login': '🌅 Early Login (Flex / Morning Shift)',
+            'Other': 'Other'
+          }}
+        />
+
+        {isTimingRequest ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label={leaveType === 'Early Logout' ? 'Date of Early Logout' : 'Date of Early Login'}
+              type="date"
+              value={startDate}
+              onChange={setStartDate}
+              required
+            />
+            <Field
+              label={leaveType === 'Early Logout' ? 'Planned Logout Time' : 'Planned Login Time'}
+              type="time"
+              value={targetTime}
+              onChange={setTargetTime}
+              required
+            />
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Start date" type="date" value={startDate} onChange={setStartDate} required />
+            <Field label="End date" type="date" value={endDate} onChange={setEndDate} required />
+          </div>
+        )}
+
+        <Field
+          label="Reason"
+          value={reason}
+          onChange={setReason}
+          placeholder={
+            leaveType === 'Early Logout'
+              ? 'Why do you need to leave early today or on this date?'
+              : leaveType === 'Early Login'
+                ? 'Why are you starting early on this date?'
+                : 'Why are you requesting leave or remote work?'
+          }
+          required
+        />
+        <Field
+          label="Optional note"
+          value={note}
+          onChange={setNote}
+          placeholder="Additional context or handover note"
+        />
+
+        {isTimingRequest && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-800">
+            <span className="font-bold">Notice:</span> Early Logout and Early Login requests are sent to the <strong>Founder and HR Manager</strong> for official review and approval.
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!reason.trim()}>Submit request</Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function getDayOfWeekName(dateStr: string): string {
@@ -3956,19 +4372,36 @@ function AppRouter() {
     void handleLogout();
   }, [actor, shiftTargetInfo, handleLogout]);
 
-  const confirmEarlyLogout = useCallback(async () => {
+  const confirmEarlyLogout = useCallback(async (options?: { isEmergency?: boolean; isApproved?: boolean }) => {
     setEarlyLogoutModalOpen(false);
     const workedStr = shiftTargetInfo ? `${Math.floor(shiftTargetInfo.totalMinutes / 60)}h ${shiftTargetInfo.totalMinutes % 60}m` : 'partial shift';
     const reasonText = earlyLogoutReason.trim() ? `Reason: ${earlyLogoutReason.trim()}` : 'No reason provided';
+    const isApproved = options?.isApproved;
+    const isEmergency = options?.isEmergency;
+
+    let activityMsg = '';
+    let tone: 'default' | 'warning' | 'danger' = 'warning';
+
+    if (isApproved) {
+      activityMsg = `Logged out early with APPROVED authorization from Founder/HR (${workedStr} worked). ${reasonText}`;
+      tone = 'default';
+    } else if (isEmergency) {
+      activityMsg = `EMERGENCY EARLY LOGOUT (UNAPPROVED by Founder/HR) (${workedStr} worked). ${reasonText}`;
+      tone = 'danger';
+    } else {
+      activityMsg = `Logged out early (${workedStr} worked). ${reasonText}`;
+      tone = 'warning';
+    }
+
     await apiPost('/activities', {
       workId: 'system',
       actorId: actor.id,
-      message: `Logged out early (${workedStr} worked). ${reasonText}`,
-      tone: 'warning'
+      message: activityMsg,
+      tone
     }).catch(() => {});
     await apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
     setEarlyLogoutReason('');
-    void handleLogout(`Early Logout Recorded: You worked ${workedStr} today. Have a good rest!`);
+    void handleLogout(isApproved ? `Approved Early Logout: You worked ${workedStr} today. Have a good rest!` : `Early Logout Recorded (${workedStr} worked).`);
   }, [actor?.id, shiftTargetInfo, earlyLogoutReason, handleLogout]);
 
   // Dynamic 9-Hour Workday Shift Auto-Logout Watchdog (runs every 5 seconds)
@@ -4406,6 +4839,24 @@ function AppRouter() {
       setLeaves((all) => all.map(l => l.id === id ? res.item : l));
     } catch (err) { console.error(err); }
   };
+
+  const handleQuickEarlyLogoutRequest = useCallback(async (data: { plannedTime: string; reason: string; note?: string }) => {
+    if (!actor) return;
+    const noteText = `Planned Logout Time: ${data.plannedTime}${data.note ? ` | ${data.note}` : ''}`;
+    await addLeave({
+      leaveType: 'Early Logout',
+      startDate: TODAY,
+      endDate: TODAY,
+      reason: data.reason,
+      note: noteText,
+    });
+    await apiPost('/activities', {
+      workId: 'system',
+      actorId: actor.id,
+      message: `Submitted Early Logout request for today (${data.plannedTime}). Awaiting Founder / HR approval. Reason: ${data.reason}`,
+      tone: 'warning'
+    }).catch(() => {});
+  }, [actor?.id, addLeave]);
   useEffect(() => {
     // Attempt auto-login with existing token
     const token = getStoredToken();
@@ -4492,6 +4943,9 @@ function AppRouter() {
           onReasonChange={setEarlyLogoutReason}
           onConfirm={confirmEarlyLogout}
           onClose={() => setEarlyLogoutModalOpen(false)}
+          leaves={leaves}
+          onRequestEarlyLogout={handleQuickEarlyLogoutRequest}
+          allPeople={runtimePeople}
         />
       )}
     </Shell>
@@ -4561,6 +5015,9 @@ function AppRouter() {
           onReasonChange={setEarlyLogoutReason}
           onConfirm={confirmEarlyLogout}
           onClose={() => setEarlyLogoutModalOpen(false)}
+          leaves={leaves}
+          onRequestEarlyLogout={handleQuickEarlyLogoutRequest}
+          allPeople={runtimePeople}
         />
       )}
     </Shell>

@@ -23,6 +23,8 @@ async function runStartupMigrations() {
   try {
     await pool.query("ALTER TYPE role ADD VALUE IF NOT EXISTS 'HR Manager';");
     await pool.query("ALTER TYPE leave_type ADD VALUE IF NOT EXISTS 'Work From Home';");
+    await pool.query("ALTER TYPE leave_type ADD VALUE IF NOT EXISTS 'Early Logout';");
+    await pool.query("ALTER TYPE leave_type ADD VALUE IF NOT EXISTS 'Early Login';");
     await pool.query("UPDATE people SET role = 'HR Manager', title = 'Head of People & HR Operations' WHERE email = 'sanjana.jetty1469@gmail.com' OR name ILIKE '%Sanjana%';");
     await pool.query(`
       CREATE TABLE IF NOT EXISTS content_calendar (
