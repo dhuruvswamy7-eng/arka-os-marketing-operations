@@ -63,6 +63,61 @@ export function initCronJobs() {
           try {
             const io = getIO();
             io.emit("presence:update", { userId: u.id, status: "Offline" });
+            io.emit("session:expired", { userId: u.id, reason: `${u.presence} countdown completed` });
+          } catch {}
+        }
+      }
+
+      // 2. 9-Hour Workday Shift Expiry (>540 minutes / 9 hours from login)
+      const onlineWorkers = await db
+        .select()
+        .from(peopleTable)
+        .where(
+          and(
+            eq(peopleTable.presence, "Online"),
+            ne(peopleTable.role, "Founder")
+          )
+        );
+
+      for (const u of onlineWorkers) {
+        if (!u.loginAt) continue;
+        const loginTime = new Date(u.loginAt).getTime();
+        if (isNaN(loginTime)) continue;
+        const elapsedMinutes = (now - loginTime) / (1000 * 60);
+
+        if (elapsedMinutes >= 540) {
+          logger.info(`9-hour shift completed for ${u.name} (${u.id}) - auto-logging out`);
+          const logoutIso = new Date().toISOString();
+          await db
+            .update(peopleTable)
+            .set({ 
+              presence: "Offline", 
+              logoutAt: logoutIso, 
+              activeSessionId: null 
+            })
+            .where(eq(peopleTable.id, u.id));
+
+          // Close open session in sessionsTable
+          const openSessions = await db
+            .select()
+            .from(sessionsTable)
+            .where(eq(sessionsTable.userId, u.id))
+            .orderBy(desc(sessionsTable.loginAt));
+
+          for (const ses of openSessions) {
+            if (!ses.logoutAt) {
+              const duration = Math.max(1, Math.round((new Date(logoutIso).getTime() - new Date(ses.loginAt).getTime()) / 60000));
+              await db
+                .update(sessionsTable)
+                .set({ logoutAt: logoutIso, durationMinutes: duration })
+                .where(eq(sessionsTable.id, ses.id));
+            }
+          }
+
+          try {
+            const io = getIO();
+            io.emit("presence:update", { userId: u.id, status: "Offline" });
+            io.emit("session:expired", { userId: u.id, reason: "9-hour workday completed" });
           } catch {}
         }
       }

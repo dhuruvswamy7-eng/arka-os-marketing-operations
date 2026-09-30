@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import {
-  ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
+  AlertCircle, ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
   Clock3, Coffee, Command, Copy, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
   Home, Image, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
   MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, UserPlus, UserRound, Users, Utensils, Video, X, Zap
@@ -615,6 +615,104 @@ function BreakLunchFreezeOverlay({
           <span className="text-xs text-white/40">
             Returning early will unfreeze your screen and continue your 9-hour shift.
           </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EarlyLogoutModal({
+  actor,
+  shiftInfo,
+  reason,
+  onReasonChange,
+  onConfirm,
+  onClose,
+}: {
+  actor: Person;
+  shiftInfo: {
+    loginTimeStr: string;
+    targetTimeStr: string;
+    totalMinutes: number;
+    remainingMinutes: number;
+  } | null;
+  reason: string;
+  onReasonChange: (val: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const workedHours = shiftInfo ? Math.floor(shiftInfo.totalMinutes / 60) : 0;
+  const workedMins = shiftInfo ? shiftInfo.totalMinutes % 60 : 0;
+  const remainHours = shiftInfo ? Math.floor(shiftInfo.remainingMinutes / 60) : 0;
+  const remainMins = shiftInfo ? shiftInfo.remainingMinutes % 60 : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md rounded-3xl border border-amber-300/40 bg-white p-6 shadow-2xl">
+        <div className="flex items-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 ring-4 ring-amber-500/10">
+            <AlertCircle className="size-6" />
+          </div>
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-wider text-amber-700">9-Hour Shift Incomplete</div>
+            <h2 className="text-xl font-black text-slate-900">Confirm Early Logout</h2>
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+          Your scheduled 9-hour workday ends at <strong className="text-black">{shiftInfo?.targetTimeStr || '7:00 PM'}</strong>. You still have time remaining on your shift today.
+        </p>
+
+        {/* Shift metrics */}
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Shift Started</span>
+            <div className="font-bold text-slate-800">{shiftInfo?.loginTimeStr || 'Today'}</div>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Target 9h End</span>
+            <div className="font-bold text-slate-800">{shiftInfo?.targetTimeStr || 'Today'}</div>
+          </div>
+          <div className="border-t border-slate-200/80 pt-2">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Worked Today</span>
+            <div className="font-extrabold text-emerald-700">{workedHours}h {workedMins}m</div>
+          </div>
+          <div className="border-t border-slate-200/80 pt-2">
+            <span className="text-[10px] uppercase font-bold text-amber-600">Remaining</span>
+            <div className="font-extrabold text-amber-700">{remainHours}h {remainMins}m left</div>
+          </div>
+        </div>
+
+        {/* Reason for Early Logout */}
+        <div className="mt-4">
+          <label className="block text-xs font-bold text-slate-700 mb-1">
+            Reason for Early Departure <span className="text-slate-400 font-normal">(optional)</span>
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => onReasonChange(e.target.value)}
+            placeholder="e.g., Medical appointment, personal emergency, permission from manager..."
+            rows={2}
+            className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-black transition cursor-pointer shadow-sm"
+          >
+            Continue Working
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 rounded-xl border border-red-200 bg-red-50 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer"
+          >
+            Confirm Early Logout
+          </button>
         </div>
       </div>
     </div>
@@ -3740,6 +3838,8 @@ function AppRouter() {
   const [sessions, setSessions] = useState<SessionRecord[]>(initialSessions);
   const [createOpen, setCreateOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [earlyLogoutModalOpen, setEarlyLogoutModalOpen] = useState(false);
+  const [earlyLogoutReason, setEarlyLogoutReason] = useState('');
   const knownTaskIdsRef = useRef<Set<string> | null>(null);
 
   const [breakCounts, setBreakCounts] = useState<{ breaks: number; lunches: number }>(() => {
@@ -3846,6 +3946,63 @@ function AppRouter() {
       return null;
     }
   }, [firstLoginToday, todaySessions]);
+
+  const triggerLogout = useCallback(() => {
+    // If user is not Founder and their 9-hour shift is not completed yet, show Early Logout confirmation
+    if (actor && actor.role !== 'Founder' && shiftTargetInfo && !shiftTargetInfo.isCompleted && shiftTargetInfo.remainingMinutes > 0) {
+      setEarlyLogoutModalOpen(true);
+      return;
+    }
+    void handleLogout();
+  }, [actor, shiftTargetInfo, handleLogout]);
+
+  const confirmEarlyLogout = useCallback(async () => {
+    setEarlyLogoutModalOpen(false);
+    const workedStr = shiftTargetInfo ? `${Math.floor(shiftTargetInfo.totalMinutes / 60)}h ${shiftTargetInfo.totalMinutes % 60}m` : 'partial shift';
+    const reasonText = earlyLogoutReason.trim() ? `Reason: ${earlyLogoutReason.trim()}` : 'No reason provided';
+    await apiPost('/activities', {
+      workId: 'system',
+      actorId: actor.id,
+      message: `Logged out early (${workedStr} worked). ${reasonText}`,
+      tone: 'warning'
+    }).catch(() => {});
+    await apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
+    setEarlyLogoutReason('');
+    void handleLogout(`Early Logout Recorded: You worked ${workedStr} today. Have a good rest!`);
+  }, [actor?.id, shiftTargetInfo, earlyLogoutReason, handleLogout]);
+
+  // Dynamic 9-Hour Workday Shift Auto-Logout Watchdog (runs every 5 seconds)
+  useEffect(() => {
+    if (!signedIn || !actor || actor.role === 'Founder') return;
+    if (!firstLoginToday) return;
+
+    const check9hShift = () => {
+      try {
+        const loginD = new Date(firstLoginToday);
+        if (isNaN(loginD.getTime())) return;
+        const elapsedMinutes = Math.floor((Date.now() - loginD.getTime()) / 60000);
+
+        // Auto-logout when 9 hours (540 minutes) elapsed
+        if (elapsedMinutes >= 540) {
+          const shiftEndMsg = '🎉 9-Hour Workday Shift Completed!\n\nYou have completed your full 9-hour workday (540 minutes). You have been automatically logged out. Great job today!';
+          void apiPost('/activities', {
+            workId: 'system',
+            actorId: actor.id,
+            message: 'Completed full 9-hour shift. Automatically logged out for the day.',
+            tone: 'success'
+          }).catch(() => {});
+          void apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
+          void handleLogout(shiftEndMsg);
+        }
+      } catch (err) {
+        console.error('9h shift check error:', err);
+      }
+    };
+
+    check9hShift();
+    const interval = setInterval(check9hShift, 5000);
+    return () => clearInterval(interval);
+  }, [signedIn, actor?.id, actor?.role, firstLoginToday, handleLogout]);
 
   // New Task Assignment Background Notification & Chime
   useEffect(() => {
@@ -4266,7 +4423,7 @@ function AppRouter() {
   if (selected) return (
     <Shell
       actor={actor}
-      onLogout={() => handleLogout()}
+      onLogout={triggerLogout}
       onUpdatePresence={updatePresence}
       timerSecondsRemaining={timerSecondsRemaining}
       shiftTargetInfo={shiftTargetInfo}
@@ -4291,6 +4448,16 @@ function AppRouter() {
           if (task) updateTask(taskId, { timeMinutes: task.timeMinutes + 25 }, 'logged 25 minutes on');
         }}
       />
+      {earlyLogoutModalOpen && (
+        <EarlyLogoutModal
+          actor={actor}
+          shiftInfo={shiftTargetInfo}
+          reason={earlyLogoutReason}
+          onReasonChange={setEarlyLogoutReason}
+          onConfirm={confirmEarlyLogout}
+          onClose={() => setEarlyLogoutModalOpen(false)}
+        />
+      )}
     </Shell>
   );
 
@@ -4333,7 +4500,7 @@ function AppRouter() {
   return (
     <Shell
       actor={actor}
-      onLogout={() => handleLogout()}
+      onLogout={triggerLogout}
       onUpdatePresence={updatePresence}
       timerSecondsRemaining={timerSecondsRemaining}
       shiftTargetInfo={shiftTargetInfo}
@@ -4348,6 +4515,16 @@ function AppRouter() {
           workList={work.length > 0 ? work : scopeWork}
           onClose={() => setTaskModalOpen(false)}
           onCreate={addTask}
+        />
+      )}
+      {earlyLogoutModalOpen && (
+        <EarlyLogoutModal
+          actor={actor}
+          shiftInfo={shiftTargetInfo}
+          reason={earlyLogoutReason}
+          onReasonChange={setEarlyLogoutReason}
+          onConfirm={confirmEarlyLogout}
+          onClose={() => setEarlyLogoutModalOpen(false)}
         />
       )}
     </Shell>
