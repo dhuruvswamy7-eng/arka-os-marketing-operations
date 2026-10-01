@@ -4437,41 +4437,6 @@ function AppRouter() {
     return () => clearInterval(interval);
   }, [signedIn, actor?.id, actor?.role, firstLoginToday, handleLogout]);
 
-  // System Lock & Laptop Sleep Detection Watchdog
-  useEffect(() => {
-    if (!signedIn || !actor || actor.role === 'Founder') return;
-
-    let lastTick = Date.now();
-    let lockTriggered = false;
-
-    // Heartbeat ticker: detects system pause/freeze when Windows is locked (Win + L),
-    // lid is closed, or computer enters sleep mode.
-    const ticker = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - lastTick;
-      lastTick = now;
-
-      // Only monitor when user is actively Online
-      // (If user is on approved Break or Lunch, the freeze timer already handles their step-away time)
-      if (actor.presence === 'Online') {
-        // If the execution gap between 1-second intervals exceeds 15 seconds, the OS was locked/suspended
-        if (elapsed > 15000 && !lockTriggered) {
-          lockTriggered = true;
-          const lockedSeconds = Math.round(elapsed / 1000);
-          void apiPost('/activities', {
-            workId: 'system',
-            actorId: actor.id,
-            message: `Auto-logged out: System was locked or went to sleep for ${lockedSeconds}s.`,
-            tone: 'warning'
-          }).catch(() => {});
-          void apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
-          void handleLogout('🔒 Session Ended: Your computer was locked or went to sleep. You have been automatically logged out for security and attendance accuracy.');
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(ticker);
-  }, [signedIn, actor?.id, actor?.role, actor?.presence, handleLogout]);
 
   // New Task Assignment Background Notification & Chime
   useEffect(() => {
