@@ -338,7 +338,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'Team Presence', path: '/team', icon: Users },
     { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
     { label: 'Leave', path: '/leave', icon: CalendarDays },
-    { label: 'Holidays', path: '/holidays', icon: Sparkles },
+    { label: 'Company Calendar', path: '/calendar', icon: CalendarDays },
     { label: 'Reports', path: '/reports', icon: FileText },
     { label: 'Approvals', path: '/approvals', icon: CheckCircle2 },
     { label: 'Time & Effort', path: '/time', icon: Clock3 },
@@ -349,7 +349,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'HR Command Center', path: '/dashboard', icon: Command },
     { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
     { label: 'Leave Management', path: '/leave', icon: CalendarDays },
-    { label: 'Holidays', path: '/holidays', icon: Sparkles },
+    { label: 'Company Calendar', path: '/calendar', icon: CalendarDays },
     { label: 'Company Workflow', path: '/work', icon: Inbox },
     { label: 'Team Presence', path: '/team', icon: Users },
     { label: 'People Directory', path: '/people', icon: UserPlus },
@@ -364,7 +364,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'My Team', path: '/team', icon: Users },
     { label: 'Team Attendance', path: '/attendance', icon: CalendarDays },
     { label: 'Team Leave', path: '/leave', icon: CalendarDays },
-    { label: 'Holidays', path: '/holidays', icon: Sparkles },
+    { label: 'Company Calendar', path: '/calendar', icon: CalendarDays },
     { label: 'Reviews', path: '/reviews', icon: CheckCircle2 },
     { label: 'Report to Founder', path: '/reports', icon: FileText },
     { label: 'Time & Workload', path: '/time', icon: Clock3 },
@@ -376,7 +376,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'My Time', path: '/time', icon: Clock3 },
     { label: 'My Attendance', path: '/attendance', icon: CalendarDays },
     { label: 'My Leave', path: '/leave', icon: CalendarDays },
-    { label: 'Holidays', path: '/holidays', icon: Sparkles },
+    { label: 'Company Calendar', path: '/calendar', icon: CalendarDays },
     { label: 'My Reports', path: '/reports', icon: FileText },
     { label: 'My Submissions', path: '/submissions', icon: CheckCircle2 },
     { label: 'Notifications', path: '/notifications', icon: Bell },
@@ -2560,8 +2560,8 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
             <button onClick={() => navigateDate(1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowRight className="size-4" /></button>
             <select value={period} onChange={(event) => changePeriod(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm font-semibold outline-none"><option>Today</option><option>Yesterday</option><option>This Week</option><option>This Month</option><option>Custom date</option></select>
             {period === 'Custom date' && <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm outline-none" />}
-            <Link href="/holidays" className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 transition shadow-xs">
-              <CalendarDays className="size-4 text-amber-600" /> Full Calendar
+            <Link href="/calendar" className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 transition shadow-xs">
+              <CalendarDays className="size-4 text-amber-600" /> Company Calendar
             </Link>
             <Button variant="secondary" onClick={exportCsv}>Export CSV</Button>
             <Button variant="secondary" onClick={() => window.print()}>Print</Button>
@@ -2583,8 +2583,8 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
               <div className="mt-0.5 text-xs text-amber-800">{holidayToday.description}</div>
             </div>
           </div>
-          <Link href="/holidays" className="text-xs font-bold text-amber-900 underline hover:text-amber-700 whitespace-nowrap">
-            View Full Calendar →
+          <Link href="/calendar" className="text-xs font-bold text-amber-900 underline hover:text-amber-700 whitespace-nowrap">
+            View Company Calendar →
           </Link>
         </div>
       )}
@@ -2872,7 +2872,7 @@ function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions =
         <tbody className="divide-y divide-[hsl(var(--border))]">
           {filteredPeople.map((p) => { let weekTotal = 0; return <tr key={p.id} className="hover:bg-[#fafaf8]">
             <td className="px-4 py-3"><div className="font-bold">{p.name}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">{p.role}</div></td>
-            {dates.map((d) => { const daySessions = sessions.filter((s) => s.userId === p.id && s.date === d); const dayTotal = daySessions.reduce((sum, s) => sum + s.durationMinutes, 0); weekTotal += dayTotal; const leave = leaves.find((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, d)); const isWeekend = [0, 6].includes(new Date(`${d}T12:00:00`).getDay()); const isCurrent = d === TODAY; return <td key={d} onClick={() => onSelectDate(d)} className={`px-2 py-2 text-center cursor-pointer transition hover:bg-amber-50/60 ${isCurrent ? 'bg-amber-50/40' : ''}`}>{leave ? <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">Leave</span> : dayTotal > 0 ? <div><div className="text-sm font-black">{hours(dayTotal)}</div><div className="mt-1 space-y-0.5">{daySessions.map((s) => <div key={s.id} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">{formatTimestamp(s.loginAt)} → {s.logoutAt ? formatTimestamp(s.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</div>)}</div></div> : isWeekend ? <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Weekend</span> : <span className="text-[10px] font-bold text-red-400">No Login</span>}</td>; })}
+            {dates.map((d) => { const daySessions = sessions.filter((s) => s.userId === p.id && s.date === d); const dayTotal = daySessions.reduce((sum, s) => sum + s.durationMinutes, 0); weekTotal += dayTotal; const leave = leaves.find((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, d)); const isSunday = new Date(`${d}T12:00:00`).getDay() === 0; const isCurrent = d === TODAY; return <td key={d} onClick={() => onSelectDate(d)} className={`px-2 py-2 text-center cursor-pointer transition hover:bg-amber-50/60 ${isCurrent ? 'bg-amber-50/40' : ''}`}>{leave ? <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">Leave</span> : dayTotal > 0 ? <div><div className="text-sm font-black">{hours(dayTotal)}</div><div className="mt-1 space-y-0.5">{daySessions.map((s) => <div key={s.id} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">{formatTimestamp(s.loginAt)} → {s.logoutAt ? formatTimestamp(s.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</div>)}</div></div> : isSunday ? <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Sunday Off</span> : <span className="text-[10px] font-bold text-red-400">No Login</span>}</td>; })}
             <td className="px-4 py-3 text-center"><div className="text-lg font-black text-[hsl(var(--primary))]">{hours(weekTotal)}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">{Math.round(weekTotal / 60 * 10) / 10} hrs</div></td>
           </tr>; })}
         </tbody>
@@ -3016,9 +3016,9 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
         description="Submit and review leave applications, Work From Home days, early logouts, and early login requests. Approved early logouts grant checkout permission."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/holidays" className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 transition shadow-xs">
+            <Link href="/calendar" className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 transition shadow-xs">
               <Sparkles className="size-4 text-amber-600" />
-              2026 Holiday Calendar
+              2026 Company Calendar
             </Link>
             {isManagement ? (
               <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave/Shift</Button>
@@ -4592,7 +4592,7 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
         dayNumber: dayNum,
         isCurrentMonth: false,
         dayOfWeek: dow,
-        isWeekend: dow === 0 || dow === 6,
+        isWeekend: dow === 0,
         isSunday: dow === 0,
         isSaturday: dow === 6,
         isToday: dateStr === TODAY,
@@ -4612,7 +4612,7 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
         dayNumber: day,
         isCurrentMonth: true,
         dayOfWeek: dow,
-        isWeekend: dow === 0 || dow === 6,
+        isWeekend: dow === 0,
         isSunday: dow === 0,
         isSaturday: dow === 6,
         isToday: dateStr === TODAY,
@@ -4633,7 +4633,7 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
         dayNumber: day,
         isCurrentMonth: false,
         dayOfWeek: dow,
-        isWeekend: dow === 0 || dow === 6,
+        isWeekend: dow === 0,
         isSunday: dow === 0,
         isSaturday: dow === 6,
         isToday: dateStr === TODAY,
@@ -4653,12 +4653,16 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
     const d = new Date(`${selectedDay}T12:00:00`);
     const dow = isNaN(d.getDay()) ? 0 : d.getDay();
     const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow];
-    const isWeekend = dow === 0 || dow === 6;
+    const isSunday = dow === 0;
+    const isSaturday = dow === 6;
+    const isWeekend = isSunday; // ONLY Sunday is weekend! Saturday is an office working day!
     const holiday = holidayMap.get(selectedDay);
     return {
       dateStr: selectedDay,
       dayName,
       dow,
+      isSunday,
+      isSaturday,
       isWeekend,
       isToday: selectedDay === TODAY,
       holiday
@@ -4703,8 +4707,8 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
     <>
       <SectionTitle
         eyebrow="Company Schedule & Observances"
-        title="Official Company Calendar & Holidays (2026)"
-        description="Comprehensive interactive monthly and daily calendar for 2026. All national holidays, gazetted government observances, and cultural festivals are clearly noted beside each date."
+        title="Official Company Calendar (2026)"
+        description="Interactive monthly and daily company calendar for 2026. Standard working days are Monday through Saturday (9-hour shift, 75-minute flex break pool); Sunday is the official weekly off. All national holidays, gazetted government observances, and cultural festivals are clearly noted beside each date."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={exportHolidaysCsv}>
@@ -4827,12 +4831,14 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
                 <div
                   key={day}
                   className={`py-2 rounded-lg ${
-                    idx === 0 || idx === 6 
+                    idx === 0 
                       ? 'bg-rose-50/70 text-rose-700 font-extrabold' 
+                      : idx === 6
+                      ? 'bg-amber-50/70 text-amber-800 font-extrabold'
                       : 'bg-slate-100/70 text-slate-700'
                   }`}
                 >
-                  {day}
+                  {idx === 0 ? `${day} (Off)` : idx === 6 ? `${day} (Office)` : day}
                 </div>
               ))}
             </div>
@@ -4857,8 +4863,10 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
                         : cell.holiday.type === 'Festival Holiday'
                         ? 'bg-purple-50/40 border-purple-300 hover:border-purple-400 hover:shadow-sm'
                         : 'bg-blue-50/40 border-blue-300 hover:border-blue-400 hover:shadow-sm'
-                      : cell.isWeekend
-                      ? 'bg-[#fafafa] border-slate-200/80 hover:border-slate-300'
+                      : cell.isSunday
+                      ? 'bg-rose-50/30 border-rose-200/70 hover:border-rose-300'
+                      : cell.isSaturday
+                      ? 'bg-amber-50/30 border-amber-200/70 hover:border-amber-300 hover:shadow-xs'
                       : 'bg-white border-slate-200/80 hover:border-amber-300 hover:shadow-xs'
                   }`}
                 >
@@ -4870,8 +4878,10 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
                           ? 'flex size-7 items-center justify-center rounded-full bg-[#f8c329] text-black font-black shadow-xs'
                           : cell.holiday
                           ? 'text-slate-900 font-black'
-                          : cell.isWeekend
-                          ? 'text-slate-500 font-bold'
+                          : cell.isSunday
+                          ? 'text-rose-600 font-bold'
+                          : cell.isSaturday
+                          ? 'text-amber-900 font-bold'
                           : 'text-slate-800'
                       }`}>
                         {cell.dayNumber}
@@ -4909,12 +4919,12 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
                         </div>
                       </div>
                     ) : cell.isSunday ? (
-                      <div className="rounded-md bg-slate-100/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-                        Weekly Off
+                      <div className="rounded-md bg-rose-100/70 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                        Sunday Off
                       </div>
                     ) : cell.isSaturday ? (
-                      <div className="rounded-md bg-slate-100/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-                        Weekend Off
+                      <div className="rounded-md bg-amber-100/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                        Saturday Office (9h)
                       </div>
                     ) : (
                       <div className="text-[10px] text-slate-400 group-hover:text-amber-800 transition font-medium">
@@ -5020,10 +5030,16 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
                         Paid Company Off
                       </Badge>
                     </div>
-                  ) : selectedDayObj.isWeekend ? (
+                  ) : selectedDayObj.isSunday ? (
                     <div className="mt-2.5 flex items-center gap-2">
-                      <Badge className="border-slate-300 bg-slate-100 text-slate-700 text-xs px-3 py-1 font-bold">
-                        🌴 {selectedDayObj.dayName} — Weekly Off / Weekend
+                      <Badge className="border-rose-300 bg-rose-50 text-rose-700 text-xs px-3 py-1 font-bold">
+                        🌴 Sunday — Official Weekly Off
+                      </Badge>
+                    </div>
+                  ) : selectedDayObj.isSaturday ? (
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <Badge className="border-amber-400 bg-amber-50 text-amber-900 text-xs px-3 py-1 font-bold">
+                        💼 Saturday Office Workday (Active 9-Hour Shift)
                       </Badge>
                     </div>
                   ) : (
@@ -5037,8 +5053,10 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
                   <p className="mt-3 text-sm text-slate-600 max-w-xl">
                     {selectedDayObj.holiday
                       ? selectedDayObj.holiday.description
-                      : selectedDayObj.isWeekend
-                      ? 'Official non-working weekend day for all team members. Relax and recharge!'
+                      : selectedDayObj.isSunday
+                      ? 'Official non-working weekly rest day for all team members. Relax and recharge!'
+                      : selectedDayObj.isSaturday
+                      ? 'Mandatory office workday. Full 9-hour shift requirement with unified 75-minute break pool.'
                       : 'Standard workday operations are active. Full 9-hour shift requirement with unified 75-minute break pool.'}
                   </p>
                 </div>
@@ -5066,30 +5084,42 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
               <div className="rounded-2xl border border-slate-100 bg-[#fafaf8] p-4">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Day Classification</div>
                 <div className="mt-1 text-lg font-black text-slate-900">
-                  {selectedDayObj.holiday ? selectedDayObj.holiday.type : selectedDayObj.isWeekend ? 'Weekend Off' : 'Active Workday'}
+                  {selectedDayObj.holiday
+                    ? selectedDayObj.holiday.type
+                    : selectedDayObj.isSunday
+                    ? 'Sunday Off'
+                    : selectedDayObj.isSaturday
+                    ? 'Saturday Office'
+                    : 'Active Workday'}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {selectedDayObj.holiday ? 'Mandatory paid day off across all branches' : selectedDayObj.isWeekend ? 'Weekly rest day' : 'Client deliverables & marketing ops'}
+                  {selectedDayObj.holiday
+                    ? 'Mandatory paid day off across all branches'
+                    : selectedDayObj.isSunday
+                    ? 'Official weekly rest day'
+                    : selectedDayObj.isSaturday
+                    ? 'Office shift & operations (Mon–Sat)'
+                    : 'Client deliverables & marketing ops'}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-[#fafaf8] p-4">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Workday Shift Goal</div>
                 <div className="mt-1 text-lg font-black text-slate-900">
-                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? '0 Hours (Off)' : '9 Hours (540 mins)'}
+                  {selectedDayObj.holiday || selectedDayObj.isSunday ? '0 Hours (Off)' : '9 Hours (540 mins)'}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? 'Office closed' : '09:30 AM – 06:30 PM (or flexible 9h)'}
+                  {selectedDayObj.holiday || selectedDayObj.isSunday ? 'Office closed' : '09:30 AM – 06:30 PM (or flexible 9h)'}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-[#fafaf8] p-4">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Daily Break Allowance</div>
                 <div className="mt-1 text-lg font-black text-slate-900">
-                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? '—' : '75 mins (1h 15m)'}
+                  {selectedDayObj.holiday || selectedDayObj.isSunday ? '—' : '75 mins (1h 15m)'}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? 'No shift active' : 'Unified flex pool with lunch carryover'}
+                  {selectedDayObj.holiday || selectedDayObj.isSunday ? 'No shift active' : 'Unified flex pool with lunch carryover'}
                 </div>
               </div>
             </div>
@@ -6002,7 +6032,7 @@ function AppRouter() {
     <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} breakLogs={breakLogs} onRefresh={refresh} />
   ) : location === '/leave' ? (
     <LeavePage actor={actor} people={runtimePeople} leaves={leaves} onApply={addLeave} onDecision={updateLeave} onRefresh={refresh} />
-  ) : location === '/holidays' ? (
+  ) : location === '/calendar' || location === '/holidays' ? (
     <HolidayCalendarPage actor={actor} />
   ) : location === '/team' ? (
     <TeamPage actor={actor} work={scopeWork} tasks={scopeTasks} onOpen={openWork} />
