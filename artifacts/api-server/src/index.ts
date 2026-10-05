@@ -46,7 +46,18 @@ async function runStartupMigrations() {
         updated_at TEXT
       );
     `);
-    logger.info("Executed startup migrations: role, leave_type & content_calendar table.");
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS break_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        start_at TEXT NOT NULL,
+        end_at TEXT,
+        duration_minutes INTEGER DEFAULT 0
+      );
+    `);
+    logger.info("Executed startup migrations: role, leave_type, content_calendar & break_logs table.");
   } catch (err: any) {
     logger.warn({ err: err?.message || err }, "Startup migration warning");
   }

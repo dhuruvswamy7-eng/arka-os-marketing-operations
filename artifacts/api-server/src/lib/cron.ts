@@ -29,10 +29,9 @@ export function initCronJobs() {
         if (!u.lastActiveAt) continue;
         const last = new Date(u.lastActiveAt).getTime();
         if (isNaN(last)) continue;
-        const diffMinutes = (now - last) / (1000 * 60);
-
-        if ((u.presence === "Break" && diffMinutes >= 15) || (u.presence === "Lunch" && diffMinutes >= 60)) {
-          logger.info(`Break/Lunch countdown expired for ${u.name} (${u.id}) - auto-logging out`);
+        // Auto-logout if employee exceeds the total 75-minute (1h 15m) daily break quota
+        if (diffMinutes >= 75) {
+          logger.info(`75-minute Break/Lunch pool exceeded for ${u.name} (${u.id}) - auto-logging out`);
           const logoutIso = new Date().toISOString();
           await db
             .update(peopleTable)

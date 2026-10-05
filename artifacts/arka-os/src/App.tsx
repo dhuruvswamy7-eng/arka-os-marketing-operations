@@ -140,10 +140,11 @@ async function hydrateFromApi(
   setComments: (comments: Comment[]) => void,
   setReports: (reports: ManagerReport[]) => void,
   setLeaves: (leaves: LeaveRequest[]) => void,
-  setSessions?: (sessions: SessionRecord[]) => void
+  setSessions?: (sessions: SessionRecord[]) => void,
+  setBreakLogs?: (logs: BreakLog[]) => void
 ) {
   try {
-    const [peoplePayload, workPayload, taskPayload, actPayload, commentPayload, reportPayload, leavePayload, sessionPayload] = await Promise.all([
+    const [peoplePayload, workPayload, taskPayload, actPayload, commentPayload, reportPayload, leavePayload, sessionPayload, breakLogPayload] = await Promise.all([
       apiGet<{ items: Person[] }>('/people'),
       apiGet<{ items: WorkItem[] }>('/work'),
       apiGet<{ items: WorkTask[] }>('/tasks'),
@@ -152,6 +153,7 @@ async function hydrateFromApi(
       apiGet<{ items: ManagerReport[] }>('/reports'),
       apiGet<{ items: LeaveRequest[] }>('/leaves'),
       apiGet<{ items: SessionRecord[] }>('/sessions').catch(() => ({ items: [] as SessionRecord[] })),
+      apiGet<{ items: BreakLog[] }>('/break-logs').catch(() => ({ items: [] as BreakLog[] })),
     ]);
 
     if (Array.isArray(peoplePayload.items)) setPeople(peoplePayload.items);
@@ -162,10 +164,21 @@ async function hydrateFromApi(
     if (Array.isArray(reportPayload.items)) setReports(reportPayload.items);
     if (Array.isArray(leavePayload.items)) setLeaves(leavePayload.items);
     if (setSessions && Array.isArray(sessionPayload.items)) setSessions(sessionPayload.items);
+    if (setBreakLogs && Array.isArray(breakLogPayload.items)) setBreakLogs(breakLogPayload.items);
   } catch {
     // Keep the existing mock in-memory UI data if the API is unreachable.
   }
 }
+
+export type BreakLog = {
+  id: string;
+  userId: string;
+  date: string;
+  type: 'Break' | 'Lunch';
+  startAt: string;
+  endAt?: string | null;
+  durationMinutes: number;
+};
 
 export type Role = 'Founder' | 'Manager' | 'Team member' | 'HR Manager';
 export type Stage = 'Planning' | 'Assigned' | 'In Progress' | 'Review' | 'Revision' | 'Approved' | 'Completed' | 'Blocked';
@@ -272,8 +285,38 @@ const initialComments: Comment[] = [];
 const initialReports: ManagerReport[] = [];
 const initialLeaves: LeaveRequest[] = [];
 const initialSessions: SessionRecord[] = [];
+const initialBreakLogs: BreakLog[] = [];
 
+export interface CompanyHoliday {
+  id: string;
+  date: string;
+  day: string;
+  name: string;
+  type: 'National Holiday' | 'Gazetted Holiday' | 'Festival Holiday' | 'Restricted / Optional';
+  description: string;
+}
 
+export const OFFICIAL_HOLIDAYS_2026: CompanyHoliday[] = [
+  { id: 'h-1', date: '2026-01-01', day: 'Thursday', name: "New Year's Day", type: 'Festival Holiday', description: 'Celebration of the New Year across the organization.' },
+  { id: 'h-2', date: '2026-01-14', day: 'Wednesday', name: 'Pongal / Makar Sankranti', type: 'Festival Holiday', description: 'Harvest festival celebrated with great joy and thanksgiving.' },
+  { id: 'h-3', date: '2026-01-15', day: 'Thursday', name: 'Thiruvalluvar Day / Mattu Pongal', type: 'Gazetted Holiday', description: 'Honoring the great Tamil sage poet Thiruvalluvar and agrarian cattle.' },
+  { id: 'h-4', date: '2026-01-26', day: 'Monday', name: 'Republic Day', type: 'National Holiday', description: 'National holiday commemorating the adoption of the Constitution of India.' },
+  { id: 'h-5', date: '2026-03-19', day: 'Thursday', name: 'Ugadi / Telugu New Year', type: 'Festival Holiday', description: 'New Year celebration according to the Hindu lunisolar calendar.' },
+  { id: 'h-6', date: '2026-03-20', day: 'Friday', name: 'Id-ul-Fitr (Ramzan)', type: 'Gazetted Holiday', description: 'Islamic festival marking the culmination of the holy month of Ramadan.' },
+  { id: 'h-7', date: '2026-04-03', day: 'Friday', name: 'Good Friday', type: 'Gazetted Holiday', description: 'Christian holiday commemorating the passion and crucifixion of Jesus.' },
+  { id: 'h-8', date: '2026-04-14', day: 'Tuesday', name: 'Tamil New Year / Dr. Ambedkar Jayanti', type: 'Gazetted Holiday', description: 'Puthandu celebration and honoring the architect of the Indian Constitution.' },
+  { id: 'h-9', date: '2026-05-01', day: 'Friday', name: 'May Day / Labour Day', type: 'National Holiday', description: 'International Workers Day celebrating the contributions of working professionals.' },
+  { id: 'h-10', date: '2026-05-27', day: 'Wednesday', name: 'Bakrid / Eid-ul-Adha', type: 'Gazetted Holiday', description: 'Feast of the Sacrifice commemorating Ibrahim obedience to God.' },
+  { id: 'h-11', date: '2026-08-15', day: 'Saturday', name: 'Independence Day', type: 'National Holiday', description: 'National holiday commemorating India independence from British rule.' },
+  { id: 'h-12', date: '2026-08-26', day: 'Wednesday', name: 'Milad-un-Nabi', type: 'Gazetted Holiday', description: 'Observance of the birth of Islamic prophet Muhammad.' },
+  { id: 'h-13', date: '2026-09-04', day: 'Friday', name: 'Krishna Jayanthi / Gokulashtami', type: 'Festival Holiday', description: 'Celebration of the birth of Lord Krishna.' },
+  { id: 'h-14', date: '2026-09-14', day: 'Monday', name: 'Vinayaka Chaturthi / Ganesh Chaturthi', type: 'Festival Holiday', description: 'Grand festival celebrating the birth of Lord Ganesha.' },
+  { id: 'h-15', date: '2026-10-02', day: 'Friday', name: 'Mahatma Gandhi Jayanti', type: 'National Holiday', description: 'National holiday honoring the birth of the Father of the Nation.' },
+  { id: 'h-16', date: '2026-10-20', day: 'Tuesday', name: 'Ayudha Pooja / Maha Navami', type: 'Festival Holiday', description: 'Worship of tools, computers, vehicles and craft instruments.' },
+  { id: 'h-17', date: '2026-10-21', day: 'Wednesday', name: 'Vijaya Dashami (Dussehra)', type: 'Gazetted Holiday', description: 'Celebration of the victory of good over evil.' },
+  { id: 'h-18', date: '2026-11-08', day: 'Sunday', name: 'Deepavali / Diwali', type: 'Festival Holiday', description: 'Festival of lights celebrating prosperity and victory of light over darkness.' },
+  { id: 'h-19', date: '2026-12-25', day: 'Friday', name: 'Christmas Day', type: 'Gazetted Holiday', description: 'Celebration of the birth of Jesus Christ.' },
+];
 
 const stageTone: Record<Stage, string> = {
   Planning: 'border-slate-200 bg-slate-50 text-slate-700', Assigned: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -295,6 +338,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'Team Presence', path: '/team', icon: Users },
     { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
     { label: 'Leave', path: '/leave', icon: CalendarDays },
+    { label: 'Holidays', path: '/holidays', icon: Sparkles },
     { label: 'Reports', path: '/reports', icon: FileText },
     { label: 'Approvals', path: '/approvals', icon: CheckCircle2 },
     { label: 'Time & Effort', path: '/time', icon: Clock3 },
@@ -305,6 +349,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'HR Command Center', path: '/dashboard', icon: Command },
     { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
     { label: 'Leave Management', path: '/leave', icon: CalendarDays },
+    { label: 'Holidays', path: '/holidays', icon: Sparkles },
     { label: 'Company Workflow', path: '/work', icon: Inbox },
     { label: 'Team Presence', path: '/team', icon: Users },
     { label: 'People Directory', path: '/people', icon: UserPlus },
@@ -319,6 +364,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'My Team', path: '/team', icon: Users },
     { label: 'Team Attendance', path: '/attendance', icon: CalendarDays },
     { label: 'Team Leave', path: '/leave', icon: CalendarDays },
+    { label: 'Holidays', path: '/holidays', icon: Sparkles },
     { label: 'Reviews', path: '/reviews', icon: CheckCircle2 },
     { label: 'Report to Founder', path: '/reports', icon: FileText },
     { label: 'Time & Workload', path: '/time', icon: Clock3 },
@@ -330,6 +376,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'My Time', path: '/time', icon: Clock3 },
     { label: 'My Attendance', path: '/attendance', icon: CalendarDays },
     { label: 'My Leave', path: '/leave', icon: CalendarDays },
+    { label: 'Holidays', path: '/holidays', icon: Sparkles },
     { label: 'My Reports', path: '/reports', icon: FileText },
     { label: 'My Submissions', path: '/submissions', icon: CheckCircle2 },
     { label: 'Notifications', path: '/notifications', icon: Bell },
@@ -457,6 +504,36 @@ export function requestNotificationPermission() {
   }
 }
 
+export const TOTAL_DAILY_BREAK_MINUTES = 75; // 1 hour 15 minutes total daily break allowance
+
+export function formatTime(isoString?: string | null) {
+  if (!isoString) return '—';
+  try {
+    const d = new Date(isoString);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '—';
+  }
+}
+
+export function getDailyBreakMinutes(
+  userId: string,
+  date: string,
+  breakLogs: BreakLog[] = []
+): { totalUsedMinutes: number; remainingPoolMinutes: number; logs: BreakLog[] } {
+  const dayLogs = breakLogs.filter((b) => b.userId === userId && b.date === date);
+  const totalUsed = dayLogs.reduce((sum, b) => {
+    if (b.durationMinutes && b.durationMinutes > 0) return sum + b.durationMinutes;
+    if (b.endAt && b.startAt) {
+      return sum + Math.max(1, Math.round((new Date(b.endAt).getTime() - new Date(b.startAt).getTime()) / 60000));
+    }
+    return sum;
+  }, 0);
+
+  const remaining = Math.max(0, TOTAL_DAILY_BREAK_MINUTES - totalUsed);
+  return { totalUsedMinutes: totalUsed, remainingPoolMinutes: remaining, logs: dayLogs };
+}
+
 export function getDailyBreakUsage(userId: string): { breaks: number; lunches: number } {
   try {
     const raw = localStorage.getItem(`arka_break_counts_${userId}_${TODAY}`);
@@ -532,10 +609,12 @@ function SectionTitle({ eyebrow, title, description, action }: { eyebrow?: strin
 function BreakLunchFreezeOverlay({
   presence,
   secondsRemaining,
+  remainingPoolMinutes,
   onResumeWork,
 }: {
   presence: 'Break' | 'Lunch';
   secondsRemaining: number | null;
+  remainingPoolMinutes?: number;
   onResumeWork: () => void;
 }) {
   const isBreak = presence === 'Break';
@@ -563,7 +642,7 @@ function BreakLunchFreezeOverlay({
             : 'border-blue-400/40 bg-blue-400/10 text-blue-300 ring-2 ring-blue-400/20'
         }`}>
           {isBreak ? <Coffee className="size-4 animate-bounce" /> : <Utensils className="size-4 animate-bounce" />}
-          <span>{isBreak ? '15-Minute Break in Progress' : '1-Hour Lunch Break in Progress'}</span>
+          <span>{isBreak ? 'Break in Progress' : 'Lunch in Progress'}</span>
         </div>
 
         {/* Title */}
@@ -572,14 +651,17 @@ function BreakLunchFreezeOverlay({
         </h1>
         <p className="mt-2 text-sm text-white/65 max-w-md">
           {isBreak
-            ? 'Your 15-minute break timer is running. Screen is locked so you can step away, relax, and recharge.'
-            : 'Your 1-hour lunch timer is running. Enjoy your meal away from the desk!'}
+            ? 'Your break timer is running. Relax, recharge, and step away from the desk.'
+            : 'Your lunch timer is running. Enjoy your meal away from work!'}
+          <span className="block mt-1 text-xs text-amber-300/80 font-medium">
+            Daily Allowance: 1h 15m (75 mins total). Unused time carries over to your breaks!
+          </span>
         </p>
 
         {/* Big Countdown Timer Card */}
         <div className="mt-8 w-full rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-sm">
           <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40">
-            Time Remaining Before Auto-Logout
+            Time Remaining in this Session
           </div>
           <div className="mt-3 text-7xl sm:text-8xl font-black font-mono tracking-tight text-[#f8c329] drop-shadow-[0_0_35px_rgba(248,195,41,0.25)]">
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
@@ -593,12 +675,15 @@ function BreakLunchFreezeOverlay({
             />
           </div>
 
-          {/* Warning banner */}
+          {/* Pool balance notification */}
           <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-left text-xs text-amber-200/90">
-            <span className="text-base leading-none">⚠️</span>
-            <span>
-              <strong>Auto-Logout Notice:</strong> When the countdown reaches <strong>00:00</strong>, your session will automatically end and you will be logged out.
-            </span>
+            <span className="text-base leading-none">🍱</span>
+            <div>
+              <strong>Daily Flexi-Pool Balance:</strong>{' '}
+              <span>
+                {remainingPoolMinutes !== undefined ? `${remainingPoolMinutes}m available` : '75m total allowance'} today. Ending early carries your unused time over to your next break!
+              </span>
+            </div>
           </div>
         </div>
 
@@ -613,7 +698,7 @@ function BreakLunchFreezeOverlay({
             <ArrowRight className="size-5" />
           </button>
           <span className="text-xs text-white/40">
-            Returning early will unfreeze your screen and continue your 9-hour shift.
+            Returning early unfreezes your screen and automatically carries over remaining time into your break pool.
           </span>
         </div>
       </div>
@@ -960,6 +1045,7 @@ function Shell({
   timerSecondsRemaining,
   shiftTargetInfo,
   breakCounts,
+  remainingBreakPoolMinutes,
   allPeople,
   children 
 }: { 
@@ -976,18 +1062,22 @@ function Shell({
     progressPercent: number;
   } | null;
   breakCounts?: { breaks: number; lunches: number };
+  remainingBreakPoolMinutes?: number;
   allPeople?: Person[];
   children: ReactNode 
 }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const nav = roleNavigation[actor.role];
+  const poolLeft = remainingBreakPoolMinutes ?? 75;
+
   return <div className="min-h-screen bg-[#f7f7f5] text-[hsl(var(--foreground))]">
     {/* Full-Screen Freeze Overlay when on Break or Lunch */}
     {(actor.presence === 'Break' || actor.presence === 'Lunch') && (
       <BreakLunchFreezeOverlay
         presence={actor.presence}
         secondsRemaining={timerSecondsRemaining ?? null}
+        remainingPoolMinutes={poolLeft}
         onResumeWork={() => onUpdatePresence('Online')}
       />
     )}
@@ -1039,6 +1129,17 @@ function Shell({
             </div>
           )}
 
+          {/* Unified Daily Break Pool Indicator with Carryover */}
+          <div 
+            className="hidden sm:flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 shadow-2xs cursor-default"
+            title="Total daily break quota: 75 mins (1h 15m). Unused lunch minutes roll over to your breaks!"
+          >
+            <Coffee className="size-3.5 text-amber-700" />
+            <span>
+              Break Pool: <strong className={poolLeft <= 15 ? 'text-rose-700 font-extrabold' : 'text-amber-950 font-extrabold'}>{poolLeft}m</strong> / 75m left
+            </span>
+          </div>
+
           {/* Active Countdown Badge for Break and Lunch with Strict Auto-Logout Warning */}
           {(actor.presence === 'Break' || actor.presence === 'Lunch') && timerSecondsRemaining !== null && timerSecondsRemaining !== undefined && (
             <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold shadow-sm ${
@@ -1082,15 +1183,15 @@ function Shell({
               <option value="Online">Online</option>
               <option 
                 value="Break" 
-                disabled={actor.presence !== 'Break' && (breakCounts?.breaks ?? 0) >= 1}
+                disabled={actor.presence !== 'Break' && poolLeft <= 0}
               >
-                {`On Break (15m) ${breakCounts ? `[${Math.max(0, 1 - breakCounts.breaks)}/1 left]` : ''}`}
+                {`On Break (${Math.min(15, poolLeft)}m) [${poolLeft}m pool left]`}
               </option>
               <option 
                 value="Lunch" 
-                disabled={actor.presence !== 'Lunch' && (breakCounts?.lunches ?? 0) >= 1}
+                disabled={actor.presence !== 'Lunch' && poolLeft <= 0}
               >
-                {`At Lunch (1h) ${breakCounts ? `[${Math.max(0, 1 - breakCounts.lunches)}/1 left]` : ''}`}
+                {`At Lunch (${Math.min(60, poolLeft)}m) [${poolLeft}m pool left]`}
               </option>
               <option value="Idle">Idle</option>
             </select>
@@ -2383,7 +2484,7 @@ function PeoplePage({ actor, people, onAdd, onUpdatePassword, onUpdateRole, onDe
   );
 }
 
-function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[]; sessions?: SessionRecord[]; onRefresh?: () => void }) {
+function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs = [], onRefresh }: { actor: Person; people: Person[]; tasks: WorkTask[]; leaves: LeaveRequest[]; sessions?: SessionRecord[]; breakLogs?: BreakLog[]; onRefresh?: () => void }) {
   const [period, setPeriod] = useState('Today');
   const [selectedDate, setSelectedDate] = useState(TODAY);
   const [roleFilter, setRoleFilter] = useState<'All' | 'Manager' | 'Team member' | 'HR Manager'>('All');
@@ -2404,6 +2505,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
     const leave = leaveFor(item.id); 
     const total = sess.reduce((sum, s) => sum + s.durationMinutes, 0); 
     const open = sess.some((s) => !s.logoutAt); 
+    const breakStats = getDailyBreakMinutes(item.id, selectedDate, breakLogs);
     
     // 9-Hour Shift calculation
     const firstLogin = sess[0]?.loginAt;
@@ -2426,13 +2528,14 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
       firstLogin,
       targetLogoutStr,
       taskMinutes: taskMinutesFor(item), 
+      breakStats,
       status,
       isWfh
     }; 
   });
   const totalSession = rows.reduce((sum, row) => sum + row.total, 0);
   const totalTask = rows.reduce((sum, row) => sum + row.taskMinutes, 0);
-  const exportCsv = () => { const header = 'Date,Employee,Role,First Login,9h Target Out,Last Logout,Total Session Time,Task Time,Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.targetLogoutStr || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
+  const exportCsv = () => { const header = 'Date,Employee,Role,First Login,9h Target Out,Last Logout,Total Session Time,Task Time,Break Used (mins),Break Pool Remaining (mins),Attendance,Leave'; const body = rows.map((row) => `${selectedDate},${row.item.name},${row.item.role},${row.sessions[0]?.loginAt || ''},${row.targetLogoutStr || ''},${row.sessions.at(-1)?.logoutAt || ''},${row.total},${row.taskMinutes},${row.breakStats.totalUsedMinutes},${row.breakStats.remainingPoolMinutes},${row.status},${row.leave?.status || ''}`).join('\n'); const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `arka-attendance-${selectedDate}.csv`; link.click(); URL.revokeObjectURL(url); };
   const changePeriod = (value: string) => { 
     setPeriod(value); 
     if (value === 'Yesterday') {
@@ -2476,12 +2579,12 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="hidden grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.75fr_0.75fr_1fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
-              <span>Employee</span><span>Role</span><span>First login</span><span>9h Target Out</span><span>Session</span><span>Task time</span><span>Status & Shift</span>
+            <div className="hidden grid-cols-[1.2fr_0.6fr_0.75fr_0.75fr_0.6fr_0.6fr_0.75fr_1fr] border-b border-[hsl(var(--border))] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))] md:grid">
+              <span>Employee</span><span>Role</span><span>First login</span><span>9h Target Out</span><span>Session</span><span>Task time</span><span>Break pool</span><span>Status & Shift</span>
             </div>
             {rows.map((row) => (
               <div key={row.item.id} className="border-b border-[hsl(var(--border))] last:border-0">
-                <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.75fr_0.75fr_1fr]">
+                <button onClick={() => setExpandedId(expandedId === row.item.id ? null : row.item.id)} className="grid w-full grid-cols-2 items-center gap-3 px-5 py-4 text-left hover:bg-[#fafaf8] md:grid-cols-[1.2fr_0.6fr_0.75fr_0.75fr_0.6fr_0.6fr_0.75fr_1fr]">
                   <div>
                     <div className="font-bold">{row.item.name}</div>
                     <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div>
@@ -2491,6 +2594,19 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
                   <span className="text-sm font-semibold text-slate-700">{row.targetLogoutStr ? row.targetLogoutStr : '—'}</span>
                   <span className="text-sm">{row.leave && !row.isWfh ? '0h' : hours(row.total)}</span>
                   <span className="text-sm">{hours(row.taskMinutes)}</span>
+                  <span className="text-sm">
+                    {row.breakStats.totalUsedMinutes > 0 ? (
+                      <span className={`inline-flex items-center gap-1 font-semibold rounded-md px-2 py-0.5 text-xs ${
+                        row.breakStats.totalUsedMinutes > TOTAL_DAILY_BREAK_MINUTES
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : 'bg-amber-50 text-amber-900 border border-amber-200'
+                      }`}>
+                        ☕ {row.breakStats.totalUsedMinutes}m / 75m
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">0m / 75m</span>
+                    )}
+                  </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {row.isWfh ? (
                       <Badge className="border-indigo-300 bg-indigo-50 text-indigo-700">
@@ -2533,7 +2649,7 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
                   </div>
                 </button>
                 {expandedId === row.item.id && (
-                  <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} targetLogoutStr={row.targetLogoutStr} />
+                  <AttendanceDetail item={row.item} sessions={row.sessions} tasks={tasks.filter((task) => task.assigneeId === row.item.id)} leave={row.leave} selectedDate={selectedDate} total={row.total} taskMinutes={row.taskMinutes} targetLogoutStr={row.targetLogoutStr} breakStats={row.breakStats} />
                 )}
               </div>
             ))}
@@ -2596,8 +2712,117 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], onRefresh
   );
 }
 
-function AttendanceDetail({ item, sessions, tasks, leave, selectedDate, total, taskMinutes, targetLogoutStr }: { item: Person; sessions: SessionRecord[]; tasks: WorkTask[]; leave?: LeaveRequest; selectedDate: string; total: number; taskMinutes: number; targetLogoutStr?: string | null }) {
-  return <div className="grid gap-5 border-t border-[hsl(var(--border))] bg-[#fafaf8] p-5 lg:grid-cols-[1fr_1fr_0.8fr]"><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Session history</div><div className="mt-3 space-y-2">{sessions.length ? sessions.map((session) => <div key={session.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm"><div className="flex justify-between gap-3 font-semibold"><span>{formatTimestamp(session.loginAt)} → {session.logoutAt ? formatTimestamp(session.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</span><span>{hours(session.durationMinutes)}</span></div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{selectedDate}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No login record for this date.</p>}</div><div className="mt-3 text-sm font-bold">Total session time: {hours(total)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Task / work time</div><div className="mt-3 space-y-2">{tasks.length ? tasks.map((task) => <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3"><div className="text-sm font-semibold">{task.title}</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{task.stage} · {hours(task.timeMinutes)}</div></div>) : <p className="text-sm text-[hsl(var(--muted-foreground))]">No task time recorded.</p>}</div><div className="mt-3 text-sm font-bold">Total task time: {hours(taskMinutes)}</div></div><div><div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Daily shift summary</div><div className="mt-3 space-y-3"><Chain label="Employee" value={item.name} /><Chain label="Role" value={item.role} /><Chain label="Leave / WFH" value={leave ? `${leave.status} · ${leave.leaveType}` : 'Normal'} /><Chain label="9h Target Out" value={targetLogoutStr || '—'} /><Chain label="9h Compliance" value={total >= 540 ? '✓ Completed (9h)' : `${hours(total)} / 9h (${hours(Math.max(0, 540 - total))} left)`} /><Chain label="Last activity" value={item.lastActiveAt} /></div></div></div>;
+function AttendanceDetail({ item, sessions, tasks, leave, selectedDate, total, taskMinutes, targetLogoutStr, breakStats }: { item: Person; sessions: SessionRecord[]; tasks: WorkTask[]; leave?: LeaveRequest; selectedDate: string; total: number; taskMinutes: number; targetLogoutStr?: string | null; breakStats?: { totalUsedMinutes: number; remainingPoolMinutes: number; logs: BreakLog[] } }) {
+  const breaks = breakStats?.logs || [];
+  const breakUsed = breakStats?.totalUsedMinutes ?? 0;
+  const breakPoolLeft = breakStats?.remainingPoolMinutes ?? TOTAL_DAILY_BREAK_MINUTES;
+
+  return (
+    <div className="grid gap-5 border-t border-[hsl(var(--border))] bg-[#fafaf8] p-5 lg:grid-cols-4 sm:grid-cols-2 grid-cols-1">
+      {/* 1. Session history */}
+      <div>
+        <div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Session history</div>
+        <div className="mt-3 space-y-2">
+          {sessions.length ? (
+            sessions.map((session) => (
+              <div key={session.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm">
+                <div className="flex justify-between gap-3 font-semibold">
+                  <span>
+                    {formatTimestamp(session.loginAt)} → {session.logoutAt ? formatTimestamp(session.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}
+                  </span>
+                  <span>{hours(session.durationMinutes)}</span>
+                </div>
+                <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{selectedDate}</div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">No login record for this date.</p>
+          )}
+        </div>
+        <div className="mt-3 text-sm font-bold">Total session time: {hours(total)}</div>
+      </div>
+
+      {/* 2. Lunch & Break Timestamps */}
+      <div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Lunch & Break Timestamps</div>
+          <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${
+            breakUsed > TOTAL_DAILY_BREAK_MINUTES 
+              ? 'bg-rose-100 text-rose-800 border-rose-300' 
+              : 'bg-amber-100 text-amber-900 border-amber-300'
+          }`}>
+            {breakUsed}m / 75m used
+          </span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {breaks.length ? (
+            breaks.map((b) => {
+              const dur = b.durationMinutes || (b.endAt && b.startAt ? Math.max(1, Math.round((new Date(b.endAt).getTime() - new Date(b.startAt).getTime()) / 60000)) : 0);
+              return (
+                <div key={b.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3 text-sm shadow-2xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`inline-flex items-center gap-1 font-bold text-xs rounded-md px-2 py-0.5 border ${
+                      b.type === 'Lunch' 
+                        ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                        : 'bg-amber-50 border-amber-200 text-amber-800'
+                    }`}>
+                      {b.type === 'Lunch' ? '🍱 Lunch' : '☕ Break'}
+                    </span>
+                    <span className="font-bold text-xs text-slate-800">
+                      {dur} min
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                    <span>Out: <strong className="text-slate-900">{formatTime(b.startAt)}</strong></span>
+                    <span>Back: <strong className="text-slate-900">{b.endAt ? formatTime(b.endAt) : <span className="text-amber-600 font-bold">Currently Out</span>}</strong></span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">No breaks taken on this date.</p>
+          )}
+        </div>
+        <div className="mt-3 text-xs font-semibold text-slate-600">
+          Remaining Break Pool: <span className="font-bold text-emerald-700">{breakPoolLeft} min</span>
+        </div>
+      </div>
+
+      {/* 3. Task / work time */}
+      <div>
+        <div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Task / work time</div>
+        <div className="mt-3 space-y-2">
+          {tasks.length ? (
+            tasks.map((task) => (
+              <div key={task.id} className="rounded-xl border border-[hsl(var(--border))] bg-white p-3">
+                <div className="text-sm font-semibold">{task.title}</div>
+                <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {task.stage} · {hours(task.timeMinutes)}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">No task time recorded.</p>
+          )}
+        </div>
+        <div className="mt-3 text-sm font-bold">Total task time: {hours(taskMinutes)}</div>
+      </div>
+
+      {/* 4. Daily shift summary */}
+      <div>
+        <div className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--primary))]">Daily shift summary</div>
+        <div className="mt-3 space-y-3">
+          <Chain label="Employee" value={item.name} />
+          <Chain label="Role" value={item.role} />
+          <Chain label="Leave / WFH" value={leave ? `${leave.status} · ${leave.leaveType}` : 'Normal'} />
+          <Chain label="9h Target Out" value={targetLogoutStr || '—'} />
+          <Chain label="9h Compliance" value={total >= 540 ? '✓ Completed (9h)' : `${hours(total)} / 9h (${hours(Math.max(0, 540 - total))} left)`} />
+          <Chain label="Break Pool" value={`${breakUsed}m / 75m (${breakPoolLeft}m left)`} />
+          <Chain label="Last activity" value={item.lastActiveAt} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions = [] }: { filteredPeople: Person[]; onSelectDate: (date: string) => void; leaves: LeaveRequest[]; sessions?: SessionRecord[] }) {
@@ -2765,11 +2990,17 @@ function LeavePage({ actor, people, leaves, onApply, onDecision, onRefresh }: { 
         title={isManagement ? 'Leave, WFH & Shift Approvals' : actor.role === 'Manager' ? 'Team leave & shifts' : 'My leave, WFH & shift requests'}
         description="Submit and review leave applications, Work From Home days, early logouts, and early login requests. Approved early logouts grant checkout permission."
         action={
-          isManagement ? (
-            <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave/Shift</Button>
-          ) : (
-            <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave / shift flex</Button>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/holidays" className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 transition shadow-xs">
+              <Sparkles className="size-4 text-amber-600" />
+              2026 Holiday Calendar
+            </Link>
+            {isManagement ? (
+              <Button onClick={() => setFounderRecordOpen(true)}><Plus className="size-4" />Record Employee Leave/Shift</Button>
+            ) : (
+              <Button onClick={() => setOpen(true)}><Plus className="size-4" />Apply for leave / shift flex</Button>
+            )}
+          </div>
         }
       />
       <div className="mb-5 grid gap-3 sm:grid-cols-4">
@@ -4240,6 +4471,179 @@ function ContentCalendarPage({
 }
 
 
+function HolidayCalendarPage({ actor }: { actor: Person }) {
+  const [filterType, setFilterType] = useState<string>('All');
+  const [search, setSearch] = useState<string>('');
+
+  const filteredHolidays = useMemo(() => {
+    return OFFICIAL_HOLIDAYS_2026.filter((h) => {
+      const matchType = filterType === 'All' || h.type === filterType;
+      const matchSearch =
+        h.name.toLowerCase().includes(search.toLowerCase()) ||
+        h.description.toLowerCase().includes(search.toLowerCase()) ||
+        h.date.includes(search) ||
+        h.day.toLowerCase().includes(search.toLowerCase());
+      return matchType && matchSearch;
+    });
+  }, [filterType, search]);
+
+  const nationalCount = OFFICIAL_HOLIDAYS_2026.filter((h) => h.type === 'National Holiday').length;
+  const festivalCount = OFFICIAL_HOLIDAYS_2026.filter((h) => h.type === 'Festival Holiday').length;
+  const gazettedCount = OFFICIAL_HOLIDAYS_2026.filter((h) => h.type === 'Gazetted Holiday').length;
+
+  const nextHoliday = useMemo(() => {
+    return OFFICIAL_HOLIDAYS_2026.find((h) => h.date >= TODAY) || OFFICIAL_HOLIDAYS_2026[0];
+  }, []);
+
+  return (
+    <>
+      <SectionTitle
+        eyebrow="Company Schedule & Observances"
+        title="Official Holidays & Festivals 2026"
+        description="Official list of national, festival, and gazetted government holidays for 2026. All listed holidays are paid company-wide non-working days for all departments."
+        action={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const header = 'Date,Day,Holiday Name,Type,Description';
+                const body = OFFICIAL_HOLIDAYS_2026.map(
+                  (h) => `"${h.date}","${h.day}","${h.name}","${h.type}","${h.description.replace(/"/g, '""')}"`
+                ).join('\n');
+                const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `arka-company-holidays-2026.csv`;
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="size-4" /> Export CSV
+            </Button>
+            <Button variant="secondary" onClick={() => window.print()}>
+              Print Schedule
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Total Holidays" value={OFFICIAL_HOLIDAYS_2026.length} detail="Paid days off in 2026" tone="default" />
+        <Metric label="National Holidays" value={nationalCount} detail="Republic, Independence, Gandhi" tone="success" />
+        <Metric label="Festival Holidays" value={festivalCount} detail="Pongal, Diwali, Eid, Christmas" tone="warning" />
+        <Metric
+          label="Next Upcoming"
+          value={nextHoliday ? nextHoliday.name.split('/')[0].trim() : 'None'}
+          detail={nextHoliday ? `${formatDate(nextHoliday.date)} (${nextHoliday.day})` : ''}
+          tone="default"
+        />
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {['All', 'National Holiday', 'Festival Holiday', 'Gazetted Holiday'].map((t) => (
+            <Button
+              key={t}
+              variant={filterType === t ? 'primary' : 'secondary'}
+              onClick={() => setFilterType(t)}
+            >
+              {t === 'All' ? `All (${OFFICIAL_HOLIDAYS_2026.length})` : t}
+            </Button>
+          ))}
+        </div>
+        <div className="relative min-w-[240px]">
+          <Search className="absolute left-3 top-3 size-4 text-[hsl(var(--muted-foreground))]" />
+          <input
+            type="text"
+            placeholder="Search holiday name, month..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl border border-[hsl(var(--border))] bg-white pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-400"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredHolidays.map((h) => {
+          const isPassed = h.date < TODAY;
+          const isToday = h.date === TODAY;
+          const dateObj = new Date(`${h.date}T12:00:00`);
+          const monthShort = dateObj.toLocaleDateString([], { month: 'short' }).toUpperCase();
+          const dayNum = dateObj.getDate();
+
+          return (
+            <Card
+              key={h.id}
+              className={`p-5 transition hover:shadow-md ${
+                isToday ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-14 flex-col items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-50 font-black text-amber-950 shadow-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                      {monthShort}
+                    </span>
+                    <span className="text-xl leading-tight font-extrabold">{dayNum}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[hsl(var(--foreground))]">{h.name}</h3>
+                    <div className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+                      {h.day} · {formatDate(h.date)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                <Badge
+                  className={
+                    h.type === 'National Holiday'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : h.type === 'Festival Holiday'
+                      ? 'border-purple-300 bg-purple-50 text-purple-800'
+                      : 'border-blue-300 bg-blue-50 text-blue-800'
+                  }
+                >
+                  {h.type === 'National Holiday' && '🇮🇳 '}
+                  {h.type === 'Festival Holiday' && '🎉 '}
+                  {h.type === 'Gazetted Holiday' && '🏛️ '}
+                  {h.type}
+                </Badge>
+                {isToday && (
+                  <Badge className="border-amber-400 bg-amber-100 text-amber-900 font-bold animate-pulse">
+                    Today!
+                  </Badge>
+                )}
+                {isPassed && (
+                  <Badge className="border-slate-200 bg-slate-100 text-slate-500">
+                    Passed
+                  </Badge>
+                )}
+                {!isPassed && !isToday && (
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold">
+                    Upcoming
+                  </Badge>
+                )}
+              </div>
+
+              <p className="mt-3 text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
+                {h.description}
+              </p>
+            </Card>
+          );
+        })}
+      </div>
+      {filteredHolidays.length === 0 && (
+        <Card className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
+          No holidays match your filter or search query.
+        </Card>
+      )}
+    </>
+  );
+}
+
 function AppRouter() {
   const [location, setLocation] = useLocation();
   const [signedIn, setSignedIn] = useState(false);
@@ -4252,6 +4656,7 @@ function AppRouter() {
   const [reports, setReports] = useState(initialReports);
   const [leaves, setLeaves] = useState(initialLeaves);
   const [sessions, setSessions] = useState<SessionRecord[]>(initialSessions);
+  const [breakLogs, setBreakLogs] = useState<BreakLog[]>(initialBreakLogs);
   const [createOpen, setCreateOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [earlyLogoutModalOpen, setEarlyLogoutModalOpen] = useState(false);
@@ -4264,6 +4669,11 @@ function AppRouter() {
   useEffect(() => {
     if (actorId) setBreakCounts(getDailyBreakUsage(actorId));
   }, [actorId]);
+
+  const actorBreakStats = useMemo(() => {
+    return getDailyBreakMinutes(actorId, TODAY, breakLogs);
+  }, [actorId, breakLogs]);
+  const actorBreakPoolRemaining = actorBreakStats.remainingPoolMinutes;
 
   const [timerSecondsRemaining, setTimerSecondsRemaining] = useState<number | null>(() => {
     try {
@@ -4280,7 +4690,7 @@ function AppRouter() {
   });
 
   const refresh = useCallback(() => {
-    return hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions);
+    return hydrateFromApi(setDirectory, setWork, setTasks, setActivities, setComments, setReports, setLeaves, setSessions, setBreakLogs);
   }, []);
 
   useEffect(() => {
@@ -4505,50 +4915,86 @@ function AppRouter() {
     try {
       const prevPresence = actor.presence;
 
-      if (presence === 'Break') {
-        const counts = getDailyBreakUsage(actor.id);
-        if (counts.breaks >= 1) {
+      if (presence === 'Break' || presence === 'Lunch') {
+        const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
+        if (stats.remainingPoolMinutes <= 0) {
           toast({
-            title: 'Daily Break Limit Reached',
-            description: 'You have already used your 1 allowed 15-minute break for today.',
+            title: 'Daily Break Pool Exhausted',
+            description: 'You have used all 1 hour 15 minutes (75m) of your daily break & lunch pool for today.',
             variant: 'destructive',
           });
           return;
         }
-        recordBreakUsage(actor.id, 'Break');
-        setBreakCounts(getDailyBreakUsage(actor.id));
-        const expiresAt = Date.now() + 15 * 60 * 1000;
-        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Break', expiresAt }));
-        setTimerSecondsRemaining(15 * 60);
-        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 15-minute Break', tone: 'warning' });
-      } else if (presence === 'Lunch') {
-        const counts = getDailyBreakUsage(actor.id);
-        if (counts.lunches >= 1) {
-          toast({
-            title: 'Daily Lunch Limit Reached',
-            description: 'You have already used your 1-hour lunch break for today.',
-            variant: 'destructive',
+
+        const sessionMaxMinutes = stats.remainingPoolMinutes;
+        const nowIso = new Date().toISOString();
+
+        let createdLogId = `blk_${Date.now()}`;
+        try {
+          const res = await apiPost<{ item: BreakLog }>('/break-logs', {
+            userId: actor.id,
+            date: TODAY,
+            type: presence,
+            startAt: nowIso
           });
-          return;
+          if (res?.item?.id) {
+            createdLogId = res.item.id;
+            setBreakLogs((prev) => [res.item, ...prev.filter(b => b.id !== res.item.id)]);
+          }
+        } catch (e) {
+          console.error('Failed to save break log:', e);
         }
-        recordBreakUsage(actor.id, 'Lunch');
-        setBreakCounts(getDailyBreakUsage(actor.id));
-        const expiresAt = Date.now() + 60 * 60 * 1000;
-        localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: 'Lunch', expiresAt }));
-        setTimerSecondsRemaining(60 * 60);
-        await apiPost('/activities', { workId: 'system', actorId: actor.id, message: 'started a 1-hour Lunch', tone: 'warning' });
+
+        const expiresAt = Date.now() + sessionMaxMinutes * 60 * 1000;
+        localStorage.setItem('arka_presence_timer', JSON.stringify({
+          userId: actor.id,
+          presence,
+          breakLogId: createdLogId,
+          startAt: nowIso,
+          expiresAt
+        }));
+
+        setTimerSecondsRemaining(sessionMaxMinutes * 60);
+
+        await apiPost('/activities', {
+          workId: 'system',
+          actorId: actor.id,
+          message: `started ${presence} (${stats.remainingPoolMinutes}m available in daily pool)`,
+          tone: 'warning'
+        }).catch(() => {});
+
       } else {
+        const rawTimer = localStorage.getItem('arka_presence_timer');
+        if (rawTimer) {
+          try {
+            const parsed = JSON.parse(rawTimer);
+            if (parsed.breakLogId && (prevPresence === 'Break' || prevPresence === 'Lunch')) {
+              const nowIso = new Date().toISOString();
+              const startMs = parsed.startAt ? new Date(parsed.startAt).getTime() : Date.now();
+              const elapsedMinutes = Math.max(1, Math.round((Date.now() - startMs) / 60000));
+
+              await apiPatch(`/break-logs/${parsed.breakLogId}`, {
+                endAt: nowIso,
+                durationMinutes: elapsedMinutes
+              }).catch(() => {});
+
+              setBreakLogs((prev) => prev.map((b) => b.id === parsed.breakLogId ? { ...b, endAt: nowIso, durationMinutes: elapsedMinutes } : b));
+
+              const reason = isAuto 
+                ? `returned from ${prevPresence} (${elapsedMinutes}m used)` 
+                : `returned early from ${prevPresence} (${elapsedMinutes}m used)`;
+              await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' }).catch(() => {});
+            }
+          } catch {}
+        }
+
         localStorage.removeItem('arka_presence_timer');
         setTimerSecondsRemaining(null);
-
-        if (prevPresence === 'Break' || prevPresence === 'Lunch') {
-          const reason = isAuto ? `returned from ${prevPresence}` : `returned early from ${prevPresence}`;
-          await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' });
-        }
       }
 
-      const res = await apiPatch<{item: Person}>(`/people/${actor.id}/presence`, { presence });
+      await apiPatch<{item: Person}>(`/people/${actor.id}/presence`, { presence });
       setDirectory((all) => all.map(p => p.id === actor.id ? { ...p, presence } : p));
+      void refresh();
     } catch (err) {
       console.error("Update presence error", err);
     }
@@ -4567,17 +5013,20 @@ function AppRouter() {
           if (parsed.userId === actor.id && parsed.presence === actor.presence && parsed.expiresAt) {
             expiresAt = parsed.expiresAt;
           } else {
-            const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+            const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
+            const durationMs = stats.remainingPoolMinutes * 60 * 1000;
             expiresAt = Date.now() + durationMs;
             localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
           }
         } catch {
-          const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+          const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
+          const durationMs = stats.remainingPoolMinutes * 60 * 1000;
           expiresAt = Date.now() + durationMs;
           localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
         }
       } else {
-        const durationMs = actor.presence === 'Break' ? 15 * 60 * 1000 : 60 * 60 * 1000;
+        const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
+        const durationMs = stats.remainingPoolMinutes * 60 * 1000;
         expiresAt = Date.now() + durationMs;
         localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
       }
@@ -4587,13 +5036,25 @@ function AppRouter() {
         // Auto-logout immediately when countdown reaches 00:00 (diff <= 0)
         if (diff <= 0) {
           setTimerSecondsRemaining(0);
+          
+          try {
+            const curRaw = localStorage.getItem('arka_presence_timer');
+            if (curRaw) {
+              const parsed = JSON.parse(curRaw);
+              if (parsed.breakLogId) {
+                const nowIso = new Date().toISOString();
+                const startMs = parsed.startAt ? new Date(parsed.startAt).getTime() : Date.now();
+                const elapsedMinutes = Math.max(1, Math.round((Date.now() - startMs) / 60000));
+                void apiPatch(`/break-logs/${parsed.breakLogId}`, { endAt: nowIso, durationMinutes: elapsedMinutes }).catch(() => {});
+              }
+            }
+          } catch {}
+
           localStorage.removeItem('arka_presence_timer');
           const p = actor.presence;
-          const limitMsg = p === 'Break'
-            ? 'Session ended: Your 15-minute break has ended. You have been automatically logged out.'
-            : 'Session ended: Your 1-hour lunch break has ended. You have been automatically logged out.';
+          const limitMsg = `Session ended: Your ${p} time and daily break pool (75 mins) has completed. You have been automatically logged out.`;
           
-          void apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: ${p} countdown completed`, tone: 'warning' }).catch(() => {});
+          void apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: ${p} pool completed`, tone: 'warning' }).catch(() => {});
           void apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
           void handleLogout(limitMsg);
         } else {
@@ -4609,7 +5070,7 @@ function AppRouter() {
       setTimerSecondsRemaining(null);
       return () => {};
     }
-  }, [signedIn, actor?.id, actor?.presence, handleLogout]);
+  }, [signedIn, actor?.id, actor?.presence, breakLogs, handleLogout]);
   const addActivity = async (workId: string, message: string, tone: Activity['tone'] = 'normal') => { 
     try {
       const res = await apiPost<{item: Activity}>('/activities', { workId, actorId: actor.id, message, tone });
@@ -4880,6 +5341,7 @@ function AppRouter() {
       timerSecondsRemaining={timerSecondsRemaining}
       shiftTargetInfo={shiftTargetInfo}
       breakCounts={breakCounts}
+      remainingBreakPoolMinutes={actorBreakPoolRemaining}
       allPeople={runtimePeople}
     >
       <WorkDetail
@@ -4925,9 +5387,11 @@ function AppRouter() {
   ) : location === '/people' ? (
     <PeoplePage actor={actor} people={runtimePeople} onAdd={addPerson} onUpdatePassword={updatePersonPassword} onUpdateRole={updatePersonRole} onDeletePerson={deletePerson} />
   ) : location === '/attendance' ? (
-    <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} onRefresh={refresh} />
+    <AttendancePage actor={actor} people={runtimePeople} tasks={scopeTasks} leaves={leaves} sessions={sessions} breakLogs={breakLogs} onRefresh={refresh} />
   ) : location === '/leave' ? (
     <LeavePage actor={actor} people={runtimePeople} leaves={leaves} onApply={addLeave} onDecision={updateLeave} onRefresh={refresh} />
+  ) : location === '/holidays' ? (
+    <HolidayCalendarPage actor={actor} />
   ) : location === '/team' ? (
     <TeamPage actor={actor} work={scopeWork} tasks={scopeTasks} onOpen={openWork} />
   ) : location === '/reports' ? (
@@ -4960,6 +5424,7 @@ function AppRouter() {
       timerSecondsRemaining={timerSecondsRemaining}
       shiftTargetInfo={shiftTargetInfo}
       breakCounts={breakCounts}
+      remainingBreakPoolMinutes={actorBreakPoolRemaining}
       allPeople={runtimePeople}
     >
       {page}

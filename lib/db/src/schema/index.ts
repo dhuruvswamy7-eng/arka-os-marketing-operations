@@ -199,6 +199,16 @@ export const contentCalendarTable = pgTable("content_calendar", {
   updatedAt: text("updated_at"),
 });
 
+export const breakLogsTable = pgTable("break_logs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: text("date").notNull(),
+  type: text("type").notNull(), // 'Break' | 'Lunch'
+  startAt: text("start_at").notNull(),
+  endAt: text("end_at"),
+  durationMinutes: integer("duration_minutes").default(0),
+});
+
 export const insertPeopleSchema = createInsertSchema(peopleTable).omit({ id: true });
 export const insertWorkSchema = createInsertSchema(workTable).omit({ id: true });
 export const insertTasksSchema = createInsertSchema(tasksTable).omit({ id: true });
@@ -210,6 +220,7 @@ export const insertSessionsSchema = createInsertSchema(sessionsTable).omit({ id:
 export const insertMessagesSchema = createInsertSchema(messagesTable).omit({ id: true });
 export const insertDocumentsSchema = createInsertSchema(documentsTable).omit({ id: true });
 export const insertContentCalendarSchema = createInsertSchema(contentCalendarTable).omit({ id: true });
+export const insertBreakLogsSchema = createInsertSchema(breakLogsTable).omit({ id: true });
 
 export type PersonInsert = z.infer<typeof insertPeopleSchema>;
 export type WorkInsert = z.infer<typeof insertWorkSchema>;
@@ -220,6 +231,7 @@ export type ReportInsert = z.infer<typeof insertReportsSchema>;
 export type LeaveInsert = z.infer<typeof insertLeavesSchema>;
 export type SessionInsert = z.infer<typeof insertSessionsSchema>;
 export type ContentCalendarInsert = z.infer<typeof insertContentCalendarSchema>;
+export type BreakLogInsert = z.infer<typeof insertBreakLogsSchema>;
 
 export type Person = typeof peopleTable.$inferSelect;
 export type WorkItem = typeof workTable.$inferSelect;
@@ -232,3 +244,4 @@ export type SessionRecord = typeof sessionsTable.$inferSelect;
 export type Message = typeof messagesTable.$inferSelect;
 export type Document = typeof documentsTable.$inferSelect;
 export type ContentCalendarItem = typeof contentCalendarTable.$inferSelect;
+export type BreakLog = typeof breakLogsTable.$inferSelect;

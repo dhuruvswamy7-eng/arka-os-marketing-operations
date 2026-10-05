@@ -53,4 +53,4 @@ Thumbs.db
 *.env
 .env.*
 !.env.example
-
+lib/db/*.json
