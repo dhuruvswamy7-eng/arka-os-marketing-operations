@@ -2546,6 +2546,8 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
     }
   };
 
+  const holidayToday = OFFICIAL_HOLIDAYS_2026.find((h) => h.date === selectedDate);
+
   return (
     <>
       <SectionTitle
@@ -2558,11 +2560,34 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
             <button onClick={() => navigateDate(1)} className="rounded-lg border border-[hsl(var(--input))] bg-white p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition"><ArrowRight className="size-4" /></button>
             <select value={period} onChange={(event) => changePeriod(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm font-semibold outline-none"><option>Today</option><option>Yesterday</option><option>This Week</option><option>This Month</option><option>Custom date</option></select>
             {period === 'Custom date' && <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-[hsl(var(--input))] bg-white px-3 py-2.5 text-sm outline-none" />}
+            <Link href="/holidays" className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 transition shadow-xs">
+              <CalendarDays className="size-4 text-amber-600" /> Full Calendar
+            </Link>
             <Button variant="secondary" onClick={exportCsv}>Export CSV</Button>
             <Button variant="secondary" onClick={() => window.print()}>Print</Button>
           </div>
         }
       />
+      {holidayToday && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-amber-950 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-amber-400/20 text-xl font-bold">
+              {holidayToday.type === 'National Holiday' ? '🇮🇳' : holidayToday.type === 'Festival Holiday' ? '🎉' : '🏛️'}
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold text-base">{holidayToday.name}</span>
+                <Badge className="border-amber-400 bg-amber-100 text-amber-900 font-bold text-[10px]">{holidayToday.type}</Badge>
+                <Badge className="border-emerald-300 bg-emerald-50 text-emerald-800 text-[10px]">Paid Company Holiday</Badge>
+              </div>
+              <div className="mt-0.5 text-xs text-amber-800">{holidayToday.description}</div>
+            </div>
+          </div>
+          <Link href="/holidays" className="text-xs font-bold text-amber-900 underline hover:text-amber-700 whitespace-nowrap">
+            View Full Calendar →
+          </Link>
+        </div>
+      )}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Total employees" value={rows.length} detail="Complete visible scope" />
         <Metric label="Logged in" value={rows.filter((row) => row.sessions.length > 0).length} detail="Have a session record" />
@@ -4472,8 +4497,173 @@ function ContentCalendarPage({
 
 
 function HolidayCalendarPage({ actor }: { actor: Person }) {
+  const [viewMode, setViewMode] = useState<'month' | 'daily' | 'list'>('month');
+  
+  const [currentYear, setCurrentYear] = useState<number>(() => {
+    const d = new Date(`${TODAY}T12:00:00`);
+    return isNaN(d.getFullYear()) ? 2026 : d.getFullYear();
+  });
+  const [currentMonth, setCurrentMonth] = useState<number>(() => {
+    const d = new Date(`${TODAY}T12:00:00`);
+    return isNaN(d.getMonth()) ? 9 : d.getMonth();
+  });
+
+  const [selectedDay, setSelectedDay] = useState<string>(TODAY);
+
   const [filterType, setFilterType] = useState<string>('All');
   const [search, setSearch] = useState<string>('');
+
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const prevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear((y) => y - 1);
+    } else {
+      setCurrentMonth((m) => m - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear((y) => y + 1);
+    } else {
+      setCurrentMonth((m) => m + 1);
+    }
+  };
+
+  const goToToday = () => {
+    const d = new Date(`${TODAY}T12:00:00`);
+    setCurrentYear(d.getFullYear());
+    setCurrentMonth(d.getMonth());
+    setSelectedDay(TODAY);
+  };
+
+  const stepDay = (delta: -1 | 1) => {
+    const d = new Date(`${selectedDay}T12:00:00`);
+    d.setDate(d.getDate() + delta);
+    const newDayStr = d.toISOString().slice(0, 10);
+    setSelectedDay(newDayStr);
+    setCurrentYear(d.getFullYear());
+    setCurrentMonth(d.getMonth());
+  };
+
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, CompanyHoliday>();
+    for (const h of OFFICIAL_HOLIDAYS_2026) {
+      map.set(h.date, h);
+    }
+    return map;
+  }, []);
+
+  const calendarCells = useMemo(() => {
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const startingDayOfWeek = firstDay.getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
+
+    const cells: {
+      dateStr: string;
+      dayNumber: number;
+      isCurrentMonth: boolean;
+      dayOfWeek: number;
+      isWeekend: boolean;
+      isSunday: boolean;
+      isSaturday: boolean;
+      isToday: boolean;
+      holiday?: CompanyHoliday;
+    }[] = [];
+
+    // Preceding month filler days
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      const dayNum = prevMonthDays - i;
+      const prevDate = new Date(currentYear, currentMonth - 1, dayNum);
+      const prevMonthStr = String(prevDate.getMonth() + 1).padStart(2, '0');
+      const prevDayStr = String(dayNum).padStart(2, '0');
+      const dateStr = `${prevDate.getFullYear()}-${prevMonthStr}-${prevDayStr}`;
+      const dow = prevDate.getDay();
+      cells.push({
+        dateStr,
+        dayNumber: dayNum,
+        isCurrentMonth: false,
+        dayOfWeek: dow,
+        isWeekend: dow === 0 || dow === 6,
+        isSunday: dow === 0,
+        isSaturday: dow === 6,
+        isToday: dateStr === TODAY,
+        holiday: holidayMap.get(dateStr),
+      });
+    }
+
+    // Days in current month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const monthStr = String(currentMonth + 1).padStart(2, '0');
+      const dayStr = String(day).padStart(2, '0');
+      const dateStr = `${currentYear}-${monthStr}-${dayStr}`;
+      const d = new Date(currentYear, currentMonth, day);
+      const dow = d.getDay();
+      cells.push({
+        dateStr,
+        dayNumber: day,
+        isCurrentMonth: true,
+        dayOfWeek: dow,
+        isWeekend: dow === 0 || dow === 6,
+        isSunday: dow === 0,
+        isSaturday: dow === 6,
+        isToday: dateStr === TODAY,
+        holiday: holidayMap.get(dateStr),
+      });
+    }
+
+    // Trailing month filler days
+    const totalRemaining = (7 - (cells.length % 7)) % 7;
+    for (let day = 1; day <= totalRemaining; day++) {
+      const nextDate = new Date(currentYear, currentMonth + 1, day);
+      const nextMonthStr = String(nextDate.getMonth() + 1).padStart(2, '0');
+      const nextDayStr = String(day).padStart(2, '0');
+      const dateStr = `${nextDate.getFullYear()}-${nextMonthStr}-${nextDayStr}`;
+      const dow = nextDate.getDay();
+      cells.push({
+        dateStr,
+        dayNumber: day,
+        isCurrentMonth: false,
+        dayOfWeek: dow,
+        isWeekend: dow === 0 || dow === 6,
+        isSunday: dow === 0,
+        isSaturday: dow === 6,
+        isToday: dateStr === TODAY,
+        holiday: holidayMap.get(dateStr),
+      });
+    }
+
+    return cells;
+  }, [currentYear, currentMonth, holidayMap]);
+
+  const currentMonthHolidays = useMemo(() => {
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    return OFFICIAL_HOLIDAYS_2026.filter((h) => h.date.startsWith(monthPrefix));
+  }, [currentYear, currentMonth]);
+
+  const selectedDayObj = useMemo(() => {
+    const d = new Date(`${selectedDay}T12:00:00`);
+    const dow = isNaN(d.getDay()) ? 0 : d.getDay();
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow];
+    const isWeekend = dow === 0 || dow === 6;
+    const holiday = holidayMap.get(selectedDay);
+    return {
+      dateStr: selectedDay,
+      dayName,
+      dow,
+      isWeekend,
+      isToday: selectedDay === TODAY,
+      holiday
+    };
+  }, [selectedDay, holidayMap]);
 
   const filteredHolidays = useMemo(() => {
     return OFFICIAL_HOLIDAYS_2026.filter((h) => {
@@ -4495,30 +4685,29 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
     return OFFICIAL_HOLIDAYS_2026.find((h) => h.date >= TODAY) || OFFICIAL_HOLIDAYS_2026[0];
   }, []);
 
+  const exportHolidaysCsv = () => {
+    const header = 'Date,Day,Holiday Name,Type,Description';
+    const body = OFFICIAL_HOLIDAYS_2026.map(
+      (h) => `"${h.date}","${h.day}","${h.name}","${h.type}","${h.description.replace(/"/g, '""')}"`
+    ).join('\n');
+    const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `arka-company-holidays-2026.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <SectionTitle
         eyebrow="Company Schedule & Observances"
-        title="Official Holidays & Festivals 2026"
-        description="Official list of national, festival, and gazetted government holidays for 2026. All listed holidays are paid company-wide non-working days for all departments."
+        title="Official Company Calendar & Holidays (2026)"
+        description="Comprehensive interactive monthly and daily calendar for 2026. All national holidays, gazetted government observances, and cultural festivals are clearly noted beside each date."
         action={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                const header = 'Date,Day,Holiday Name,Type,Description';
-                const body = OFFICIAL_HOLIDAYS_2026.map(
-                  (h) => `"${h.date}","${h.day}","${h.name}","${h.type}","${h.description.replace(/"/g, '""')}"`
-                ).join('\n');
-                const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `arka-company-holidays-2026.csv`;
-                link.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={exportHolidaysCsv}>
               <Download className="size-4" /> Export CSV
             </Button>
             <Button variant="secondary" onClick={() => window.print()}>
@@ -4528,117 +4717,540 @@ function HolidayCalendarPage({ actor }: { actor: Person }) {
         }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Total Holidays" value={OFFICIAL_HOLIDAYS_2026.length} detail="Paid days off in 2026" tone="default" />
-        <Metric label="National Holidays" value={nationalCount} detail="Republic, Independence, Gandhi" tone="success" />
-        <Metric label="Festival Holidays" value={festivalCount} detail="Pongal, Diwali, Eid, Christmas" tone="warning" />
-        <Metric
-          label="Next Upcoming"
-          value={nextHoliday ? nextHoliday.name.split('/')[0].trim() : 'None'}
-          detail={nextHoliday ? `${formatDate(nextHoliday.date)} (${nextHoliday.day})` : ''}
-          tone="default"
-        />
+      {/* Top View Mode Switcher Pills */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[hsl(var(--border))] pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setViewMode('month')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition shadow-xs cursor-pointer ${
+              viewMode === 'month'
+                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm'
+                : 'bg-white border border-[hsl(var(--border))] text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <CalendarDays className="size-4" />
+            Full Month Calendar Grid
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('daily')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition shadow-xs cursor-pointer ${
+              viewMode === 'daily'
+                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm'
+                : 'bg-white border border-[hsl(var(--border))] text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <Clock3 className="size-4" />
+            Daily Calendar (Day-by-Day)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition shadow-xs cursor-pointer ${
+              viewMode === 'list'
+                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm'
+                : 'bg-white border border-[hsl(var(--border))] text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <Sparkles className="size-4" />
+            All 19 Holidays List
+          </button>
+        </div>
+
+        <div className="text-xs font-semibold text-slate-500">
+          Year: <strong className="text-slate-900">{currentYear}</strong> · Total Holidays: <strong className="text-emerald-700">19 Days</strong>
+        </div>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {['All', 'National Holiday', 'Festival Holiday', 'Gazetted Holiday'].map((t) => (
-            <Button
-              key={t}
-              variant={filterType === t ? 'primary' : 'secondary'}
-              onClick={() => setFilterType(t)}
-            >
-              {t === 'All' ? `All (${OFFICIAL_HOLIDAYS_2026.length})` : t}
-            </Button>
-          ))}
-        </div>
-        <div className="relative min-w-[240px]">
-          <Search className="absolute left-3 top-3 size-4 text-[hsl(var(--muted-foreground))]" />
-          <input
-            type="text"
-            placeholder="Search holiday name, month..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-[hsl(var(--border))] bg-white pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-400"
-          />
-        </div>
-      </div>
+      {/* VIEW 1: FULL MONTH CALENDAR GRID */}
+      {viewMode === 'month' && (
+        <div className="space-y-4">
+          {/* Month Controller Toolbar */}
+          <Card className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={prevMonth} aria-label="Previous Month">
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={currentMonth}
+                    onChange={(e) => setCurrentMonth(Number(e.target.value))}
+                    className="rounded-xl border border-[hsl(var(--input))] bg-white px-3 py-2 text-sm font-bold outline-none cursor-pointer focus:border-amber-400"
+                  >
+                    {MONTH_NAMES.map((name, idx) => (
+                      <option key={name} value={idx}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredHolidays.map((h) => {
-          const isPassed = h.date < TODAY;
-          const isToday = h.date === TODAY;
-          const dateObj = new Date(`${h.date}T12:00:00`);
-          const monthShort = dateObj.toLocaleDateString([], { month: 'short' }).toUpperCase();
-          const dayNum = dateObj.getDate();
+                  <select
+                    value={currentYear}
+                    onChange={(e) => setCurrentYear(Number(e.target.value))}
+                    className="rounded-xl border border-[hsl(var(--input))] bg-white px-3 py-2 text-sm font-bold outline-none cursor-pointer focus:border-amber-400"
+                  >
+                    {[2025, 2026, 2027].map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button variant="secondary" onClick={nextMonth} aria-label="Next Month">
+                  <ChevronRight className="size-4" />
+                </Button>
+                <Button variant="secondary" onClick={goToToday}>
+                  Today
+                </Button>
+              </div>
 
-          return (
-            <Card
-              key={h.id}
-              className={`p-5 transition hover:shadow-md ${
-                isToday ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20' : ''
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-14 flex-col items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-50 font-black text-amber-950 shadow-xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                      {monthShort}
-                    </span>
-                    <span className="text-xl leading-tight font-extrabold">{dayNum}</span>
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-[hsl(var(--foreground))]">{h.name}</h3>
-                    <div className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                      {h.day} · {formatDate(h.date)}
+              {/* Month Holiday Stats pill */}
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900 shadow-2xs">
+                  <Sparkles className="size-3.5 text-amber-600" />
+                  {currentMonthHolidays.length} Holiday{currentMonthHolidays.length === 1 ? '' : 's'} in {MONTH_NAMES[currentMonth]}
+                </span>
+                <span className="text-xs text-slate-500">
+                  (Click any date cell to view day details)
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* 7-Column Calendar Grid */}
+          <Card className="overflow-hidden p-3 sm:p-5">
+            {/* Weekday Header */}
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-xs font-black uppercase tracking-wider">
+              {DAY_LABELS.map((day, idx) => (
+                <div
+                  key={day}
+                  className={`py-2 rounded-lg ${
+                    idx === 0 || idx === 6 
+                      ? 'bg-rose-50/70 text-rose-700 font-extrabold' 
+                      : 'bg-slate-100/70 text-slate-700'
+                  }`}
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Cells Grid */}
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+              {calendarCells.map((cell) => (
+                <div
+                  key={cell.dateStr}
+                  onClick={() => {
+                    setSelectedDay(cell.dateStr);
+                    setViewMode('daily');
+                  }}
+                  className={`group min-h-[115px] sm:min-h-[135px] p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                    !cell.isCurrentMonth
+                      ? 'bg-slate-50/50 border-slate-100 opacity-40 text-slate-400'
+                      : cell.isToday
+                      ? 'bg-amber-50/50 border-amber-400 ring-2 ring-amber-400/30 shadow-xs'
+                      : cell.holiday
+                      ? cell.holiday.type === 'National Holiday'
+                        ? 'bg-emerald-50/40 border-emerald-300 hover:border-emerald-400 hover:shadow-sm'
+                        : cell.holiday.type === 'Festival Holiday'
+                        ? 'bg-purple-50/40 border-purple-300 hover:border-purple-400 hover:shadow-sm'
+                        : 'bg-blue-50/40 border-blue-300 hover:border-blue-400 hover:shadow-sm'
+                      : cell.isWeekend
+                      ? 'bg-[#fafafa] border-slate-200/80 hover:border-slate-300'
+                      : 'bg-white border-slate-200/80 hover:border-amber-300 hover:shadow-xs'
+                  }`}
+                >
+                  {/* Date number and quick indicators */}
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-sm sm:text-base font-extrabold ${
+                        cell.isToday
+                          ? 'flex size-7 items-center justify-center rounded-full bg-[#f8c329] text-black font-black shadow-xs'
+                          : cell.holiday
+                          ? 'text-slate-900 font-black'
+                          : cell.isWeekend
+                          ? 'text-slate-500 font-bold'
+                          : 'text-slate-800'
+                      }`}>
+                        {cell.dayNumber}
+                      </span>
+                      {cell.isToday && (
+                        <span className="hidden sm:inline-block text-[9px] font-black uppercase text-amber-800 bg-amber-100 rounded px-1.5 py-0.2">
+                          Today
+                        </span>
+                      )}
                     </div>
+
+                    {cell.holiday && (
+                      <span className="text-xs" title={`${cell.holiday.name} (${cell.holiday.type})`}>
+                        {cell.holiday.type === 'National Holiday' ? '🇮🇳' : cell.holiday.type === 'Festival Holiday' ? '🎉' : '🏛️'}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Holiday / Event Mentioned Beside the Date */}
+                  <div className="mt-1 flex-1 flex flex-col justify-center">
+                    {cell.holiday ? (
+                      <div className={`rounded-lg p-1.5 border text-left shadow-2xs ${
+                        cell.holiday.type === 'National Holiday'
+                          ? 'bg-emerald-100/80 border-emerald-300 text-emerald-950'
+                          : cell.holiday.type === 'Festival Holiday'
+                          ? 'bg-purple-100/80 border-purple-300 text-purple-950'
+                          : 'bg-blue-100/80 border-blue-300 text-blue-950'
+                      }`}>
+                        <div className="text-[11px] sm:text-xs font-black leading-tight line-clamp-2">
+                          {cell.holiday.name}
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-1 text-[9px] font-bold uppercase tracking-wider opacity-85">
+                          <span className="truncate">{cell.holiday.type.replace(' Holiday', '')}</span>
+                          <span className="shrink-0 text-emerald-800 font-extrabold">Paid Off</span>
+                        </div>
+                      </div>
+                    ) : cell.isSunday ? (
+                      <div className="rounded-md bg-slate-100/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                        Weekly Off
+                      </div>
+                    ) : cell.isSaturday ? (
+                      <div className="rounded-md bg-slate-100/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                        Weekend Off
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400 group-hover:text-amber-800 transition font-medium">
+                        Workday (9h)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Micro Footer */}
+                  <div className="mt-1 flex items-center justify-between text-[9px] text-slate-400">
+                    <span className="font-semibold">{DAY_LABELS[cell.dayOfWeek]}</span>
+                    <span className="opacity-0 group-hover:opacity-100 text-[10px] text-amber-700 font-bold transition">
+                      View Day →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* VIEW 2: DAILY CALENDAR (DAY-BY-DAY) */}
+      {viewMode === 'daily' && (
+        <div className="space-y-6">
+          {/* Daily Navigation Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[hsl(var(--border))] bg-white p-4 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => stepDay(-1)}>
+                <ChevronLeft className="size-4" /> Previous Day
+              </Button>
+              <Button variant="secondary" onClick={goToToday}>
+                Today
+              </Button>
+              <Button variant="secondary" onClick={() => stepDay(1)}>
+                Next Day <ChevronRight className="size-4" />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-slate-600">Jump to Date:</label>
+              <input
+                type="date"
+                value={selectedDay}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDay(e.target.value);
+                    const d = new Date(`${e.target.value}T12:00:00`);
+                    setCurrentYear(d.getFullYear());
+                    setCurrentMonth(d.getMonth());
+                  }
+                }}
+                className="rounded-xl border border-[hsl(var(--input))] bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-amber-400"
+              />
+            </div>
+          </div>
+
+          {/* Detailed Daily Showcase Card */}
+          <Card className="p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 border-b border-slate-100 pb-6">
+              <div className="flex items-start gap-5">
+                {/* Big Date Number Box */}
+                <div className="flex size-24 sm:size-28 flex-col items-center justify-center rounded-3xl border border-amber-300/40 bg-gradient-to-b from-amber-50 to-amber-100/60 font-black text-amber-950 shadow-md">
+                  <span className="text-xs font-extrabold uppercase tracking-widest text-amber-800">
+                    {new Date(`${selectedDay}T12:00:00`).toLocaleDateString([], { month: 'short' })}
+                  </span>
+                  <span className="text-4xl sm:text-5xl font-black leading-none">
+                    {new Date(`${selectedDay}T12:00:00`).getDate()}
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-700/80">
+                    {selectedDayObj.dayName}
+                  </span>
+                </div>
+
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+                      {formatDate(selectedDay)}
+                    </h2>
+                    {selectedDayObj.isToday && (
+                      <Badge className="border-amber-400 bg-amber-100 text-amber-900 font-extrabold">
+                        Today
+                      </Badge>
+                    )}
+                  </div>
+
+                  {selectedDayObj.holiday ? (
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      <Badge className={`text-xs px-3 py-1 font-extrabold ${
+                        selectedDayObj.holiday.type === 'National Holiday'
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                          : selectedDayObj.holiday.type === 'Festival Holiday'
+                          ? 'border-purple-300 bg-purple-50 text-purple-800'
+                          : 'border-blue-300 bg-blue-50 text-blue-800'
+                      }`}>
+                        {selectedDayObj.holiday.type === 'National Holiday' ? '🇮🇳 ' : selectedDayObj.holiday.type === 'Festival Holiday' ? '🎉 ' : '🏛️ '}
+                        {selectedDayObj.holiday.name}
+                      </Badge>
+                      <Badge className="border-amber-300 bg-amber-50 text-amber-900 font-bold">
+                        {selectedDayObj.holiday.type}
+                      </Badge>
+                      <Badge className="border-emerald-300 bg-emerald-50 text-emerald-800 font-bold">
+                        Paid Company Off
+                      </Badge>
+                    </div>
+                  ) : selectedDayObj.isWeekend ? (
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <Badge className="border-slate-300 bg-slate-100 text-slate-700 text-xs px-3 py-1 font-bold">
+                        🌴 {selectedDayObj.dayName} — Weekly Off / Weekend
+                      </Badge>
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <Badge className="border-indigo-300 bg-indigo-50 text-indigo-700 text-xs px-3 py-1 font-bold">
+                        💼 Regular Office Workday (9-Hour Shift)
+                      </Badge>
+                    </div>
+                  )}
+
+                  <p className="mt-3 text-sm text-slate-600 max-w-xl">
+                    {selectedDayObj.holiday
+                      ? selectedDayObj.holiday.description
+                      : selectedDayObj.isWeekend
+                      ? 'Official non-working weekend day for all team members. Relax and recharge!'
+                      : 'Standard workday operations are active. Full 9-hour shift requirement with unified 75-minute break pool.'}
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                <Badge
-                  className={
-                    h.type === 'National Holiday'
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                      : h.type === 'Festival Holiday'
-                      ? 'border-purple-300 bg-purple-50 text-purple-800'
-                      : 'border-blue-300 bg-blue-50 text-blue-800'
-                  }
+              {/* Quick Action Navigation */}
+              <div className="flex flex-col gap-2 min-w-[170px]">
+                <Link
+                  href="/attendance"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs"
                 >
-                  {h.type === 'National Holiday' && '🇮🇳 '}
-                  {h.type === 'Festival Holiday' && '🎉 '}
-                  {h.type === 'Gazetted Holiday' && '🏛️ '}
-                  {h.type}
-                </Badge>
-                {isToday && (
-                  <Badge className="border-amber-400 bg-amber-100 text-amber-900 font-bold animate-pulse">
-                    Today!
-                  </Badge>
-                )}
-                {isPassed && (
-                  <Badge className="border-slate-200 bg-slate-100 text-slate-500">
-                    Passed
-                  </Badge>
-                )}
-                {!isPassed && !isToday && (
-                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold">
-                    Upcoming
-                  </Badge>
-                )}
+                  <Clock3 className="size-4 text-slate-500" /> View Attendance
+                </Link>
+                <Link
+                  href="/leave"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition shadow-xs"
+                >
+                  <CalendarDays className="size-4 text-amber-600" /> Apply Leave / Flex
+                </Link>
+              </div>
+            </div>
+
+            {/* Daily Operational Parameters */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-100 bg-[#fafaf8] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Day Classification</div>
+                <div className="mt-1 text-lg font-black text-slate-900">
+                  {selectedDayObj.holiday ? selectedDayObj.holiday.type : selectedDayObj.isWeekend ? 'Weekend Off' : 'Active Workday'}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {selectedDayObj.holiday ? 'Mandatory paid day off across all branches' : selectedDayObj.isWeekend ? 'Weekly rest day' : 'Client deliverables & marketing ops'}
+                </div>
               </div>
 
-              <p className="mt-3 text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
-                {h.description}
-              </p>
+              <div className="rounded-2xl border border-slate-100 bg-[#fafaf8] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Workday Shift Goal</div>
+                <div className="mt-1 text-lg font-black text-slate-900">
+                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? '0 Hours (Off)' : '9 Hours (540 mins)'}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? 'Office closed' : '09:30 AM – 06:30 PM (or flexible 9h)'}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-[#fafaf8] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Daily Break Allowance</div>
+                <div className="mt-1 text-lg font-black text-slate-900">
+                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? '—' : '75 mins (1h 15m)'}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {selectedDayObj.holiday || selectedDayObj.isWeekend ? 'No shift active' : 'Unified flex pool with lunch carryover'}
+                </div>
+              </div>
+            </div>
+
+            {/* Other Holidays in this Month Ribbon */}
+            {currentMonthHolidays.length > 0 && (
+              <div className="mt-6 border-t border-slate-100 pt-6">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-700">
+                  All Holidays in {MONTH_NAMES[currentMonth]} {currentYear} ({currentMonthHolidays.length})
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {currentMonthHolidays.map((h) => {
+                    const isSelected = h.date === selectedDay;
+                    return (
+                      <div
+                        key={h.id}
+                        onClick={() => setSelectedDay(h.date)}
+                        className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition ${
+                          isSelected
+                            ? 'border-amber-400 bg-amber-50/60 ring-2 ring-amber-400/20'
+                            : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex size-11 flex-col items-center justify-center rounded-xl bg-amber-100/70 text-amber-900 font-black text-xs">
+                          <span>{new Date(`${h.date}T12:00:00`).getDate()}</span>
+                          <span className="text-[9px] uppercase font-bold text-amber-700">{h.day.slice(0, 3)}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-xs truncate text-slate-900">{h.name}</div>
+                          <div className="text-[10px] text-slate-500">{h.type}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* VIEW 3: ALL 19 HOLIDAYS LIST / GRID */}
+      {viewMode === 'list' && (
+        <div className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Metric label="Total Holidays" value={OFFICIAL_HOLIDAYS_2026.length} detail="Paid days off in 2026" tone="default" />
+            <Metric label="National Holidays" value={nationalCount} detail="Republic, Independence, Gandhi" tone="success" />
+            <Metric label="Festival Holidays" value={festivalCount} detail="Pongal, Diwali, Eid, Christmas" tone="warning" />
+            <Metric
+              label="Next Upcoming"
+              value={nextHoliday ? nextHoliday.name.split('/')[0].trim() : 'None'}
+              detail={nextHoliday ? `${formatDate(nextHoliday.date)} (${nextHoliday.day})` : ''}
+              tone="default"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {['All', 'National Holiday', 'Festival Holiday', 'Gazetted Holiday'].map((t) => (
+                <Button
+                  key={t}
+                  variant={filterType === t ? 'primary' : 'secondary'}
+                  onClick={() => setFilterType(t)}
+                >
+                  {t === 'All' ? `All (${OFFICIAL_HOLIDAYS_2026.length})` : t}
+                </Button>
+              ))}
+            </div>
+            <div className="relative min-w-[240px]">
+              <Search className="absolute left-3 top-3 size-4 text-[hsl(var(--muted-foreground))]" />
+              <input
+                type="text"
+                placeholder="Search holiday name, month..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-xl border border-[hsl(var(--border))] bg-white pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-400"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredHolidays.map((h) => {
+              const isPassed = h.date < TODAY;
+              const isToday = h.date === TODAY;
+              const dateObj = new Date(`${h.date}T12:00:00`);
+              const monthShort = dateObj.toLocaleDateString([], { month: 'short' }).toUpperCase();
+              const dayNum = dateObj.getDate();
+
+              return (
+                <Card
+                  key={h.id}
+                  onClick={() => {
+                    setSelectedDay(h.date);
+                    setViewMode('daily');
+                  }}
+                  className={`p-5 transition hover:shadow-md cursor-pointer ${
+                    isToday ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-14 flex-col items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-50 font-black text-amber-950 shadow-xs">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                          {monthShort}
+                        </span>
+                        <span className="text-xl leading-tight font-extrabold">{dayNum}</span>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-[hsl(var(--foreground))]">{h.name}</h3>
+                        <div className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+                          {h.day} · {formatDate(h.date)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                    <Badge
+                      className={
+                        h.type === 'National Holiday'
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                          : h.type === 'Festival Holiday'
+                          ? 'border-purple-300 bg-purple-50 text-purple-800'
+                          : 'border-blue-300 bg-blue-50 text-blue-800'
+                      }
+                    >
+                      {h.type === 'National Holiday' && '🇮🇳 '}
+                      {h.type === 'Festival Holiday' && '🎉 '}
+                      {h.type === 'Gazetted Holiday' && '🏛️ '}
+                      {h.type}
+                    </Badge>
+                    {isToday && (
+                      <Badge className="border-amber-400 bg-amber-100 text-amber-900 font-bold animate-pulse">
+                        Today!
+                      </Badge>
+                    )}
+                    {isPassed && (
+                      <Badge className="border-slate-200 bg-slate-100 text-slate-500">
+                        Passed
+                      </Badge>
+                    )}
+                    {!isPassed && !isToday && (
+                      <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold">
+                        Upcoming
+                      </Badge>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
+                    {h.description}
+                  </p>
+                </Card>
+              );
+            })}
+          </div>
+          {filteredHolidays.length === 0 && (
+            <Card className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
+              No holidays match your filter or search query.
             </Card>
-          );
-        })}
-      </div>
-      {filteredHolidays.length === 0 && (
-        <Card className="p-12 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          No holidays match your filter or search query.
-        </Card>
+          )}
+        </div>
       )}
     </>
   );
