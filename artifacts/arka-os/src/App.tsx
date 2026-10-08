@@ -272,7 +272,8 @@ export const INITIAL_CLIENTS: string[] = [
 ];
 
 const initialPeople: Person[] = [
-  { id: 'usr_founder', name: 'Arka Founder', role: 'Founder', title: 'Founder / CEO', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
+  { id: 'usr_founder', name: 'Monika S', email: 'monika@arkadigitalmedia.com', password: 'admin1234', role: 'Founder', title: 'Founder / CEO', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
+  { id: 'usr_founder_eshwar', name: 'Eshwar SP', email: 'eshwar@arkadigitalmedia.com', password: 'admin1234', role: 'Founder', title: 'Co-Founder & COO', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
   { id: 'usr_hr', name: 'HR Manager', email: 'hr@arka.com', password: '1234', role: 'HR Manager', title: 'Head of People & HR Operations', managerId: null, presence: 'Offline', lastActiveAt: 'Just now', sessionMinutes: 0, taskMinutes: 0 },
 ];
 
@@ -432,7 +433,7 @@ export function isTaskManagedByManager(task: WorkTask, workList: WorkItem[]): bo
   const parentWork = workList.find((w) => w.id === task.workId);
   const assignee = person(task.assigneeId);
   const managerId = parentWork?.managerId || assignee?.managerId;
-  if (!managerId || managerId === 'usr_founder') return false;
+  if (!managerId) return false;
   const m = person(managerId);
   return m?.role === 'Manager';
 }
@@ -441,7 +442,7 @@ export function getTaskManager(task: WorkTask, workList: WorkItem[]): Person | n
   const parentWork = workList.find((w) => w.id === task.workId);
   const assignee = person(task.assigneeId);
   const mId = parentWork?.managerId || assignee?.managerId;
-  if (!mId || mId === 'usr_founder') return null;
+  if (!mId) return null;
   const m = person(mId);
   return m?.role === 'Manager' ? m : null;
 }
@@ -572,13 +573,14 @@ export function updateLeaveStatus(leaves: LeaveRequest[], id: string, status: Le
 }
 
 export function authenticateDemoUser(email: string, pass: string) {
-  if (email === 'admin@arka.com' && pass === 'admin1234') {
-    return { id: 'usr_founder', role: 'Founder' as const, name: 'Arka Founder' };
+  const normEmail = email.toLowerCase().trim();
+  if ((normEmail === 'monika@arkadigitalmedia.com' || normEmail === 'monika@arka.com' || normEmail === 'admin@arka.com' || normEmail === 'arka@founder') && (pass === 'admin1234' || pass === '1234')) {
+    return { id: 'usr_founder', role: 'Founder' as const, name: 'Monika S' };
   }
-  if (email === 'arka@founder' && pass === '1234') {
-    return { id: 'usr_founder', role: 'Founder' as const, name: 'Founder' };
+  if ((normEmail === 'eshwar@arkadigitalmedia.com' || normEmail === 'eshwar@arka.com' || normEmail === 'eshwarsp@arka.com') && (pass === 'admin1234' || pass === '1234')) {
+    return { id: 'usr_founder_eshwar', role: 'Founder' as const, name: 'Eshwar SP' };
   }
-  if (email === 'hr@arka.com' && pass === '1234') {
+  if (normEmail === 'hr@arka.com' && pass === '1234') {
     return { id: 'usr_hr', role: 'HR Manager' as const, name: 'HR Manager' };
   }
   return null;
@@ -1172,7 +1174,7 @@ function Shell({
             </div>
           )}
 
-          {/* Presence Dropdown with Daily Allowance Indicators */}
+          {/* Presence Dropdown */}
           <div className="flex items-center gap-2 rounded-full bg-white border border-[hsl(var(--border))] px-3 py-1 shadow-sm">
             <span className={`size-2 rounded-full ${actor.presence === 'Online' ? 'bg-emerald-400' : actor.presence === 'Break' || actor.presence === 'Lunch' ? 'bg-amber-400' : 'bg-slate-400'}`} /> 
             <select 
@@ -1185,13 +1187,13 @@ function Shell({
                 value="Break" 
                 disabled={actor.presence !== 'Break' && poolLeft <= 0}
               >
-                {`On Break (${Math.min(15, poolLeft)}m) [${poolLeft}m pool left]`}
+                On Break (15m)
               </option>
               <option 
                 value="Lunch" 
                 disabled={actor.presence !== 'Lunch' && poolLeft <= 0}
               >
-                {`At Lunch (${Math.min(60, poolLeft)}m) [${poolLeft}m pool left]`}
+                At Lunch (60m)
               </option>
               <option value="Idle">Idle</option>
             </select>
@@ -1950,7 +1952,7 @@ function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person
     const mId = parentWork?.managerId || assignee?.managerId;
 
     if (selectedManagerTab === 'direct') {
-      return !mId || mId === 'usr_founder' || person(mId).role !== 'Manager';
+      return !mId || person(mId).role === 'Founder' || person(mId).role !== 'Manager';
     }
     return mId === selectedManagerTab;
   });
@@ -1999,7 +2001,7 @@ function ApprovalsPage({ actor, tasks, work, onOpen, onUpdate }: { actor: Person
               const parentWork = work.find((w) => w.id === t.workId);
               const assignee = person(t.assigneeId);
               const mId = parentWork?.managerId || assignee?.managerId;
-              return !mId || mId === 'usr_founder' || person(mId).role !== 'Manager';
+              return !mId || person(mId).role === 'Founder' || person(mId).role !== 'Manager';
             }).length;
 
             return (
@@ -2142,7 +2144,7 @@ function AssignWorkModal({ onClose, onCreate }: {
 }) {
   const managers = runtimePeople.filter((p) => p.role === 'Manager');
   const directUnderFounder = runtimePeople.filter((p) =>
-    p.role !== 'Founder' && p.role !== 'Manager' && (!p.managerId || p.managerId === 'usr_founder')
+    p.role !== 'Founder' && p.role !== 'Manager' && (!p.managerId || person(p.managerId).role === 'Founder')
   );
   const targetAssignees = [...managers, ...directUnderFounder].length > 0
     ? [...managers, ...directUnderFounder]
