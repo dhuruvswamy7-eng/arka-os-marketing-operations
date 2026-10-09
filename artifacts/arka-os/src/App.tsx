@@ -2514,13 +2514,42 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
     let targetLogoutStr: string | null = null;
     if (firstLogin) {
       try {
-        const t = new Date(new Date(firstLogin).getTime() + 9 * 60 * 60 * 1000);
+        const remainingMinutes = Math.max(0, 540 - total);
+        const t = open && remainingMinutes > 0
+          ? new Date(Date.now() + remainingMinutes * 60000)
+          : new Date(new Date(firstLogin).getTime() + 9 * 60 * 60 * 1000);
         targetLogoutStr = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       } catch {}
     }
 
     const isWfh = leave?.leaveType === 'Work From Home';
-    const status = isWfh ? 'WORK FROM HOME' : leave ? 'ON LEAVE' : sess.length === 0 ? 'NO LOGIN' : open ? 'ACTIVE' : 'PRESENT';
+    const isApprovedEarlyLogout = leave?.leaveType === 'Early Logout';
+    const isApprovedEarlyLogin = leave?.leaveType === 'Early Login';
+    const isFullDayAbsence = leave && leave.leaveType !== 'Work From Home' && leave.leaveType !== 'Early Logout' && leave.leaveType !== 'Early Login';
+
+    // Status logic: Anyone who logged in worked! They are NEVER marked as ON LEAVE.
+    let status = 'NO LOGIN';
+    if (sess.length > 0) {
+      if (open) {
+        status = isWfh ? 'WORK FROM HOME (ACTIVE)' : 'ACTIVE';
+      } else if (total >= 540) {
+        status = isWfh ? 'WORK FROM HOME (COMPLETED)' : 'PRESENT';
+      } else if (isApprovedEarlyLogout) {
+        status = 'EARLY LOGOUT (APPROVED)';
+      } else if (total < 540) {
+        status = 'PRESENT (EARLY LOGOUT)';
+      } else {
+        status = isWfh ? 'WORK FROM HOME' : 'PRESENT';
+      }
+    } else {
+      if (isWfh) {
+        status = 'WORK FROM HOME (NO LOGIN)';
+      } else if (isFullDayAbsence) {
+        status = 'ON LEAVE';
+      } else {
+        status = 'NO LOGIN';
+      }
+    }
 
     return { 
       item, 
@@ -2617,9 +2646,9 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
                     <div className="text-xs text-[hsl(var(--muted-foreground))]">{row.item.lastActiveAt}</div>
                   </div>
                   <span className="text-sm">{row.item.role}</span>
-                  <span className="text-sm">{row.leave && !row.isWfh ? '—' : formatTimestamp(row.sessions[0]?.loginAt)}</span>
+                  <span className="text-sm">{row.sessions.length > 0 ? formatTimestamp(row.sessions[0]?.loginAt) : (row.status === 'ON LEAVE' ? '—' : 'No Login')}</span>
                   <span className="text-sm font-semibold text-slate-700">{row.targetLogoutStr ? row.targetLogoutStr : '—'}</span>
-                  <span className="text-sm">{row.leave && !row.isWfh ? '0h' : hours(row.total)}</span>
+                  <span className="text-sm font-bold text-slate-900">{row.sessions.length > 0 ? hours(row.total) : '0h'}</span>
                   <span className="text-sm">{hours(row.taskMinutes)}</span>
                   <span className="text-sm">
                     {row.breakStats.totalUsedMinutes > 0 ? (
@@ -2640,18 +2669,24 @@ function AttendancePage({ actor, people, tasks, leaves, sessions = [], breakLogs
                         🏠 WFH (Approved)
                       </Badge>
                     ) : (
-                      <Badge className={row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' : row.status === 'ACTIVE' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+                      <Badge className={
+                        row.status === 'ON LEAVE' ? 'border-blue-200 bg-blue-50 text-blue-700' :
+                        row.status.includes('ACTIVE') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+                        row.status.includes('EARLY LOGOUT') ? 'border-amber-300 bg-amber-50 text-amber-800' :
+                        row.status === 'NO LOGIN' ? 'border-slate-200 bg-slate-50 text-slate-600' :
+                        'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      }>
                         {row.status}
                       </Badge>
                     )}
 
                     {row.sessions.length > 0 && (
-                      <Badge className={row.total >= 540 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 text-[10px]' : row.status === 'ACTIVE' ? 'border-blue-200 bg-blue-50 text-blue-700 text-[10px]' : 'border-amber-200 bg-amber-50 text-amber-700 text-[10px]'}>
-                        {row.total >= 540 ? '✓ 9h Complete' : row.status === 'ACTIVE' ? `In Progress` : `Short: ${hours(540 - row.total)}`}
+                      <Badge className={row.total >= 540 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 text-[10px]' : row.status.includes('ACTIVE') ? 'border-blue-200 bg-blue-50 text-blue-700 text-[10px]' : 'border-amber-200 bg-amber-50 text-amber-700 text-[10px]'}>
+                        {row.total >= 540 ? '✓ 9h Complete' : row.status.includes('ACTIVE') ? `In Progress (${hours(row.total)})` : `${hours(row.total)} / 9h`}
                       </Badge>
                     )}
 
-                    {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.status !== 'ON LEAVE' && !row.isWfh && (
+                    {(actor.role === 'Founder' || actor.role === 'HR Manager') && row.sessions.length === 0 && row.status !== 'ON LEAVE' && !row.isWfh && (
                       <span
                         role="button"
                         tabIndex={0}
@@ -2874,7 +2909,49 @@ function WeeklyAttendanceGrid({ filteredPeople, onSelectDate, leaves, sessions =
         <tbody className="divide-y divide-[hsl(var(--border))]">
           {filteredPeople.map((p) => { let weekTotal = 0; return <tr key={p.id} className="hover:bg-[#fafaf8]">
             <td className="px-4 py-3"><div className="font-bold">{p.name}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">{p.role}</div></td>
-            {dates.map((d) => { const daySessions = sessions.filter((s) => s.userId === p.id && s.date === d); const dayTotal = daySessions.reduce((sum, s) => sum + s.durationMinutes, 0); weekTotal += dayTotal; const leave = leaves.find((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, d)); const isSunday = new Date(`${d}T12:00:00`).getDay() === 0; const isCurrent = d === TODAY; return <td key={d} onClick={() => onSelectDate(d)} className={`px-2 py-2 text-center cursor-pointer transition hover:bg-amber-50/60 ${isCurrent ? 'bg-amber-50/40' : ''}`}>{leave ? <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">Leave</span> : dayTotal > 0 ? <div><div className="text-sm font-black">{hours(dayTotal)}</div><div className="mt-1 space-y-0.5">{daySessions.map((s) => <div key={s.id} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">{formatTimestamp(s.loginAt)} → {s.logoutAt ? formatTimestamp(s.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}</div>)}</div></div> : isSunday ? <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Sunday Off</span> : <span className="text-[10px] font-bold text-red-400">No Login</span>}</td>; })}
+            {dates.map((d) => { 
+              const daySessions = sessions.filter((s) => s.userId === p.id && s.date === d); 
+              const dayTotal = daySessions.reduce((sum, s) => sum + s.durationMinutes, 0); 
+              weekTotal += dayTotal; 
+              const leave = leaves.find((l) => l.userId === p.id && isApprovedLeaveActiveOnDate(l, d)); 
+              const isSunday = new Date(`${d}T12:00:00`).getDay() === 0; 
+              const isCurrent = d === TODAY; 
+              const isFullDayLeave = leave && leave.leaveType !== 'Work From Home' && leave.leaveType !== 'Early Logout' && leave.leaveType !== 'Early Login';
+
+              return (
+                <td key={d} onClick={() => onSelectDate(d)} className={`px-2 py-2 text-center cursor-pointer transition hover:bg-amber-50/60 ${isCurrent ? 'bg-amber-50/40' : ''}`}>
+                  {dayTotal > 0 ? (
+                    <div>
+                      <div className="text-sm font-black text-slate-800">{hours(dayTotal)}</div>
+                      {leave?.leaveType === 'Early Logout' && (
+                        <span className="inline-block mt-0.5 rounded bg-amber-100 text-amber-800 px-1 py-0.2 text-[9px] font-bold">
+                          Early Out
+                        </span>
+                      )}
+                      <div className="mt-1 space-y-0.5">
+                        {daySessions.map((s) => (
+                          <div key={s.id} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                            {formatTimestamp(s.loginAt)} → {s.logoutAt ? formatTimestamp(s.logoutAt) : <span className="text-emerald-600 font-bold">Active</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : isFullDayLeave ? (
+                    <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      {leave.leaveType}
+                    </span>
+                  ) : leave?.leaveType === 'Work From Home' ? (
+                    <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                      WFH
+                    </span>
+                  ) : isSunday ? (
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Sunday Off</span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-red-400">No Login</span>
+                  )}
+                </td>
+              );
+            })}
             <td className="px-4 py-3 text-center"><div className="text-lg font-black text-[hsl(var(--primary))]">{hours(weekTotal)}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">{Math.round(weekTotal / 60 * 10) / 10} hrs</div></td>
           </tr>; })}
         </tbody>
@@ -5389,9 +5466,9 @@ function AppRouter() {
     try {
       const loginD = new Date(firstLoginToday);
       if (isNaN(loginD.getTime())) return null;
-      const targetD = new Date(loginD.getTime() + 9 * 60 * 60 * 1000);
-      const targetTimeStr = targetD.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+      // Cumulative calculation across all sessions today:
+      // Preserves earlier sessions and adds live session progress
       const totalMinutes = todaySessions.reduce((sum, s) => {
         if (!s.logoutAt) {
           const live = Math.max(0, Math.floor((Date.now() - new Date(s.loginAt).getTime()) / 60000));
@@ -5403,6 +5480,15 @@ function AppRouter() {
       const isCompleted = totalMinutes >= 540;
       const remainingMinutes = Math.max(0, 540 - totalMinutes);
       const progressPercent = Math.min(100, Math.round((totalMinutes / 540) * 100));
+
+      // Calculate Target Logout time:
+      // If user is actively online, dynamic target is Now + remainingMinutes needed!
+      // Otherwise, original login + 9 hours.
+      const hasActiveSession = todaySessions.some((s) => !s.logoutAt);
+      const targetD = hasActiveSession && remainingMinutes > 0
+        ? new Date(Date.now() + remainingMinutes * 60000)
+        : new Date(loginD.getTime() + 9 * 60 * 60 * 1000);
+      const targetTimeStr = targetD.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       return {
         loginTimeStr: loginD.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -5465,12 +5551,10 @@ function AppRouter() {
 
     const check9hShift = () => {
       try {
-        const loginD = new Date(firstLoginToday);
-        if (isNaN(loginD.getTime())) return;
-        const elapsedMinutes = Math.floor((Date.now() - loginD.getTime()) / 60000);
+        if (!shiftTargetInfo) return;
 
-        // Auto-logout when 9 hours (540 minutes) elapsed
-        if (elapsedMinutes >= 540) {
+        // Auto-logout only when actual cumulative workday minutes reaches 540 (9 hours)
+        if (shiftTargetInfo.isCompleted || shiftTargetInfo.totalMinutes >= 540) {
           const shiftEndMsg = '🎉 9-Hour Workday Shift Completed!\n\nYou have completed your full 9-hour workday (540 minutes). You have been automatically logged out. Great job today!';
           void apiPost('/activities', {
             workId: 'system',
@@ -5489,7 +5573,7 @@ function AppRouter() {
     check9hShift();
     const interval = setInterval(check9hShift, 5000);
     return () => clearInterval(interval);
-  }, [signedIn, actor?.id, actor?.role, firstLoginToday, handleLogout]);
+  }, [signedIn, actor?.id, actor?.role, firstLoginToday, shiftTargetInfo, handleLogout]);
 
 
   // New Task Assignment Background Notification & Chime

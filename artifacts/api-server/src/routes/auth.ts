@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, peopleTable, sessionsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, asc } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 const router: IRouter = Router();
@@ -34,6 +34,20 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1d" }
     );
 
+    // Check if user already logged in earlier today to preserve first shift login
+    let firstLoginAt = nowIso;
+    try {
+      const existingTodaySessions = await db.select().from(sessionsTable)
+        .where(and(eq(sessionsTable.userId, user.id), eq(sessionsTable.date, todayDate)))
+        .orderBy(asc(sessionsTable.loginAt));
+
+      if (existingTodaySessions.length > 0 && existingTodaySessions[0].loginAt) {
+        firstLoginAt = existingTodaySessions[0].loginAt;
+      }
+    } catch (e) {
+      console.warn("Could not check today sessions", e);
+    }
+
     // Invalidate/close previous open sessions for this user
     try {
       const openSessions = await db.select().from(sessionsTable)
@@ -52,10 +66,10 @@ router.post("/login", async (req, res) => {
       console.warn("Could not close previous open sessions", e);
     }
 
-    // Set new activeSessionId on user record
+    // Set new activeSessionId on user record while preserving original first login of the day
     await db.update(peopleTable)
       .set({ 
-        loginAt: nowIso, 
+        loginAt: firstLoginAt, 
         lastActiveAt: nowIso,
         presence: "Online",
         activeSessionId: sessionId
@@ -78,7 +92,7 @@ router.post("/login", async (req, res) => {
         role: user.role,
         name: user.name,
         email: user.email,
-        loginAt: nowIso,
+        loginAt: firstLoginAt,
         presence: "Online",
         sessionId,
         token
