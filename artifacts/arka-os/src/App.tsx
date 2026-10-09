@@ -525,8 +525,9 @@ export function getDailyBreakMinutes(
   const dayLogs = breakLogs.filter((b) => b.userId === userId && b.date === date);
   const totalUsed = dayLogs.reduce((sum, b) => {
     if (b.durationMinutes && b.durationMinutes > 0) return sum + b.durationMinutes;
-    if (b.endAt && b.startAt) {
-      return sum + Math.max(1, Math.round((new Date(b.endAt).getTime() - new Date(b.startAt).getTime()) / 60000));
+    if (b.startAt) {
+      const endMs = b.endAt ? new Date(b.endAt).getTime() : Date.now();
+      return sum + Math.max(0, Math.round((endMs - new Date(b.startAt).getTime()) / 60000));
     }
     return sum;
   }, 0);
@@ -5654,7 +5655,9 @@ function AppRouter() {
           return;
         }
 
-        const sessionMaxMinutes = stats.remainingPoolMinutes;
+        // Slot limit: Break is max 15m, Lunch is max 60m. Both share the single 75m total pool.
+        const slotLimit = presence === 'Break' ? 15 : 60;
+        const sessionMaxMinutes = Math.min(slotLimit, stats.remainingPoolMinutes);
         const nowIso = new Date().toISOString();
 
         let createdLogId = `blk_${Date.now()}`;
@@ -5679,6 +5682,7 @@ function AppRouter() {
           presence,
           breakLogId: createdLogId,
           startAt: nowIso,
+          slotMinutes: sessionMaxMinutes,
           expiresAt
         }));
 
@@ -5687,7 +5691,7 @@ function AppRouter() {
         await apiPost('/activities', {
           workId: 'system',
           actorId: actor.id,
-          message: `started ${presence} (${stats.remainingPoolMinutes}m available in daily pool)`,
+          message: `started ${presence} (${sessionMaxMinutes}m session, ${stats.remainingPoolMinutes}m total pool left)`,
           tone: 'warning'
         }).catch(() => {});
 
@@ -5742,19 +5746,25 @@ function AppRouter() {
             expiresAt = parsed.expiresAt;
           } else {
             const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
-            const durationMs = stats.remainingPoolMinutes * 60 * 1000;
+            const slotLimit = actor.presence === 'Break' ? 15 : 60;
+            const sessionMaxMinutes = Math.min(slotLimit, stats.remainingPoolMinutes);
+            const durationMs = sessionMaxMinutes * 60 * 1000;
             expiresAt = Date.now() + durationMs;
             localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
           }
         } catch {
           const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
-          const durationMs = stats.remainingPoolMinutes * 60 * 1000;
+          const slotLimit = actor.presence === 'Break' ? 15 : 60;
+          const sessionMaxMinutes = Math.min(slotLimit, stats.remainingPoolMinutes);
+          const durationMs = sessionMaxMinutes * 60 * 1000;
           expiresAt = Date.now() + durationMs;
           localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
         }
       } else {
         const stats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
-        const durationMs = stats.remainingPoolMinutes * 60 * 1000;
+        const slotLimit = actor.presence === 'Break' ? 15 : 60;
+        const sessionMaxMinutes = Math.min(slotLimit, stats.remainingPoolMinutes);
+        const durationMs = sessionMaxMinutes * 60 * 1000;
         expiresAt = Date.now() + durationMs;
         localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
       }
