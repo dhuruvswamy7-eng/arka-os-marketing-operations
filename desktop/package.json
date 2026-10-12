@@ -23,6 +23,15 @@
       "package.json",
       "web-dist/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "web-dist",
+        "to": "web-dist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
       "target": [
         "nsis",

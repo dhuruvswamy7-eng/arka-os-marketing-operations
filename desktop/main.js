@@ -1,12 +1,15 @@
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+let localServer = null;
+let localPort = null;
 
-// Ensure single instance of ARKA OS runs
+// Single-instance lock: only 1 instance of ARKA OS can run at a time
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -20,11 +23,79 @@ if (!gotTheLock) {
   });
 }
 
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf'
+};
+
+function getWebDistDir() {
+  const possiblePaths = [
+    path.join(__dirname, 'web-dist'),
+    path.join(process.resourcesPath || '', 'web-dist'),
+    path.join(app.getAppPath(), 'web-dist'),
+    path.join(__dirname, '../artifacts/arka-os/dist/public')
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'))) {
+      return p;
+    }
+  }
+  return path.join(__dirname, 'web-dist');
+}
+
+function startLocalServer(callback) {
+  const staticDir = getWebDistDir();
+
+  localServer = http.createServer((req, res) => {
+    let reqPath = decodeURI(req.url.split('?')[0]);
+    if (reqPath === '/' || !reqPath) reqPath = '/index.html';
+
+    let filePath = path.join(staticDir, reqPath);
+
+    // Single Page App (SPA) fallback: serve index.html if route doesn't match a static file
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      filePath = path.join(staticDir, 'index.html');
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+    fs.readFile(filePath, (err, content) => {
+      if (err) {
+        res.writeHead(500);
+        res.end('Error loading ' + reqPath);
+      } else {
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(content);
+      }
+    });
+  });
+
+  localServer.listen(0, '127.0.0.1', () => {
+    localPort = localServer.address().port;
+    callback(localPort);
+  });
+}
+
 function getAppIcon() {
   const possiblePaths = [
     path.join(__dirname, 'icon.png'),
-    path.join(__dirname, '../artifacts/arka-os/public/assets/arkamedia-logo.png'),
-    path.join(__dirname, '../artifacts/arka-os/dist/public/assets/arkamedia-logo.png')
+    path.join(__dirname, 'web-dist/assets/arkamedia-logo.png'),
+    path.join(__dirname, '../artifacts/arka-os/public/assets/arkamedia-logo.png')
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) return p;
@@ -32,14 +103,14 @@ function getAppIcon() {
   return undefined;
 }
 
-function createMainWindow() {
+function createMainWindow(port) {
   const iconPath = getAppIcon();
 
   mainWindow = new BrowserWindow({
-    width: 1360,
-    height: 860,
-    minWidth: 1024,
-    minHeight: 700,
+    width: 1400,
+    height: 900,
+    minWidth: 1080,
+    minHeight: 720,
     title: 'ARKA OS — Marketing Operations Hub',
     icon: iconPath,
     backgroundColor: '#101010',
@@ -52,38 +123,15 @@ function createMainWindow() {
     show: false
   });
 
-  // Attempt to load the production web application; fall back to local bundle if offline
-  const productionUrl = 'https://arkadigitalmedia.com';
-  const localBundlePath = path.join(__dirname, 'web-dist/index.html');
-  const fallbackBundlePath = path.join(__dirname, '../artifacts/arka-os/dist/public/index.html');
+  // Load the ARKA OS local Single Page Application
+  mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
-  const loadFallback = () => {
-    if (fs.existsSync(localBundlePath)) {
-      mainWindow.loadFile(localBundlePath);
-    } else if (fs.existsSync(fallbackBundlePath)) {
-      mainWindow.loadFile(fallbackBundlePath);
-    }
-  };
-
-  // Load production site by default so all team members get real-time cloud updates
-  mainWindow.loadURL(productionUrl).catch(() => {
-    loadFallback();
-  });
-
-  // If network connection fails, gracefully switch to local bundle
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    if (validatedURL && validatedURL.includes('arkadigitalmedia.com')) {
-      loadFallback();
-    }
-  });
-
-  // Smooth appearance when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.focus();
   });
 
-  // Intercept close button: minimize to tray instead of quitting
+  // Minimize to tray when user clicks [X], preserving running shift & break timers
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault();
@@ -92,8 +140,8 @@ function createMainWindow() {
       if (Notification.isSupported()) {
         try {
           new Notification({
-            title: 'ARKA OS is running in background',
-            body: 'ARKA OS is minimized to the system tray so your 9-hour shift and break timers continue tracking accurately.',
+            title: 'ARKA OS is still running',
+            body: 'Minimized to system tray. Your 9-hour workday shift & break timer are still active.',
             icon: iconPath
           }).show();
         } catch {}
@@ -102,11 +150,13 @@ function createMainWindow() {
     }
   });
 
-  // External links open in default web browser
+  // External URLs open in system web browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url);
-      return { action: 'deny' };
+      if (!url.includes('127.0.0.1')) {
+        shell.openExternal(url);
+        return { action: 'deny' };
+      }
     }
     return { action: 'allow' };
   });
@@ -177,7 +227,7 @@ function createSystemTray() {
 }
 
 app.whenReady().then(() => {
-  // Configure Windows auto-start on boot so employees never forget to open ARKA OS
+  // Configure Windows auto-start on boot
   try {
     app.setLoginItemSettings({
       openAtLogin: true,
@@ -185,23 +235,31 @@ app.whenReady().then(() => {
     });
   } catch {}
 
-  createMainWindow();
-  createSystemTray();
+  startLocalServer((port) => {
+    createMainWindow(port);
+    createSystemTray();
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      if (localPort) {
+        createMainWindow(localPort);
+      } else {
+        startLocalServer((port) => createMainWindow(port));
+      }
     }
   });
 });
 
 app.on('before-quit', () => {
   isQuitting = true;
+  if (localServer) {
+    try { localServer.close(); } catch {}
+  }
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    // Keep running in tray unless explicit quit
     if (isQuitting) {
       app.quit();
     }
