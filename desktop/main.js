@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -9,7 +9,7 @@ let isQuitting = false;
 let localServer = null;
 let localPort = null;
 
-// Single-instance lock: only 1 instance of ARKA OS can run at a time
+// Enforce single instance lock (prevents running duplicate instances)
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -48,43 +48,62 @@ function getWebDistDir() {
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'))) {
-      return p;
+      return path.resolve(p);
     }
   }
-  return path.join(__dirname, 'web-dist');
+  return path.resolve(path.join(__dirname, 'web-dist'));
 }
 
-function startLocalServer(callback) {
+// Secure local loopback server with strict Path Traversal & CSP protection
+function startSecureLocalServer(callback) {
   const staticDir = getWebDistDir();
 
   localServer = http.createServer((req, res) => {
+    // Only accept GET and HEAD requests
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'Content-Type': 'text/plain' });
+      res.end('Method Not Allowed');
+      return;
+    }
+
     let reqPath = decodeURI(req.url.split('?')[0]);
     if (reqPath === '/' || !reqPath) reqPath = '/index.html';
 
-    let filePath = path.join(staticDir, reqPath);
-
-    // Single Page App (SPA) fallback: serve index.html if route doesn't match a static file
-    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-      filePath = path.join(staticDir, 'index.html');
+    // Strict Path Traversal defense: normalize and verify path stays within staticDir
+    let safeFilePath = path.normalize(path.join(staticDir, reqPath));
+    if (!safeFilePath.startsWith(staticDir)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
     }
 
-    const ext = path.extname(filePath).toLowerCase();
+    // SPA fallback: if file does not exist, safely serve index.html
+    if (!fs.existsSync(safeFilePath) || fs.statSync(safeFilePath).isDirectory()) {
+      safeFilePath = path.join(staticDir, 'index.html');
+    }
+
+    const ext = path.extname(safeFilePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    fs.readFile(filePath, (err, content) => {
+    fs.readFile(safeFilePath, (err, content) => {
       if (err) {
-        res.writeHead(500);
-        res.end('Error loading ' + reqPath);
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Error loading asset');
       } else {
         res.writeHead(200, {
           'Content-Type': contentType,
-          'Access-Control-Allow-Origin': '*'
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'X-XSS-Protection': '1; mode=block',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://arka-api-w9o0.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob:; connect-src 'self' https://arka-api-w9o0.onrender.com wss://arka-api-w9o0.onrender.com; img-src 'self' data: blob: https:; font-src 'self' https://fonts.gstatic.com data:;"
         });
         res.end(content);
       }
     });
   });
 
+  // Strict binding to 127.0.0.1 (loopback only - cannot be reached from local network)
   localServer.listen(0, '127.0.0.1', () => {
     localPort = localServer.address().port;
     callback(localPort);
@@ -117,18 +136,61 @@ function createMainWindow(port) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
+      devTools: !app.isPackaged, // Completely disables DevTools in production
       preload: path.join(__dirname, 'preload.js')
     },
     autoHideMenuBar: true,
     show: false
   });
 
-  // Load the ARKA OS local Single Page Application
+  // Load the secure local loopback ARKA OS build
   mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.focus();
+  });
+
+  // Security: Block DevTools inspection shortcuts in production
+  if (app.isPackaged) {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U (source view)
+      if (
+        input.key === 'F12' ||
+        (input.control && input.shift && (input.key === 'I' || input.key === 'i' || input.key === 'J' || input.key === 'j')) ||
+        (input.control && (input.key === 'u' || input.key === 'U'))
+      ) {
+        event.preventDefault();
+      }
+    });
+
+    // Disable default right-click context menu inspect
+    mainWindow.webContents.on('context-menu', (e) => {
+      e.preventDefault();
+    });
+  }
+
+  // Security: Prevent navigation hijacking (cannot be redirected to malicious phishing pages)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(`http://127.0.0.1:${port}`)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
+  // External URLs strictly open in user's default OS browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      if (!url.includes(`127.0.0.1:${port}`)) {
+        shell.openExternal(url);
+        return { action: 'deny' };
+      }
+    }
+    return { action: 'deny' };
   });
 
   // Minimize to tray when user clicks [X], preserving running shift & break timers
@@ -148,17 +210,6 @@ function createMainWindow(port) {
       }
       return false;
     }
-  });
-
-  // External URLs open in system web browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (!url.includes('127.0.0.1')) {
-        shell.openExternal(url);
-        return { action: 'deny' };
-      }
-    }
-    return { action: 'allow' };
   });
 }
 
@@ -227,6 +278,16 @@ function createSystemTray() {
 }
 
 app.whenReady().then(() => {
+  // Security: Restrict renderer permissions
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    // Only allow notifications; deny microphone, camera, geolocation, media access
+    if (permission === 'notifications') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
   // Configure Windows auto-start on boot
   try {
     app.setLoginItemSettings({
@@ -235,7 +296,7 @@ app.whenReady().then(() => {
     });
   } catch {}
 
-  startLocalServer((port) => {
+  startSecureLocalServer((port) => {
     createMainWindow(port);
     createSystemTray();
   });
@@ -245,7 +306,7 @@ app.whenReady().then(() => {
       if (localPort) {
         createMainWindow(localPort);
       } else {
-        startLocalServer((port) => createMainWindow(port));
+        startSecureLocalServer((port) => createMainWindow(port));
       }
     }
   });

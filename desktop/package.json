@@ -13,6 +13,7 @@
   "build": {
     "appId": "com.arkadigitalmedia.os",
     "productName": "ARKA OS",
+    "asar": true,
     "directories": {
       "output": "dist"
     },
