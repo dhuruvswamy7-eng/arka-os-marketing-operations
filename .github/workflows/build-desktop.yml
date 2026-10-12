@@ -1,0 +1,87 @@
+name: Build ARKA OS Desktop Apps (Windows & Mac)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-mac:
+    name: Build macOS DMG & ZIP
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Root Dependencies
+        run: npm install
+
+      - name: Build Frontend Application
+        run: |
+          cd artifacts/arka-os
+          npm install
+          npm run build
+
+      - name: Setup Desktop Bundle
+        run: |
+          mkdir -p desktop/web-dist
+          cp -R artifacts/arka-os/dist/public/* desktop/web-dist/
+          cd desktop
+          npm install
+
+      - name: Build macOS DMG
+        run: |
+          cd desktop
+          npx electron-builder --mac
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARKA-OS-macOS-Installer
+          path: desktop/dist/*.dmg
+
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Root Dependencies
+        run: npm install
+
+      - name: Build Frontend Application
+        run: |
+          cd artifacts/arka-os
+          npm install
+          npm run build
+
+      - name: Setup Desktop Bundle
+        run: |
+          mkdir desktop/web-dist -Force
+          Copy-Item -Recurse -Force artifacts/arka-os/dist/public/* desktop/web-dist/
+          cd desktop
+          npm install
+
+      - name: Build Windows Executables
+        run: |
+          cd desktop
+          npx electron-builder --win
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARKA-OS-Windows-Installers
+          path: |
+            desktop/dist/*.exe
