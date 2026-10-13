@@ -5,5 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   sendNotification: (title, body) => {
     ipcRenderer.send('notify', { title, body });
+  },
+  updateShiftStatus: (status) => {
+    ipcRenderer.send('shift:status', status);
   }
 });

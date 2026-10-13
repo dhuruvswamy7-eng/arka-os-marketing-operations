@@ -333,6 +333,7 @@ const priorityTone: Record<Priority, string> = {
 const roleNavigation: Record<Role, { label: string; path: string; icon: typeof Command }[]> = {
   Founder: [
     { label: 'Command Center', path: '/dashboard', icon: Command },
+    { label: 'Daily Work Board', path: '/daily-work', icon: KanbanSquare },
     { label: 'Company Work', path: '/work', icon: Inbox },
     { label: 'Content Calendar', path: '/content-calendar', icon: CalendarDays },
     { label: 'People', path: '/people', icon: UserPlus },
@@ -348,6 +349,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
   ],
   'HR Manager': [
     { label: 'HR Command Center', path: '/dashboard', icon: Command },
+    { label: 'Daily Work Board', path: '/daily-work', icon: KanbanSquare },
     { label: 'Attendance & Time', path: '/attendance', icon: CalendarDays },
     { label: 'Leave Management', path: '/leave', icon: CalendarDays },
     { label: 'Company Calendar', path: '/calendar', icon: CalendarDays },
@@ -359,6 +361,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
   ],
   Manager: [
     { label: 'My Dashboard', path: '/dashboard', icon: Command },
+    { label: 'Daily Work Board', path: '/daily-work', icon: KanbanSquare },
     { label: 'Content Calendar', path: '/content-calendar', icon: CalendarDays },
     { label: 'Founder Assignments', path: '/assignments', icon: Flag },
     { label: 'Team Tasks', path: '/team-tasks', icon: KanbanSquare },
@@ -372,6 +375,7 @@ const roleNavigation: Record<Role, { label: string; path: string; icon: typeof C
     { label: 'Settings', path: '/settings', icon: Settings2 },
   ],
   'Team member': [
+    { label: 'Daily Work Board', path: '/daily-work', icon: KanbanSquare },
     { label: 'My Work', path: '/my-work', icon: Command },
     { label: 'Today', path: '/today', icon: Flag },
     { label: 'My Time', path: '/time', icon: Clock3 },
@@ -1041,6 +1045,107 @@ function EarlyLogoutModal({
   );
 }
 
+function EodHandoverModal({
+  actor,
+  incompleteTodayTasks,
+  onMoveTasksToTomorrow,
+  onConfirmLogout,
+  onClose,
+}: {
+  actor: Person;
+  incompleteTodayTasks: WorkTask[];
+  onMoveTasksToTomorrow: () => void;
+  onConfirmLogout: (note: string) => void;
+  onClose: () => void;
+}) {
+  const [eodNote, setEodNote] = useState('');
+  const [movedToTomorrow, setMovedToTomorrow] = useState(false);
+
+  const handleMove = () => {
+    onMoveTasksToTomorrow();
+    setMovedToTomorrow(true);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-2xl bg-[#f8c329] text-black font-black text-xl">
+            📋
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-900">End-of-Day Checkout & Handover</h2>
+            <p className="text-xs text-slate-500">Wrap up your daily tasks before logging off</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {incompleteTodayTasks.length > 0 ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs">
+              <div className="font-bold text-amber-900 flex items-center justify-between">
+                <span>⚠️ {incompleteTodayTasks.length} task(s) remaining for today:</span>
+                {movedToTomorrow && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                    Moved to Tomorrow ✓
+                  </span>
+                )}
+              </div>
+              <ul className="mt-2 space-y-1 text-slate-700 list-disc list-inside">
+                {incompleteTodayTasks.slice(0, 3).map((t) => (
+                  <li key={t.id} className="truncate font-medium">{t.title}</li>
+                ))}
+                {incompleteTodayTasks.length > 3 && (
+                  <li className="italic text-slate-500">...and {incompleteTodayTasks.length - 3} more</li>
+                )}
+              </ul>
+
+              {!movedToTomorrow && (
+                <button
+                  type="button"
+                  onClick={handleMove}
+                  className="mt-3 w-full rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-black hover:bg-amber-400 transition"
+                >
+                  ➡️ Move All {incompleteTodayTasks.length} Incomplete Tasks to Tomorrow's Plan
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 font-semibold flex items-center gap-2">
+              <CheckCircle2 className="size-4 text-emerald-600" />
+              Awesome work! All tasks assigned for today have been completed or cleared.
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Tomorrow's Focus / Key Handover Note (Optional)
+            </label>
+            <textarea
+              rows={2}
+              value={eodNote}
+              onChange={(e) => setEodNote(e.target.value)}
+              placeholder="e.g. Will prioritize client landing page revisions first thing in the morning..."
+              className="w-full rounded-xl border border-[hsl(var(--input))] bg-[#fafaf8] p-3 text-xs outline-none focus:border-[#f8c329]"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel (Stay Logged In)
+            </Button>
+            <button
+              onClick={() => onConfirmLogout(eodNote)}
+              className="rounded-xl bg-black px-4 py-2.5 text-xs font-black text-white hover:bg-slate-800 transition"
+            >
+              Complete Checkout & Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Shell({ 
   actor, 
   onLogout, 
@@ -1089,7 +1194,7 @@ function Shell({
       <div className="mt-10 rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[#f8c329]">{actor.role} workspace</div><div className="mt-1 text-sm font-bold">{actor.name}</div><div className="mt-1 text-xs text-white/45">{actor.title}</div></div>
       <nav className="mt-7 flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar">
         {nav.map(({ label, path, icon: Icon }) => (
-          <Link key={path} href={path} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${location === path || (path === '/work' && location.startsWith('/work/')) ? 'bg-[#f8c329] text-black' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
+          <Link key={path} href={path} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${location === path || (path === '/daily-work' && (location === '/daily-work' || location === '/today')) || (path === '/work' && location.startsWith('/work/')) ? 'bg-[#f8c329] text-black' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
             <Icon className="size-4" />{label}
           </Link>
         ))}
@@ -2094,6 +2199,751 @@ function InsightsPage({ work, tasks }: { work: WorkItem[]; tasks: WorkTask[] }) 
   const revision = tasks.filter((task) => task.stage === 'Revision').length;
   const review = tasks.filter((task) => task.stage === 'Review').length;
   return <><SectionTitle eyebrow="Operational insights" title="Where is the team stuck?" description="Minimal, decision-oriented signals from work state, review flow, deadlines, and effort." /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Completion rate" value={`${Math.round((work.filter((item) => item.stage === 'Completed').length / Math.max(work.length, 1)) * 100)}%`} detail="Work items completed" tone="success" /><Metric label="In review" value={review} detail="Time waiting for review" tone="warning" /><Metric label="In revision" value={revision} detail="Revision loop active" tone="danger" /><Metric label="Overdue work" value={work.filter((item) => isOverdue(item.dueDate) && item.stage !== 'Completed').length} detail="Deadline has passed" tone="danger" /></div><Card className="mt-6 p-5"><div className="text-xs font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">Stage flow</div><div className="mt-5 space-y-4">{(['Planning', 'Assigned', 'In Progress', 'Review', 'Revision', 'Approved', 'Completed', 'Blocked'] as Stage[]).map((stage) => { const count = work.filter((item) => item.stage === stage).length + tasks.filter((task) => task.stage === stage).length; return <div key={stage} className="flex items-center gap-3"><div className="w-28 text-sm font-semibold">{stage}</div><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#f8c329]" style={{ width: `${Math.min(100, count * 18)}%` }} /></div><div className="w-8 text-right text-sm font-bold">{count}</div></div>; })}</div></Card></>;
+}
+
+function DailyWorkBoardPage({
+  actor,
+  tasks,
+  work,
+  allPeople,
+  onOpenWork,
+  onUpdateTask,
+  onAddTask,
+}: {
+  actor: Person;
+  tasks: WorkTask[];
+  work: WorkItem[];
+  allPeople: Person[];
+  onOpenWork: (workId: string) => void;
+  onUpdateTask: (taskId: string, patch: Partial<WorkTask>, message: string) => void;
+  onAddTask: (data: Omit<WorkTask, 'id' | 'stage' | 'progress' | 'timeMinutes'>) => void;
+}) {
+  const isManager = actor.role === 'Manager';
+  const isFounderOrHR = actor.role === 'Founder' || actor.role === 'HR Manager';
+  const canSeeTeam = isFounderOrHR || isManager;
+
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>(
+    actor.role === 'Team member' ? actor.id : 'all'
+  );
+  const [viewMode, setViewMode] = useState<'board' | 'matrix'>('board');
+  const [blockerModalTask, setBlockerModalTask] = useState<WorkTask | null>(null);
+  const [blockerText, setBlockerText] = useState('');
+  const [copiedReport, setCopiedReport] = useState(false);
+
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [tomorrowTitle, setTomorrowTitle] = useState('');
+  const [tomorrowWorkId, setTomorrowWorkId] = useState(work[0]?.id || '');
+  const [tomorrowPriority, setTomorrowPriority] = useState<Priority>('Medium');
+  const [tomorrowEstMinutes, setTomorrowEstMinutes] = useState(60);
+
+  const todayStr = TODAY;
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = tomorrowDate.toISOString().slice(0, 10);
+
+  // Scoped task list
+  const scopedTasks = useMemo(() => {
+    let pool = tasks;
+    if (actor.role === 'Team member') {
+      return pool.filter((t) => t.assigneeId === actor.id);
+    }
+    if (isManager && selectedAssigneeId === 'all') {
+      const myTeamIds = allPeople.filter((p) => p.managerId === actor.id || p.id === actor.id).map((p) => p.id);
+      return pool.filter((t) => myTeamIds.includes(t.assigneeId));
+    }
+    if (selectedAssigneeId !== 'all') {
+      return pool.filter((t) => t.assigneeId === selectedAssigneeId);
+    }
+    return pool;
+  }, [tasks, actor.id, actor.role, isManager, selectedAssigneeId, allPeople]);
+
+  // 1. Today's Assigned: dueDate === todayStr OR stage === 'In Progress'
+  const todayTasks = useMemo(() => {
+    return scopedTasks.filter((t) =>
+      (t.dueDate === todayStr || t.stage === 'In Progress') &&
+      t.stage !== 'Completed' && t.stage !== 'Approved'
+    );
+  }, [scopedTasks, todayStr]);
+
+  // 2. Pending & Overdue: dueDate < todayStr AND stage !== 'In Progress'
+  const pendingTasks = useMemo(() => {
+    return scopedTasks.filter((t) =>
+      t.dueDate < todayStr &&
+      t.stage !== 'In Progress' &&
+      t.stage !== 'Completed' && t.stage !== 'Approved'
+    );
+  }, [scopedTasks, todayStr]);
+
+  // 3. Tomorrow's Planned: dueDate >= tomorrowStr
+  const tomorrowTasks = useMemo(() => {
+    return scopedTasks.filter((t) =>
+      t.dueDate >= tomorrowStr &&
+      t.stage !== 'Completed' && t.stage !== 'Approved'
+    );
+  }, [scopedTasks, tomorrowStr]);
+
+  // 4. Completed Today
+  const completedTodayTasks = useMemo(() => {
+    return scopedTasks.filter((t) =>
+      (t.stage === 'Completed' || t.stage === 'Approved') &&
+      (t.submittedAt?.startsWith(todayStr) || t.dueDate === todayStr)
+    );
+  }, [scopedTasks, todayStr]);
+
+  // 1-Click WhatsApp / Slack Standup Generator
+  const copyDailyStandupSummary = () => {
+    const targetPeople = isFounderOrHR
+      ? allPeople.filter((p) => p.role === 'Team member' || p.role === 'Manager')
+      : isManager
+      ? allPeople.filter((p) => p.managerId === actor.id || p.id === actor.id)
+      : [actor];
+
+    let summary = `🚀 *ARKA OS — Daily Operations Standup* (${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })})\n`;
+    summary += `--------------------------------------------------\n\n`;
+
+    targetPeople.forEach((m) => {
+      const mTasks = tasks.filter((t) => t.assigneeId === m.id);
+      const mToday = mTasks.filter((t) => (t.dueDate === todayStr || t.stage === 'In Progress') && t.stage !== 'Completed' && t.stage !== 'Approved');
+      const mPending = mTasks.filter((t) => t.dueDate < todayStr && t.stage !== 'In Progress' && t.stage !== 'Completed' && t.stage !== 'Approved');
+      const mTomorrow = mTasks.filter((t) => t.dueDate >= tomorrowStr && t.stage !== 'Completed' && t.stage !== 'Approved');
+      const mDone = mTasks.filter((t) => (t.stage === 'Completed' || t.stage === 'Approved') && (t.dueDate === todayStr || t.submittedAt?.startsWith(todayStr)));
+
+      summary += `👤 *${m.name}* (${m.title}) — Status: ${m.presence}\n`;
+      if (mToday.length > 0) {
+        summary += `  🎯 *Today's Assigned (${mToday.length})*:\n`;
+        mToday.forEach((t) => {
+          summary += `    • ${t.title} [${t.stage}] (${t.priority} priority)\n`;
+        });
+      } else {
+        summary += `  🎯 *Today*: All assigned tasks cleared\n`;
+      }
+
+      if (mPending.length > 0) {
+        summary += `  ⏳ *Pending / Blockers (${mPending.length})*:\n`;
+        mPending.forEach((t) => {
+          const daysOverdue = Math.max(1, Math.floor((Date.now() - new Date(t.dueDate).getTime()) / 86400000));
+          const blockerNote = t.revisionNote ? ` - Blocker: ${t.revisionNote}` : '';
+          summary += `    • ${t.title} (${daysOverdue}d overdue${blockerNote})\n`;
+        });
+      }
+
+      if (mTomorrow.length > 0) {
+        summary += `  📅 *Tomorrow's Plan (${mTomorrow.length})*:\n`;
+        mTomorrow.forEach((t) => {
+          summary += `    • ${t.title} (${t.priority})\n`;
+        });
+      }
+
+      if (mDone.length > 0) {
+        summary += `  ✅ *Completed Today (${mDone.length})*: ${mDone.map((t) => t.title).join(', ')}\n`;
+      }
+
+      summary += `\n`;
+    });
+
+    try {
+      navigator.clipboard.writeText(summary);
+      setCopiedReport(true);
+      toast({ title: 'Standup Copied!', description: 'Formatted summary copied for WhatsApp / Slack.' });
+      setTimeout(() => setCopiedReport(false), 3000);
+    } catch {
+      toast({ title: 'Copy failed', description: 'Please copy manually.', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveBlocker = () => {
+    if (!blockerModalTask) return;
+    onUpdateTask(
+      blockerModalTask.id,
+      { stage: 'Blocked', revisionNote: blockerText.trim() },
+      `reported blocker: ${blockerText.trim()}`
+    );
+    setBlockerModalTask(null);
+    setBlockerText('');
+  };
+
+  const handleCreateTomorrow = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tomorrowTitle.trim()) return;
+    const targetAssignee = selectedAssigneeId !== 'all' ? selectedAssigneeId : actor.id;
+    onAddTask({
+      workId: tomorrowWorkId || work[0]?.id || '',
+      title: tomorrowTitle.trim(),
+      instructions: 'Planned for next day execution.',
+      assigneeId: targetAssignee,
+      dueDate: tomorrowStr,
+      priority: tomorrowPriority,
+      estimatedMinutes: tomorrowEstMinutes,
+    });
+    setTomorrowTitle('');
+    setQuickAddOpen(false);
+  };
+
+  return (
+    <>
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(var(--primary))]">
+            Operational Execution
+          </div>
+          <h1 className="text-2xl font-black tracking-[-0.04em] md:text-3xl">Daily Work Board</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">
+            Track daily work across 3 dedicated streams: Today's Assigned, Pending & Blockers, and Next Day Planned Work.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {canSeeTeam && (
+            <>
+              <select
+                value={selectedAssigneeId}
+                onChange={(e) => setSelectedAssigneeId(e.target.value)}
+                className="rounded-xl border border-[hsl(var(--input))] bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm outline-none focus:border-[#f8c329]"
+              >
+                <option value="all">👥 All Team Members</option>
+                {allPeople
+                  .filter((p) => p.role === 'Team member' || p.role === 'Manager')
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.title})
+                    </option>
+                  ))}
+              </select>
+
+              <button
+                onClick={() => setViewMode(viewMode === 'board' ? 'matrix' : 'board')}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition shadow-sm ${
+                  viewMode === 'matrix'
+                    ? 'border-black bg-black text-white'
+                    : 'border-[hsl(var(--border))] bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <KanbanSquare className="size-3.5" />
+                {viewMode === 'board' ? 'Team Daily Matrix' : '3-Column Board'}
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={copyDailyStandupSummary}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#f8c329] px-3.5 py-2 text-xs font-black text-black shadow-sm transition hover:brightness-105 active:scale-95"
+          >
+            {copiedReport ? <Check className="size-3.5 text-black" /> : <Copy className="size-3.5" />}
+            {copiedReport ? 'Copied to Clipboard!' : 'Copy Daily Standup (WhatsApp)'}
+          </button>
+        </div>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-white p-4 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">🎯 Today's Focus</div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{todayTasks.length}</div>
+          <div className="mt-1 text-xs text-slate-500">Assigned / In Progress</div>
+        </div>
+
+        <div className={`rounded-2xl border p-4 shadow-sm ${
+          pendingTasks.length > 0 ? 'border-red-200 bg-red-50/50' : 'border-[hsl(var(--border))] bg-white'
+        }`}>
+          <div className={`text-[10px] font-bold uppercase tracking-wider ${
+            pendingTasks.length > 0 ? 'text-red-700' : 'text-slate-500'
+          }`}>⏳ Pending & Blockers</div>
+          <div className={`mt-2 text-2xl font-black ${
+            pendingTasks.length > 0 ? 'text-red-700' : 'text-slate-900'
+          }`}>{pendingTasks.length}</div>
+          <div className="mt-1 text-xs text-slate-500">Overdue from earlier days</div>
+        </div>
+
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-white p-4 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">📅 Tomorrow's Plan</div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{tomorrowTasks.length}</div>
+          <div className="mt-1 text-xs text-slate-500">Prepared for next shift</div>
+        </div>
+
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-white p-4 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">✅ Done Today</div>
+          <div className="mt-2 text-2xl font-black text-emerald-700">{completedTodayTasks.length}</div>
+          <div className="mt-1 text-xs text-slate-500">Submitted or cleared</div>
+        </div>
+      </div>
+
+      {/* Team Matrix View (Available for Founder & Managers) */}
+      {viewMode === 'matrix' && canSeeTeam ? (
+        <Card className="mb-8 overflow-hidden">
+          <div className="border-b border-[hsl(var(--border))] px-5 py-4 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[hsl(var(--primary))]">
+                Company Daily Overview
+              </div>
+              <h2 className="text-base font-black text-slate-900">Daily Team Status Matrix</h2>
+            </div>
+            <span className="text-xs font-semibold text-slate-500">
+              Showing {allPeople.filter((p) => p.role === 'Team member' || p.role === 'Manager').length} Members
+            </span>
+          </div>
+
+          <div className="divide-y divide-[hsl(var(--border))]">
+            {allPeople
+              .filter((p) => p.role === 'Team member' || p.role === 'Manager')
+              .map((member) => {
+                const mTasks = tasks.filter((t) => t.assigneeId === member.id);
+                const mToday = mTasks.filter((t) => (t.dueDate === todayStr || t.stage === 'In Progress') && t.stage !== 'Completed' && t.stage !== 'Approved');
+                const mPending = mTasks.filter((t) => t.dueDate < todayStr && t.stage !== 'In Progress' && t.stage !== 'Completed' && t.stage !== 'Approved');
+                const mTomorrow = mTasks.filter((t) => t.dueDate >= tomorrowStr && t.stage !== 'Completed' && t.stage !== 'Approved');
+                const mDone = mTasks.filter((t) => (t.stage === 'Completed' || t.stage === 'Approved') && (t.dueDate === todayStr || t.submittedAt?.startsWith(todayStr)));
+
+                return (
+                  <div key={member.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between hover:bg-slate-50/40 transition">
+                    <div className="flex items-center gap-3 min-w-[220px]">
+                      <div className="size-10 rounded-full bg-black text-white font-black text-sm flex items-center justify-center">
+                        {member.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                          {member.name}
+                          <span className={`size-2 rounded-full ${
+                            member.presence === 'Online' ? 'bg-emerald-500' : member.presence === 'Break' ? 'bg-amber-500' : 'bg-slate-300'
+                          }`} />
+                        </div>
+                        <div className="text-xs text-slate-500">{member.title} • {member.presence}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 text-center sm:gap-6">
+                      <div className="rounded-xl bg-slate-50 p-2.5">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Today</div>
+                        <div className="text-base font-black text-slate-900">{mToday.length}</div>
+                      </div>
+                      <div className={`rounded-xl p-2.5 ${mPending.length > 0 ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-900'}`}>
+                        <div className="text-[10px] font-bold uppercase">Pending</div>
+                        <div className="text-base font-black">{mPending.length}</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-2.5">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Tomorrow</div>
+                        <div className="text-base font-black text-slate-900">{mTomorrow.length}</div>
+                      </div>
+                      <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700">
+                        <div className="text-[10px] font-bold uppercase">Done</div>
+                        <div className="text-base font-black">{mDone.length}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedAssigneeId(member.id);
+                          setViewMode('board');
+                        }}
+                        className="rounded-lg border border-[hsl(var(--border))] bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-100 shadow-sm"
+                      >
+                        Open Board ➔
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Card>
+      ) : null}
+
+      {/* 3-Column Daily Work Board */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* ================= COLUMN 1: TODAY'S ASSIGNED ================= */}
+        <div className="flex flex-col rounded-3xl border border-[hsl(var(--border))] bg-[#fafaf8] p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-[hsl(var(--border))] pb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-xl bg-amber-100 text-amber-800 text-sm">🎯</span>
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Today's Assigned</h2>
+                <div className="text-[11px] text-slate-500">Due today or in execution</div>
+              </div>
+            </div>
+            <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-black text-amber-800">
+              {todayTasks.length}
+            </span>
+          </div>
+
+          <div className="flex-1 space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
+            {todayTasks.map((task) => {
+              const parent = work.find((w) => w.id === task.workId);
+              const assignee = allPeople.find((p) => p.id === task.assigneeId);
+              const isOwnerOrAdmin = actor.id === task.assigneeId || isFounderOrHR || isManager;
+
+              return (
+                <div key={task.id} className="rounded-2xl border border-[hsl(var(--border))] bg-white p-4 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      {parent?.title || 'Company Deliverable'}
+                    </span>
+                    <Badge className={priorityTone[task.priority]}>{task.priority}</Badge>
+                  </div>
+
+                  <h3
+                    onClick={() => onOpenWork(task.workId)}
+                    className="mt-1 text-sm font-bold text-slate-900 hover:underline cursor-pointer leading-snug"
+                  >
+                    {task.title}
+                  </h3>
+
+                  {task.instructions && (
+                    <p className="mt-1.5 text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      {task.instructions}
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2.5">
+                    <span className="font-semibold text-slate-700">
+                      👤 {assignee?.name || 'Unassigned'}
+                    </span>
+                    <Badge className={stageTone[task.stage]}>{task.stage}</Badge>
+                  </div>
+
+                  {isOwnerOrAdmin && (
+                    <div className="mt-3 flex flex-wrap gap-1.5 pt-2 border-t border-dashed border-slate-200">
+                      {task.stage !== 'In Progress' && (
+                        <button
+                          onClick={() => onUpdateTask(task.id, { stage: 'In Progress' }, 'started execution on')}
+                          className="rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 transition"
+                        >
+                          ▶ Start
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onUpdateTask(
+                          task.id,
+                          { stage: actor.role === 'Team member' ? 'Review' : 'Completed', progress: 100, submittedAt: new Date().toISOString() },
+                          'completed task'
+                        )}
+                        className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 transition"
+                      >
+                        ✓ {actor.role === 'Team member' ? 'Submit Review' : 'Mark Done'}
+                      </button>
+                      <button
+                        onClick={() => onUpdateTask(task.id, { dueDate: tomorrowStr }, 'moved to tomorrow plan')}
+                        className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200 transition"
+                        title="Postpone to tomorrow"
+                      >
+                        ➡️ To Tomorrow
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBlockerModalTask(task);
+                          setBlockerText(task.revisionNote || '');
+                        }}
+                        className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-100 transition"
+                        title="Report Blocker"
+                      >
+                        ⚠️ Blocker
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {todayTasks.length === 0 && (
+              <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                🎯 No tasks assigned for today. You are fully caught up, or pull a pending task!
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ================= COLUMN 2: PENDING & BLOCKERS ================= */}
+        <div className="flex flex-col rounded-3xl border border-red-200 bg-red-50/20 p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-red-200/60 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-xl bg-red-100 text-red-800 text-sm">⏳</span>
+              <div>
+                <h2 className="text-sm font-black text-red-900">Pending & Blockers</h2>
+                <div className="text-[11px] text-red-600/80">Carried forward from earlier dates</div>
+              </div>
+            </div>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-black ${
+              pendingTasks.length > 0 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-800'
+            }`}>
+              {pendingTasks.length}
+            </span>
+          </div>
+
+          <div className="flex-1 space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
+            {pendingTasks.map((task) => {
+              const parent = work.find((w) => w.id === task.workId);
+              const assignee = allPeople.find((p) => p.id === task.assigneeId);
+              const daysOverdue = Math.max(1, Math.floor((Date.now() - new Date(task.dueDate).getTime()) / 86400000));
+              const isOwnerOrAdmin = actor.id === task.assigneeId || isFounderOrHR || isManager;
+
+              return (
+                <div key={task.id} className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-800">
+                      🚨 {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'} overdue
+                    </span>
+                    <Badge className={priorityTone[task.priority]}>{task.priority}</Badge>
+                  </div>
+
+                  <h3
+                    onClick={() => onOpenWork(task.workId)}
+                    className="mt-2 text-sm font-bold text-slate-900 hover:underline cursor-pointer leading-snug"
+                  >
+                    {task.title}
+                  </h3>
+
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    Project: <span className="font-semibold">{parent?.title || 'Company Deliverable'}</span>
+                  </div>
+
+                  {/* Blocker Notice Box */}
+                  {task.revisionNote ? (
+                    <div className="mt-2.5 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-900">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <AlertCircle className="size-3.5 text-red-600" />
+                        <span>Blocker Reason:</span>
+                      </div>
+                      <p className="mt-1 leading-relaxed text-red-800 font-medium">{task.revisionNote}</p>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-[11px] italic text-amber-700">
+                      ⚠️ No blocker reason reported yet.
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2.5">
+                    <span className="font-semibold text-slate-700">👤 {assignee?.name || 'Unassigned'}</span>
+                    <Badge className={stageTone[task.stage]}>{task.stage}</Badge>
+                  </div>
+
+                  {isOwnerOrAdmin && (
+                    <div className="mt-3 flex flex-wrap gap-1.5 pt-2 border-t border-dashed border-red-100">
+                      <button
+                        onClick={() => onUpdateTask(task.id, { dueDate: todayStr, stage: 'In Progress' }, 'pulled to today work')}
+                        className="rounded-lg bg-amber-500 px-2.5 py-1 text-[11px] font-black text-black hover:bg-amber-400 transition"
+                      >
+                        ⚡ Pull to Today
+                      </button>
+                      <button
+                        onClick={() => onUpdateTask(task.id, { dueDate: tomorrowStr }, 'rescheduled to tomorrow')}
+                        className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200 transition"
+                      >
+                        ➡️ To Tomorrow
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBlockerModalTask(task);
+                          setBlockerText(task.revisionNote || '');
+                        }}
+                        className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-100 transition"
+                      >
+                        ✏️ {task.revisionNote ? 'Edit Blocker' : 'Add Blocker'}
+                      </button>
+                      <button
+                        onClick={() => onUpdateTask(
+                          task.id,
+                          { stage: actor.role === 'Team member' ? 'Review' : 'Completed', progress: 100, submittedAt: new Date().toISOString() },
+                          'completed task'
+                        )}
+                        className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 transition"
+                      >
+                        ✓ Mark Done
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {pendingTasks.length === 0 && (
+              <div className="p-8 text-center text-xs text-emerald-600 border border-dashed border-emerald-200 rounded-2xl bg-emerald-50/30">
+                ✨ Zero overdue blockers! All historic tasks have been cleared.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ================= COLUMN 3: NEXT DAY PLANNED WORK ================= */}
+        <div className="flex flex-col rounded-3xl border border-[hsl(var(--border))] bg-[#fafaf8] p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between border-b border-[hsl(var(--border))] pb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-xl bg-blue-100 text-blue-800 text-sm">📅</span>
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Next Day Plan</h2>
+                <div className="text-[11px] text-slate-500">Tomorrow's execution queue</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-black text-blue-800">
+                {tomorrowTasks.length}
+              </span>
+              <button
+                onClick={() => setQuickAddOpen(!quickAddOpen)}
+                className="flex size-6 items-center justify-center rounded-lg bg-black text-white hover:bg-slate-800 transition text-xs font-bold"
+                title="Add task for tomorrow"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Add Tomorrow Form */}
+          {quickAddOpen && (
+            <form onSubmit={handleCreateTomorrow} className="mb-3 rounded-2xl border border-blue-200 bg-blue-50/40 p-3.5 shadow-inner">
+              <div className="text-xs font-bold text-blue-900 mb-2">Plan Task for Tomorrow ({formatDate(tomorrowStr)})</div>
+              <input
+                type="text"
+                placeholder="What will you work on tomorrow?"
+                value={tomorrowTitle}
+                onChange={(e) => setTomorrowTitle(e.target.value)}
+                required
+                className="w-full rounded-xl border border-[hsl(var(--input))] bg-white px-3 py-2 text-xs outline-none focus:border-blue-500 mb-2 font-medium"
+              />
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <select
+                  value={tomorrowWorkId}
+                  onChange={(e) => setTomorrowWorkId(e.target.value)}
+                  className="rounded-lg border border-[hsl(var(--input))] bg-white px-2 py-1.5 text-xs text-slate-700 outline-none"
+                >
+                  {work.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.title.slice(0, 24)}...
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={tomorrowPriority}
+                  onChange={(e) => setTomorrowPriority(e.target.value as Priority)}
+                  className="rounded-lg border border-[hsl(var(--input))] bg-white px-2 py-1.5 text-xs text-slate-700 outline-none"
+                >
+                  <option value="Low">Low Priority</option>
+                  <option value="Medium">Medium Priority</option>
+                  <option value="High">High Priority</option>
+                  <option value="Urgent">Urgent</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQuickAddOpen(false)}
+                  className="rounded-lg px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
+                >
+                  Save to Tomorrow
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="flex-1 space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
+            {tomorrowTasks.map((task) => {
+              const parent = work.find((w) => w.id === task.workId);
+              const assignee = allPeople.find((p) => p.id === task.assigneeId);
+              const isOwnerOrAdmin = actor.id === task.assigneeId || isFounderOrHR || isManager;
+
+              return (
+                <div key={task.id} className="rounded-2xl border border-[hsl(var(--border))] bg-white p-4 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                      Due: {formatDate(task.dueDate)}
+                    </span>
+                    <Badge className={priorityTone[task.priority]}>{task.priority}</Badge>
+                  </div>
+
+                  <h3
+                    onClick={() => onOpenWork(task.workId)}
+                    className="mt-1 text-sm font-bold text-slate-900 hover:underline cursor-pointer leading-snug"
+                  >
+                    {task.title}
+                  </h3>
+
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    Project: <span className="font-semibold">{parent?.title || 'Company Deliverable'}</span>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-2.5">
+                    <span className="font-semibold text-slate-700">👤 {assignee?.name || 'Unassigned'}</span>
+                    <Badge className={stageTone[task.stage]}>{task.stage}</Badge>
+                  </div>
+
+                  {isOwnerOrAdmin && (
+                    <div className="mt-3 flex flex-wrap gap-1.5 pt-2 border-t border-dashed border-slate-200">
+                      <button
+                        onClick={() => onUpdateTask(task.id, { dueDate: todayStr, stage: 'In Progress' }, 'pulled to today work')}
+                        className="rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 transition"
+                        title="Bring into today's work early"
+                      >
+                        ⚡ Pull to Today
+                      </button>
+                      <button
+                        onClick={() => onUpdateTask(
+                          task.id,
+                          { stage: actor.role === 'Team member' ? 'Review' : 'Completed', progress: 100, submittedAt: new Date().toISOString() },
+                          'completed task'
+                        )}
+                        className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 transition"
+                      >
+                        ✓ Mark Done
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {tomorrowTasks.length === 0 && (
+              <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                📅 Nothing planned for tomorrow yet. Click "+" or move tasks from Today during your EOD checkout!
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Blocker Reason Modal */}
+      {blockerModalTask && (
+        <Modal title="Report Work Blocker" onClose={() => setBlockerModalTask(null)}>
+          <div className="space-y-4">
+            <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900 border border-amber-200">
+              <span className="font-bold">Task:</span> {blockerModalTask.title}
+              <p className="mt-1 text-amber-800">
+                Reporting a blocker flags this item for your Manager & Founder so they can unblock you immediately.
+              </p>
+            </div>
+
+            <label className="block space-y-1.5">
+              <span className="text-xs font-bold text-slate-700">
+                What is blocking this work from progressing?
+              </span>
+              <textarea
+                rows={3}
+                value={blockerText}
+                onChange={(e) => setBlockerText(e.target.value)}
+                placeholder="e.g., Waiting for client branding kit, API endpoint returns 500, needs Founder design approval..."
+                className="w-full rounded-xl border border-[hsl(var(--input))] bg-[#fafaf8] p-3 text-sm outline-none focus:border-red-500"
+                required
+              />
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button variant="secondary" onClick={() => setBlockerModalTask(null)}>
+                Cancel
+              </Button>
+              <button
+                onClick={handleSaveBlocker}
+                disabled={!blockerText.trim()}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                Record Blocker
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
 }
 
 function Login({ onEnter }: { onEnter: (email: string, password: string) => Promise<boolean> }) {
@@ -5383,6 +6233,7 @@ function AppRouter() {
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [earlyLogoutModalOpen, setEarlyLogoutModalOpen] = useState(false);
   const [earlyLogoutReason, setEarlyLogoutReason] = useState('');
+  const [eodModalOpen, setEodModalOpen] = useState(false);
   const knownTaskIdsRef = useRef<Set<string> | null>(null);
 
   const [breakCounts, setBreakCounts] = useState<{ breaks: number; lunches: number }>(() => {
@@ -5510,8 +6361,31 @@ function AppRouter() {
       setEarlyLogoutModalOpen(true);
       return;
     }
+    // Check if user has incomplete tasks for today:
+    const myTodayIncomplete = tasks.filter(
+      (t) => t.assigneeId === actor?.id &&
+      (t.dueDate === TODAY || t.stage === 'In Progress') &&
+      t.stage !== 'Completed' && t.stage !== 'Approved'
+    );
+    if (myTodayIncomplete.length > 0) {
+      setEodModalOpen(true);
+      return;
+    }
     void handleLogout();
-  }, [actor, shiftTargetInfo, handleLogout]);
+  }, [actor, shiftTargetInfo, tasks, handleLogout]);
+
+  // Sync 9-Hour shift status and user role to Electron main process for close [X] interception
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.updateShiftStatus) {
+      (window as any).electronAPI.updateShiftStatus({
+        isLoggedIn: !!actor,
+        role: actor?.role || '',
+        isCompleted: Boolean(shiftTargetInfo?.isCompleted || (actor?.role === 'Founder')),
+        remainingMinutes: shiftTargetInfo?.remainingMinutes ?? 540,
+        totalMinutes: shiftTargetInfo?.totalMinutes ?? 0,
+      });
+    }
+  }, [actor, shiftTargetInfo]);
 
   const confirmEarlyLogout = useCallback(async (options?: { isEmergency?: boolean; isApproved?: boolean }) => {
     setEarlyLogoutModalOpen(false);
@@ -5857,6 +6731,33 @@ function AppRouter() {
       alert("Failed to delete work item from database.");
     }
   };
+  const handleMoveIncompleteTasksToTomorrow = useCallback(() => {
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = tomorrowDate.toISOString().slice(0, 10);
+    const myTodayIncomplete = tasks.filter(
+      (t) => t.assigneeId === actor?.id &&
+      (t.dueDate === TODAY || t.stage === 'In Progress') &&
+      t.stage !== 'Completed' && t.stage !== 'Approved'
+    );
+    myTodayIncomplete.forEach((t) => {
+      void updateTask(t.id, { dueDate: tomorrowStr }, 'moved to tomorrow during EOD checkout');
+    });
+    toast({ title: 'Tasks Moved', description: `${myTodayIncomplete.length} task(s) scheduled for tomorrow.` });
+  }, [actor?.id, tasks]);
+
+  const handleConfirmEodLogout = useCallback((note: string) => {
+    setEodModalOpen(false);
+    if (note.trim() && actor?.id) {
+      void apiPost('/activities', {
+        workId: 'system',
+        actorId: actor.id,
+        message: `EOD Handover Note: ${note.trim()}`,
+        tone: 'normal',
+      }).catch(() => {});
+    }
+    void handleLogout('Logged out successfully after EOD checkout.');
+  }, [actor?.id, handleLogout]);
   const addComment = async (workId: string, message: string) => { 
     try {
       const res = await apiPost<{item: Comment}>('/comments', { workId, authorId: actor.id, message });
@@ -6113,6 +7014,19 @@ function AppRouter() {
           allPeople={runtimePeople}
         />
       )}
+      {eodModalOpen && (
+        <EodHandoverModal
+          actor={actor}
+          incompleteTodayTasks={tasks.filter(
+            (t) => t.assigneeId === actor.id &&
+            (t.dueDate === TODAY || t.stage === 'In Progress') &&
+            t.stage !== 'Completed' && t.stage !== 'Approved'
+          )}
+          onMoveTasksToTomorrow={handleMoveIncompleteTasksToTomorrow}
+          onConfirmLogout={handleConfirmEodLogout}
+          onClose={() => setEodModalOpen(false)}
+        />
+      )}
     </Shell>
   );
 
@@ -6148,8 +7062,18 @@ function AppRouter() {
     <WorkListPage title="Founder assignments" description="Work received from Founder that needs planning, decomposition, and distribution." work={scopeWork.filter((item) => item.managerId === actor.id)} tasks={scopeTasks} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Assign team task" />
   ) : location === '/team-tasks' ? (
     <WorkListPage title="Team tasks" description="Break manager work into clear assignments for your team." work={scopeWork} tasks={scopeTasks} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Assign team task" />
-  ) : location === '/my-work' || location === '/today' || location === '/submissions' || location === '/notifications' || location === '/profile' ? (
-    <WorkListPage title={location === '/today' ? "Today's work" : location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={scopeTasks.filter((task) => location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved')} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Add my task" />
+  ) : location === '/daily-work' || location === '/today' ? (
+    <DailyWorkBoardPage
+      actor={actor}
+      tasks={scopeTasks}
+      work={scopeWork}
+      allPeople={runtimePeople}
+      onOpenWork={openWork}
+      onUpdateTask={updateTask}
+      onAddTask={addTask}
+    />
+  ) : location === '/my-work' || location === '/submissions' || location === '/notifications' || location === '/profile' ? (
+    <WorkListPage title={location === '/submissions' ? 'My submissions' : location === '/my-work' ? 'My work' : location.slice(1)} description="Your focused execution view. Open a work item to start, update, block, or submit it." work={scopeWork} tasks={scopeTasks.filter((task) => location !== '/submissions' || task.stage === 'Review' || task.stage === 'Approved')} onOpen={openWork} onCreate={() => setTaskModalOpen(true)} createButtonLabel="Add my task" />
   ) : (
     <Dashboard actor={actor} work={scopeWork} tasks={scopeTasks} peopleInScope={scopePeople} reports={reports} leaves={leaves} onDecision={updateLeave} onOpen={openWork} onCreate={actor.role === 'Founder' ? () => setCreateOpen(true) : () => setTaskModalOpen(true)} onNavigate={setLocation} onDeletePerson={actor.role === 'Founder' ? deletePerson : undefined} />
   );
@@ -6186,6 +7110,19 @@ function AppRouter() {
           leaves={leaves}
           onRequestEarlyLogout={handleQuickEarlyLogoutRequest}
           allPeople={runtimePeople}
+        />
+      )}
+      {eodModalOpen && (
+        <EodHandoverModal
+          actor={actor}
+          incompleteTodayTasks={tasks.filter(
+            (t) => t.assigneeId === actor.id &&
+            (t.dueDate === TODAY || t.stage === 'In Progress') &&
+            t.stage !== 'Completed' && t.stage !== 'Approved'
+          )}
+          onMoveTasksToTomorrow={handleMoveIncompleteTasksToTomorrow}
+          onConfirmLogout={handleConfirmEodLogout}
+          onClose={() => setEodModalOpen(false)}
         />
       )}
     </Shell>

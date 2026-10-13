@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, shell, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, shell, session, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -8,6 +8,29 @@ let tray = null;
 let isQuitting = false;
 let localServer = null;
 let localPort = null;
+
+// Shift state tracked from frontend
+let shiftState = {
+  isLoggedIn: false,
+  isCompleted: false,
+  role: '',
+  remainingMinutes: 540,
+  totalMinutes: 0
+};
+
+ipcMain.on('shift:status', (event, data) => {
+  if (data && typeof data === 'object') {
+    shiftState = { ...shiftState, ...data };
+  }
+});
+
+ipcMain.on('notify', (event, { title, body }) => {
+  if (Notification.isSupported()) {
+    try {
+      new Notification({ title, body, icon: getAppIcon() }).show();
+    } catch {}
+  }
+});
 
 // Enforce single instance lock (prevents running duplicate instances)
 const gotTheLock = app.requestSingleInstanceLock();
@@ -193,21 +216,43 @@ function createMainWindow(port) {
     return { action: 'deny' };
   });
 
-  // Minimize to tray when user clicks [X], preserving running shift & break timers
+  // Enforce 9-Hour Workday policy on close [X]: cannot close until 9 hours completed, but can minimize!
   mainWindow.on('close', (event) => {
-    if (!isQuitting) {
+    const isFounder = shiftState.role === 'Founder';
+    const isShiftDone = shiftState.isCompleted || (shiftState.totalMinutes >= 540);
+    const isLocked = shiftState.isLoggedIn && !isFounder && !isShiftDone;
+
+    if (isLocked) {
       event.preventDefault();
-      mainWindow.hide();
+      // Strictly minimize window as requested ("without 9hr comption wecant close using thaytt red ok but we can minimise")
+      mainWindow.minimize();
+
+      const hoursLeft = Math.floor(shiftState.remainingMinutes / 60);
+      const minsLeft = shiftState.remainingMinutes % 60;
+      const timeLeftStr = hoursLeft > 0 ? `${hoursLeft}h ${minsLeft}m` : `${minsLeft}m`;
 
       if (Notification.isSupported()) {
         try {
           new Notification({
-            title: 'ARKA OS is still running',
-            body: 'Minimized to system tray. Your 9-hour workday shift & break timer are still active.',
+            title: '⚠️ 9-Hour Shift Required — Exit Blocked',
+            body: `You cannot close ARKA OS until your mandatory 9-hour workday is completed (${timeLeftStr} remaining). The app has been minimized to continue your shift timer.`,
             icon: iconPath
           }).show();
         } catch {}
       }
+      return false;
+    }
+
+    if (!isQuitting) {
+      // If user is founder or shift completed, or not logged in, allow quit
+      if (isShiftDone || isFounder) {
+        isQuitting = true;
+        app.quit();
+        return;
+      }
+      // If logged out or unauthenticated, hide to tray or minimize
+      event.preventDefault();
+      mainWindow.minimize();
       return false;
     }
   });
@@ -247,6 +292,27 @@ function createSystemTray() {
       {
         label: 'Exit ARKA OS',
         click: () => {
+          const isFounder = shiftState.role === 'Founder';
+          const isShiftDone = shiftState.isCompleted || (shiftState.totalMinutes >= 540);
+          const isLocked = shiftState.isLoggedIn && !isFounder && !isShiftDone;
+
+          if (isLocked) {
+            const hoursLeft = Math.floor(shiftState.remainingMinutes / 60);
+            const minsLeft = shiftState.remainingMinutes % 60;
+            const timeLeftStr = hoursLeft > 0 ? `${hoursLeft}h ${minsLeft}m` : `${minsLeft}m`;
+
+            dialog.showMessageBoxSync(mainWindow || undefined, {
+              type: 'warning',
+              title: 'Shift Incomplete — Exit Blocked',
+              message: `Mandatory 9-Hour Workday Policy\n\nYou cannot exit ARKA OS until your full 9-hour work shift is completed.\nTime Remaining: ${timeLeftStr}.\n\nYou can keep ARKA OS minimized in the background while you work.`,
+              buttons: ['Keep Minimized (Understood)']
+            });
+            if (mainWindow) {
+              mainWindow.minimize();
+            }
+            return;
+          }
+
           isQuitting = true;
           app.quit();
         }
