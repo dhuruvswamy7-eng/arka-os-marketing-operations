@@ -5,6 +5,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#101010",
   "theme_color": "#101010",
   "icons": [
@@ -12,7 +13,7 @@
       "src": "/assets/arkamedia-logo.png",
       "sizes": "192x192 512x512",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }

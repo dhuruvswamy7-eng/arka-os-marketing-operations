@@ -1,0 +1,52 @@
+name: Build ARKA OS Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Frontend
+        run: |
+          cd artifacts/arka-os
+          npm install
+          npm run build
+
+      - name: Setup Capacitor and Android Project
+        run: |
+          cd artifacts/arka-os
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "ARKA OS" "com.arkadigitalmedia.os" --web-dir "dist/public"
+          npx cap add android
+          npx cap sync android
+
+      - name: Build Debug APK with Gradle
+        run: |
+          cd artifacts/arka-os/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARKA-OS-Android-APK
+          path: artifacts/arka-os/android/app/build/outputs/apk/debug/*.apk
