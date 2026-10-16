@@ -31,12 +31,9 @@ jobs:
           npm install
           npm run build
 
-      - name: Setup Capacitor and Android Project
+      - name: Sync Capacitor Android Project
         run: |
           cd artifacts/arka-os
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "ARKA OS" "com.arkadigitalmedia.os" --web-dir "dist/public"
-          npx cap add android
           npx cap sync android
 
       - name: Build Debug APK with Gradle
