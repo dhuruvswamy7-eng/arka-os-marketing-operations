@@ -6,9 +6,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import {
   AlertCircle, ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
-  Clock3, Coffee, Command, Copy, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
-  Home, Image, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
-  MessageSquare, Plus, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, UserPlus, UserRound, Users, Utensils, Video, X, Zap
+  Clock3, Coffee, Command, Copy, DollarSign, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
+  Globe, Home, Image, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
+  MessageSquare, Plus, RotateCw, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, TrendingUp, UserPlus, UserRound, Users, Utensils, Video, X, Zap
 } from 'lucide-react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { ChatWidget } from './components/ChatWidget';
@@ -1144,6 +1144,98 @@ function EodHandoverModal({
   );
 }
 
+function PortalFrame({ 
+  title, 
+  url, 
+  isAllowed, 
+  requiredRole 
+}: { 
+  title: string; 
+  url: string; 
+  isAllowed: boolean; 
+  requiredRole: string; 
+}) {
+  const [key, setKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  if (!isAllowed) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center p-8 text-center">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+          <ShieldAlert className="size-8" />
+        </div>
+        <h2 className="mt-4 text-2xl font-black text-slate-900">Access Restricted</h2>
+        <p className="mt-2 max-w-md text-sm text-slate-500">
+          This connected system contains confidential company records and is strictly restricted to <strong>{requiredRole}</strong>.
+        </p>
+        <Link href="/dashboard" className="mt-6 rounded-xl bg-black px-5 py-2.5 text-xs font-bold text-white hover:bg-slate-800">
+          Return to Operations
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] flex-col -m-5 md:-m-8">
+      {/* Top Bar for Portal */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-[#f8c329]/20 text-black">
+            <Globe className="size-4 text-amber-800" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+              <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                LIVE
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono">{url}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setKey(k => k + 1); setLoading(true); }}
+            title="Refresh frame"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <RotateCw className="size-3.5" />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-lg bg-black px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+          >
+            <span>Open in Full Browser</span>
+            <ExternalLink className="size-3.5" />
+          </a>
+        </div>
+      </div>
+
+      {/* Embedded Iframe */}
+      <div className="relative flex-1 bg-slate-100">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-xs">
+            <div className="size-8 rounded-full border-3 border-slate-200 border-t-[#f8c329] animate-spin" />
+            <p className="mt-3 text-xs font-bold text-slate-600">Connecting to {title}...</p>
+          </div>
+        )}
+        <iframe
+          key={key}
+          src={url}
+          className="h-full w-full border-0"
+          title={title}
+          allow="camera; microphone; clipboard-read; clipboard-write; fullscreen"
+          onLoad={() => setLoading(false)}
+        />
+      </div>
+    </div>
+  );
+}
+
 function Shell({ 
   actor, 
   onLogout, 
@@ -1177,6 +1269,9 @@ function Shell({
   const nav = roleNavigation[actor.role];
   const poolLeft = remainingBreakPoolMinutes ?? 75;
 
+  const canAccessSales = actor.role === 'Founder' || actor.title.toLowerCase().includes('sales') || actor.email.includes('nilesh') || actor.id === 'person-1789555841194';
+  const canAccessAccounts = actor.role === 'Founder' || actor.role === 'HR Manager' || actor.email.includes('sanjana') || actor.id === 'person-1789737883615';
+
   return <div className="min-h-screen bg-[#f7f7f5] text-[hsl(var(--foreground))]">
     {/* Full-Screen Freeze Overlay when on Break or Lunch */}
     {(actor.presence === 'Break' || actor.presence === 'Lunch') && (
@@ -1199,6 +1294,48 @@ function Shell({
         <Link href="/documents" onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${location === '/documents' ? 'bg-[#f8c329] text-black' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
           <FileText className="size-4" />Documents
         </Link>
+
+        {(canAccessSales || canAccessAccounts) && (
+          <div className="pt-4 pb-1">
+            <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-white/35">
+              Live Connected Hubs
+            </div>
+          </div>
+        )}
+        {canAccessSales && (
+          <Link
+            href="/sales-portal"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+              location === '/sales-portal'
+                ? 'bg-[#f8c329] text-black font-bold'
+                : 'text-emerald-400 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <TrendingUp className="size-4 text-emerald-400" />
+            <span className="flex-1">Sales CRM</span>
+            <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-emerald-300">
+              LIVE
+            </span>
+          </Link>
+        )}
+        {canAccessAccounts && (
+          <Link
+            href="/accounts-portal"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+              location === '/accounts-portal'
+                ? 'bg-[#f8c329] text-black font-bold'
+                : 'text-amber-300 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <DollarSign className="size-4 text-amber-300" />
+            <span className="flex-1">Accounts & Finance</span>
+            <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-amber-300">
+              LIVE
+            </span>
+          </Link>
+        )}
       </nav>
       <button onClick={onLogout} className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-white/55 hover:bg-white/10 hover:text-white"><LogOut className="size-4" />Log out</button><div className="mt-3 border-t border-white/10 pt-3 text-[10px] uppercase tracking-[0.12em] text-white/35">Designed and developed by Dhuruv</div>
     </aside>
@@ -1206,8 +1343,45 @@ function Shell({
     <main className="min-h-screen lg:pl-[260px]">
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[hsl(var(--border))] bg-[#f7f7f5]/90 px-5 backdrop-blur md:px-8">
         <button className="rounded-lg p-2 hover:bg-white lg:hidden" onClick={() => setMobileOpen(true)}><Menu className="size-5" /></button>
-        <div className="hidden items-center gap-2 text-xs text-[hsl(var(--muted-foreground))] md:flex">
-          <span className="size-2 rounded-full bg-emerald-500" /> Workspace <span className="text-black/20">/</span> {actor.role}
+        <div className="hidden items-center gap-2 md:flex">
+          <div className="flex items-center gap-1 rounded-xl bg-black/5 p-1 text-xs font-semibold">
+            <Link
+              href="/dashboard"
+              className={`rounded-lg px-3 py-1.5 transition ${
+                location !== '/sales-portal' && location !== '/accounts-portal'
+                  ? 'bg-white shadow-xs text-black font-bold'
+                  : 'text-slate-600 hover:text-black'
+              }`}
+            >
+              Operations
+            </Link>
+            {canAccessSales && (
+              <Link
+                href="/sales-portal"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                  location === '/sales-portal'
+                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    : 'text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                <TrendingUp className="size-3.5" />
+                <span>Sales</span>
+              </Link>
+            )}
+            {canAccessAccounts && (
+              <Link
+                href="/accounts-portal"
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                  location === '/accounts-portal'
+                    ? 'bg-amber-600 text-white font-bold shadow-xs'
+                    : 'text-amber-800 hover:bg-amber-50'
+                }`}
+              >
+                <DollarSign className="size-3.5" />
+                <span>Accounts</span>
+              </Link>
+            )}
+          </div>
         </div>
         <div className="ml-auto flex items-center gap-3 md:gap-4">
           
@@ -7028,7 +7202,24 @@ function AppRouter() {
     </Shell>
   );
 
-  const page = location === '/content-calendar' ? (
+  const canAccessSales = actor.role === 'Founder' || actor.title.toLowerCase().includes('sales') || actor.email.includes('nilesh') || actor.id === 'person-1789555841194';
+  const canAccessAccounts = actor.role === 'Founder' || actor.role === 'HR Manager' || actor.email.includes('sanjana') || actor.id === 'person-1789737883615';
+
+  const page = location === '/sales-portal' ? (
+    <PortalFrame
+      title="ARKA Sales CRM"
+      url="https://sales.arkadigitalmedia.in/"
+      isAllowed={canAccessSales}
+      requiredRole="Founders & Sales Head (Nilesh Rawat)"
+    />
+  ) : location === '/accounts-portal' ? (
+    <PortalFrame
+      title="ARKA Finance & Accounts"
+      url="https://accounts.arkadigitalmedia.in/"
+      isAllowed={canAccessAccounts}
+      requiredRole="Founders & HR Manager (Sanjana CK)"
+    />
+  ) : location === '/content-calendar' ? (
     actor.role === 'Founder' || actor.role === 'Manager' ? (
       <ContentCalendarPage actor={actor} allPeople={runtimePeople} work={scopeWork} />
     ) : (

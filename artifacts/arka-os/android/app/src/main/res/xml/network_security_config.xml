@@ -10,5 +10,6 @@
         <domain includeSubdomains="true">onrender.com</domain>
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">arkadigitalmedia.com</domain>
+        <domain includeSubdomains="true">arkadigitalmedia.in</domain>
     </domain-config>
 </network-security-config>
