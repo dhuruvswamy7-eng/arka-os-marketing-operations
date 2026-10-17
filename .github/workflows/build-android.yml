@@ -3,8 +3,13 @@ name: Build ARKA OS Android APK
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -43,8 +48,26 @@ jobs:
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../ARKA-OS.apk
 
-      - name: Upload Android APK
+      - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ARKA-OS-Android-APK
           path: artifacts/arka-os/ARKA-OS.apk
+
+      - name: Publish Direct APK Download Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: "ARKA OS Android Mobile App (.apk)"
+          body: |
+            ### 📱 ARKA OS Android Mobile App
+            Direct download link for Android devices (Samsung, OnePlus, Vivo, Xiaomi, Oppo, Pixel, etc.).
+            
+            **Installation Instructions:**
+            1. Click **`ARKA-OS.apk`** below to download directly to your Android phone.
+            2. Open the downloaded file and tap **Install**.
+          files: artifacts/arka-os/ARKA-OS.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
