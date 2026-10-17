@@ -1,5 +1,13 @@
 {
   "appId": "com.arkadigitalmedia.os",
   "appName": "ARKA OS",
-  "webDir": "dist/public"
+  "webDir": "dist/public",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": [
+      "arka-api-w9o0.onrender.com",
+      "*.onrender.com"
+    ]
+  }
 }
