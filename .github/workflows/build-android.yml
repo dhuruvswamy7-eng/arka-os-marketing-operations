@@ -30,29 +30,27 @@ jobs:
         with:
           node-version: 22
 
-      - name: Build Frontend
+      - name: Build Frontend Application
         run: |
           cd artifacts/arka-os
           npm install
           npm run build
-
-      - name: Sync Capacitor Android Project
-        run: |
-          cd artifacts/arka-os
-          npx cap sync android
+          mkdir -p android/app/src/main/assets/public
+          cp -R dist/public/* android/app/src/main/assets/public/
 
       - name: Build Debug APK with Gradle
         run: |
           cd artifacts/arka-os/android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk $GITHUB_WORKSPACE/ARKA-OS.apk
           cp app/build/outputs/apk/debug/app-debug.apk ../ARKA-OS.apk
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ARKA-OS-Android-APK
-          path: artifacts/arka-os/ARKA-OS.apk
+          path: ARKA-OS.apk
 
       - name: Publish Direct APK Download Release
         uses: softprops/action-gh-release@v2
@@ -66,7 +64,7 @@ jobs:
             **Installation Instructions:**
             1. Click **`ARKA-OS.apk`** below to download directly to your Android phone.
             2. Open the downloaded file and tap **Install**.
-          files: artifacts/arka-os/ARKA-OS.apk
+          files: ARKA-OS.apk
           draft: false
           prerelease: false
         env:
