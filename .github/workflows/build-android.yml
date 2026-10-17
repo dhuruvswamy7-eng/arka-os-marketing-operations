@@ -35,6 +35,7 @@ jobs:
           cd artifacts/arka-os
           npm install
           npm run build
+          npx cap sync android
           mkdir -p android/app/src/main/assets/public
           cp -R dist/public/* android/app/src/main/assets/public/
 
