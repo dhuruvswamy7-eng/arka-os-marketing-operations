@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import {
   AlertCircle, ArrowLeft, ArrowRight, Bell, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
-  Clock3, Coffee, Command, Copy, DollarSign, Download, Edit2, ExternalLink, FileSpreadsheet, FileText, Flag, FolderOpen,
+  Clock3, Coffee, Command, Copy, DollarSign, Download, Edit2, ExternalLink, Eye, EyeOff, FileSpreadsheet, FileText, Flag, FolderOpen,
   Globe, Home, Image, Inbox, KanbanSquare, LayoutDashboard, ListFilter, Lock, LogOut, Menu,
   MessageSquare, Plus, RotateCw, Search, Settings2, Shield, ShieldAlert, Sparkles, Timer, Trash2, TrendingUp, UserPlus, UserRound, Users, Utensils, Video, X, Zap
 } from 'lucide-react';
@@ -3118,9 +3118,10 @@ function DailyWorkBoardPage({
   );
 }
 
-function Login({ onEnter }: { onEnter: (email: string, password: string) => Promise<boolean> }) {
+function Login({ onEnter }: { onEnter: (email: string, password: string) => Promise<{ ok: boolean; error?: string } | boolean> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isWakingServer, setIsWakingServer] = useState(false);
@@ -3131,10 +3132,14 @@ function Login({ onEnter }: { onEnter: (email: string, password: string) => Prom
     setError('');
     const wakingTimer = setTimeout(() => setIsWakingServer(true), 2500);
     try {
-      const ok = await onEnter(email, password);
-      if (!ok) setError('Invalid email or password.');
-    } catch {
-      setError('Connection failed. Server might be waking up, please retry in a few seconds.');
+      const res = await onEnter(email, password);
+      const isSuccess = typeof res === 'boolean' ? res : res?.ok;
+      if (!isSuccess) {
+        const errorMsg = (typeof res === 'object' && res?.error) ? res.error : 'Invalid email or password.';
+        setError(errorMsg);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Connection failed. Server might be waking up, please retry in a few seconds.');
     } finally {
       clearTimeout(wakingTimer);
       setIsWakingServer(false);
@@ -3142,7 +3147,139 @@ function Login({ onEnter }: { onEnter: (email: string, password: string) => Prom
     }
   };
 
-  return <div className="min-h-screen bg-[#101010] text-white"><div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]"><div className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '32px 32px' }} /><div className="relative flex items-center gap-3"><img src={LOGO_SRC} alt="Arka Media" className="h-16 w-auto max-w-[280px] object-contain object-left" /></div><div className="relative my-auto max-w-xl"><Badge className="border-white/20 bg-white/5 text-white/60">INTERNAL OPERATING SYSTEM</Badge><h1 className="mt-7 text-6xl font-black leading-[0.96] tracking-[-0.07em]">See the work.<br /><span className="text-[#f8c329]">Move Arka forward.</span></h1><p className="mt-8 max-w-lg text-lg leading-8 text-white/55">A role-based operating view of ownership, deadlines, effort, workload, review, and what needs attention.</p></div><div className="relative flex justify-between text-[10px] uppercase tracking-[0.12em] text-white/35"><span>Arka Digital Media</span><span>Designed and developed by Dhuruv</span></div></div><div className="flex items-center bg-[#f7f7f5] p-6 text-[#111] md:p-12"><div className="mx-auto w-full max-w-md"><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">Welcome to ARKA OS</div><h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.06em]">Enter your workspace.</h2><form className="mt-9 space-y-4" onSubmit={submit}><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Email<input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="you@arkadigitalmedia.com" required /></label><label className="block text-xs font-bold uppercase tracking-wide text-black/55">Password<input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]" placeholder="••••••••" required /></label>{isWakingServer && <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800 animate-pulse"><span className="size-2 rounded-full bg-amber-500" />Connecting to secure server (waking up, please wait)...</div>}{error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</div>}<Button type="submit" disabled={loading}><span>{loading ? 'Entering...' : 'Enter ARKA OS'}</span><ArrowRight className="size-4" /></Button></form></div></div></div></div>;
+  const fillQuick = (e: string, p: string) => {
+    setEmail(e);
+    setPassword(p);
+    setError('');
+  };
+
+  return (
+    <div className="min-h-screen bg-[#101010] text-white">
+      <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative hidden overflow-hidden p-10 lg:flex lg:flex-col">
+          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+          <div className="relative flex items-center gap-3">
+            <img src={LOGO_SRC} alt="Arka Media" className="h-16 w-auto max-w-[280px] object-contain object-left" />
+          </div>
+          <div className="relative my-auto max-w-xl">
+            <Badge className="border-white/20 bg-white/5 text-white/60">INTERNAL OPERATING SYSTEM</Badge>
+            <h1 className="mt-7 text-6xl font-black leading-[0.96] tracking-[-0.07em]">
+              See the work.<br /><span className="text-[#f8c329]">Move Arka forward.</span>
+            </h1>
+            <p className="mt-8 max-w-lg text-lg leading-8 text-white/55">
+              A role-based operating view of ownership, deadlines, effort, workload, review, and what needs attention.
+            </p>
+          </div>
+          <div className="relative flex justify-between text-[10px] uppercase tracking-[0.12em] text-white/35">
+            <span>Arka Digital Media</span>
+            <span>Designed and developed by Dhuruv</span>
+          </div>
+        </div>
+
+        <div className="flex items-center bg-[#f7f7f5] p-6 text-[#111] md:p-12">
+          <div className="mx-auto w-full max-w-md">
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#b48a00]">Welcome to ARKA OS</div>
+            <h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.06em]">Enter your workspace.</h2>
+            
+            <form className="mt-8 space-y-4" onSubmit={submit}>
+              <label className="block text-xs font-bold uppercase tracking-wide text-black/55">
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => { setEmail(event.target.value); setError(''); }}
+                  className="mt-2 w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#c99f18]"
+                  placeholder="you@arkadigitalmedia.com"
+                  required
+                />
+              </label>
+
+              <label className="block text-xs font-bold uppercase tracking-wide text-black/55">
+                Password
+                <div className="relative mt-2">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => { setPassword(event.target.value); setError(''); }}
+                    className="w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 pr-11 text-sm outline-none focus:border-[#c99f18]"
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+              </label>
+
+              {isWakingServer && (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800 animate-pulse">
+                  <span className="size-2 rounded-full bg-amber-500" />
+                  Connecting to secure server (waking up, please wait)...
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs font-bold text-red-700 leading-relaxed">
+                  {error}
+                </div>
+              )}
+
+              <Button type="submit" disabled={loading} className="w-full">
+                <span>{loading ? 'Entering...' : 'Enter ARKA OS'}</span>
+                <ArrowRight className="size-4" />
+              </Button>
+            </form>
+
+            {/* Quick 1-Tap Demo Credentials Helper */}
+            <div className="mt-7 pt-5 border-t border-black/10">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-black/45 mb-2.5">
+                Quick 1-Tap Demo Logins
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => fillQuick('dhuruvswamy7@gmail.com', '123456')}
+                  className="rounded-xl border border-black/10 bg-white p-2.5 text-left hover:border-[#c99f18] hover:shadow-xs transition"
+                >
+                  <div className="font-bold text-slate-900">Dhuruv Swamy</div>
+                  <div className="text-[10px] text-slate-500">Business Dev</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillQuick('eshwar@arkadigitalmedia.com', 'admin1234')}
+                  className="rounded-xl border border-black/10 bg-white p-2.5 text-left hover:border-[#c99f18] hover:shadow-xs transition"
+                >
+                  <div className="font-bold text-slate-900">Eshwar SP</div>
+                  <div className="text-[10px] text-slate-500">Founder & COO</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillQuick('nileshrawat1325@gmail.com', '123456')}
+                  className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5 text-left hover:border-emerald-500 hover:shadow-xs transition"
+                >
+                  <div className="font-bold text-emerald-950">Nilesh Rawat</div>
+                  <div className="text-[10px] font-semibold text-emerald-700">Sales Head (Sales Hub)</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillQuick('sanjana.jetty1469@gmail.com', '123456')}
+                  className="rounded-xl border border-amber-200 bg-amber-50/50 p-2.5 text-left hover:border-amber-500 hover:shadow-xs transition"
+                >
+                  <div className="font-bold text-amber-950">Sanjana CK</div>
+                  <div className="text-[10px] font-semibold text-amber-700">HR Head (Accounts)</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
@@ -7116,14 +7253,39 @@ function AppRouter() {
   }, []);
 
   if (!signedIn) return <Login onEnter={async (email, password) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout for Render cold start
+      
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+        signal: controller.signal
       });
-      if (!res.ok) return false;
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          return { ok: false, error: 'Incorrect email or password. (Founder: admin1234 | Team: 123456)' };
+        }
+        if (res.status === 404) {
+          return { ok: false, error: 'User account not found with this email. Please check spelling.' };
+        }
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          return { ok: false, error: 'Server is waking up on Render (free tier cold start). Please wait 10 seconds and tap Enter again.' };
+        }
+        const errText = await res.text().catch(() => '');
+        return { ok: false, error: `Login failed (${res.status}): ${errText || 'Please check credentials.'}` };
+      }
+
       const data = await res.json();
+      if (!data?.item?.token) {
+        return { ok: false, error: 'Server returned invalid session data. Please retry.' };
+      }
+
       setStoredToken(data.item.token);
       setActorId(data.item.id);
       setSignedIn(true);
@@ -7137,9 +7299,12 @@ function AppRouter() {
       });
       
       setLocation(data.item.role === 'Team member' ? '/my-work' : '/dashboard');
-      return true;
-    } catch {
-      return false;
+      return { ok: true };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { ok: false, error: 'Connection timed out. Render backend is waking up. Please retry in a moment.' };
+      }
+      return { ok: false, error: `Network connection error: ${err?.message || 'Unable to connect to ARKA server'}` };
     }
   }} />;
 
