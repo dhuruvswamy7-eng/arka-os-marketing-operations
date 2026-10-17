@@ -19,12 +19,10 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const LOGO_SRC = `${import.meta.env.BASE_URL}assets/arkamedia-logo.png`;
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (
   typeof window !== 'undefined'
-    ? (window.location.hostname.includes('arkadigitalmedia.com')
-        ? 'https://arka-api-w9o0.onrender.com/api'
-        : (window.location.port === '5173'
-            ? `${window.location.protocol}//${window.location.hostname}:5000/api`
-            : '/api'))
-    : 'http://localhost:5000/api'
+    ? (window.location.port === '5173'
+        ? `${window.location.protocol}//${window.location.hostname}:5000/api`
+        : 'https://arka-api-w9o0.onrender.com/api')
+    : 'https://arka-api-w9o0.onrender.com/api'
 );
 
 function getStoredToken(): string | null {
