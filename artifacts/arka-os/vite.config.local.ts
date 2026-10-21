@@ -29,6 +29,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
   },
+  define: {
+    'process.env.REACT_APP_HOSTINGER': JSON.stringify(process.env.REACT_APP_HOSTINGER || ''),
+  },
   server: {
     port,
     strictPort: false,

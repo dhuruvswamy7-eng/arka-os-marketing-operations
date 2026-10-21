@@ -1,0 +1,19 @@
+{
+  "name": "ARKA OS — Marketing Operations Hub",
+  "short_name": "ARKA OS",
+  "description": "Internal Operating System for Arka Digital Media. Attendance, 9-hour shift compliance, break tracking, and client operations.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101010",
+  "theme_color": "#101010",
+  "icons": [
+    {
+      "src": "/assets/arkamedia-logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

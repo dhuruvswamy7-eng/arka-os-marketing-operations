@@ -3310,46 +3310,47 @@ function Login({ onEnter }: { onEnter: (email: string, password: string) => Prom
               </Button>
             </form>
 
-            {/* Quick 1-Tap Demo Credentials Helper */}
-            <div className="mt-7 pt-5 border-t border-black/10">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-black/45 mb-2.5">
-                Quick 1-Tap Demo Logins
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => fillQuick('dhuruvswamy7@gmail.com', '123456')}
-                  className="rounded-xl border border-black/10 bg-white p-2.5 text-left hover:border-[#c99f18] hover:shadow-xs transition"
-                >
-                  <div className="font-bold text-slate-900">Dhuruv Swamy</div>
-                  <div className="text-[10px] text-slate-500">Business Dev</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillQuick('eshwar@arkadigitalmedia.com', 'admin1234')}
-                  className="rounded-xl border border-black/10 bg-white p-2.5 text-left hover:border-[#c99f18] hover:shadow-xs transition"
-                >
-                  <div className="font-bold text-slate-900">Eshwar SP</div>
-                  <div className="text-[10px] text-slate-500">Founder & COO</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillQuick('nileshrawat1325@gmail.com', '123456')}
-                  className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5 text-left hover:border-emerald-500 hover:shadow-xs transition"
-                >
-                  <div className="font-bold text-emerald-950">Nilesh Rawat</div>
-                  <div className="text-[10px] font-semibold text-emerald-700">Sales Head (Sales Hub)</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillQuick('sanjana.jetty1469@gmail.com', '123456')}
-                  className="rounded-xl border border-amber-200 bg-amber-50/50 p-2.5 text-left hover:border-amber-500 hover:shadow-xs transition"
-                >
-                  <div className="font-bold text-amber-950">Sanjana CK</div>
-                  <div className="text-[10px] font-semibold text-amber-700">HR Head (Accounts)</div>
-                </button>
-              </div>
-            </div>
+            {process.env.REACT_APP_HOSTINGER !== 'true' && (
+  <div className="mt-7 pt-5 border-t border-black/10">
+    <div className="text-[11px] font-bold uppercase tracking-wider text-black/45 mb-2.5">
+      Quick 1-Tap Demo Logins
+    </div>
+    <div className="grid grid-cols-2 gap-2 text-xs">
+      <button
+        type="button"
+        onClick={() => fillQuick('dhuruvswamy7@gmail.com', '123456')}
+        className="rounded-xl border border-black/10 bg-white p-2.5 text-left hover:border-[#c99f18] hover:shadow-xs transition"
+      >
+        <div className="font-bold text-slate-900">Dhuruv Swamy</div>
+        <div className="text-[10px] text-slate-500">Business Dev</div>
+      </button>
+      <button
+        type="button"
+        onClick={() => fillQuick('eshwar@arkadigitalmedia.com', 'admin1234')}
+        className="rounded-xl border border-black/10 bg-white p-2.5 text-left hover:border-[#c99f18] hover:shadow-xs transition"
+      >
+        <div className="font-bold text-slate-900">Eshwar SP</div>
+        <div className="text-[10px] text-slate-500">Founder & COO</div>
+      </button>
+      <button
+        type="button"
+        onClick={() => fillQuick('nileshrawat1325@gmail.com', '123456')}
+        className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5 text-left hover:border-emerald-500 hover:shadow-xs transition"
+      >
+        <div className="font-bold text-emerald-950">Nilesh Rawat</div>
+        <div className="text-[10px] font-semibold text-emerald-700">Sales Head (Sales Hub)</div>
+      </button>
+      <button
+        type="button"
+        onClick={() => fillQuick('sanjana.jetty1469@gmail.com', '123456')}
+        className="rounded-xl border border-amber-200 bg-amber-50/50 p-2.5 text-left hover:border-amber-500 hover:shadow-xs transition"
+      >
+        <div className="font-bold text-amber-950">Sanjana CK</div>
+        <div className="text-[10px] font-semibold text-amber-700">HR Head (Accounts)</div>
+      </button>
+    </div>
+  </div>
+)}
           </div>
         </div>
       </div>
