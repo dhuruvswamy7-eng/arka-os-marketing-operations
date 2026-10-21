@@ -3,49 +3,15 @@ name: Build ARKA OS Desktop Apps (Windows & Mac)
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  build-mac:
-    name: Build macOS DMG & ZIP
-    runs-on: macos-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Root Dependencies
-        run: npm install
-
-      - name: Build Frontend Application
-        run: |
-          cd artifacts/arka-os
-          npm install
-          npm run build
-
-      - name: Setup Desktop Bundle
-        run: |
-          mkdir -p desktop/web-dist
-          cp -R artifacts/arka-os/dist/public/* desktop/web-dist/
-          cd desktop
-          npm install
-
-      - name: Build macOS DMG
-        run: |
-          cd desktop
-          npx electron-builder --mac
-
-      - name: Upload macOS Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ARKA-OS-macOS-Installer
-          path: desktop/dist/*.dmg
-
   build-windows:
     name: Build Windows EXE
     runs-on: windows-latest
@@ -85,3 +51,20 @@ jobs:
           name: ARKA-OS-Windows-Installers
           path: |
             desktop/dist/*.exe
+
+      - name: Publish Windows Desktop Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: desktop-latest
+          name: "ARKA OS Desktop App (Windows .exe)"
+          make_latest: false
+          body: |
+            ### 💻 ARKA OS Desktop Windows App
+            Download the Windows setup executable for ARKA OS.
+          files: |
+            desktop/dist/*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

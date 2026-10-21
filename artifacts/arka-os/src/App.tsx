@@ -526,10 +526,20 @@ export function getDailyBreakMinutes(
 ): { totalUsedMinutes: number; remainingPoolMinutes: number; logs: BreakLog[] } {
   const dayLogs = breakLogs.filter((b) => b.userId === userId && b.date === date);
   const totalUsed = dayLogs.reduce((sum, b) => {
-    if (b.durationMinutes && b.durationMinutes > 0) return sum + b.durationMinutes;
+    const slotMax = b.type === 'Lunch' ? 60 : 15;
+    if (b.durationMinutes && b.durationMinutes > 0) {
+      return sum + Math.min(slotMax, b.durationMinutes);
+    }
     if (b.startAt) {
-      const endMs = b.endAt ? new Date(b.endAt).getTime() : Date.now();
-      return sum + Math.max(0, Math.round((endMs - new Date(b.startAt).getTime()) / 60000));
+      if (b.endAt) {
+        const ms = new Date(b.endAt).getTime() - new Date(b.startAt).getTime();
+        const mins = Math.max(1, Math.min(slotMax, Math.round(ms / 60000)));
+        return sum + mins;
+      } else {
+        // Active or unclosed session: calculate elapsed minutes capped to slotMax
+        const elapsed = Math.max(0, Math.round((Date.now() - new Date(b.startAt).getTime()) / 60000));
+        return sum + Math.min(slotMax, elapsed);
+      }
     }
     return sum;
   }, 0);
@@ -1148,15 +1158,20 @@ function PortalFrame({
   title, 
   url, 
   isAllowed, 
-  requiredRole 
+  requiredRole,
+  actor,
+  portalType
 }: { 
   title: string; 
   url: string; 
   isAllowed: boolean; 
   requiredRole: string; 
+  actor?: Person;
+  portalType?: 'sales' | 'accounts';
 }) {
   const [key, setKey] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   if (!isAllowed) {
     return (
@@ -1174,6 +1189,39 @@ function PortalFrame({
       </div>
     );
   }
+
+  // Determine auto-login credentials based on portal and actor
+  let loginEmail = '';
+  let loginPassword = '';
+  let loginRoleLabel = '';
+
+  if (portalType === 'sales') {
+    if (actor?.email?.includes('nilesh') || actor?.id === 'person-1789555841194') {
+      loginEmail = 'nileshrawat1325@gmail.com';
+      loginPassword = '123456';
+      loginRoleLabel = 'Sales Head (Nilesh)';
+    } else {
+      loginEmail = 'admin@arkasales.com';
+      loginPassword = 'admin123';
+      loginRoleLabel = 'Founder / Superadmin';
+    }
+  } else if (portalType === 'accounts') {
+    if (actor?.email?.includes('sanjana') || actor?.role === 'HR Manager' || actor?.id === 'person-1789737883615') {
+      loginEmail = 'usr_hr';
+      loginPassword = 'admin1234';
+      loginRoleLabel = 'HR Operations (Sanjana)';
+    } else {
+      loginEmail = 'eshwar@arkadigitalmedia.com';
+      loginPassword = 'admin1234';
+      loginRoleLabel = 'Founder / Superadmin';
+    }
+  }
+
+  const copyCred = (text: string, fieldName: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col -m-5 md:-m-8">
@@ -1194,6 +1242,33 @@ function PortalFrame({
             <div className="text-[11px] text-slate-400 font-mono">{url}</div>
           </div>
         </div>
+
+        {/* 1-Click Auto-Login Credentials Helper Bar */}
+        {loginEmail && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-1.5 text-xs text-amber-900">
+            <div className="font-bold flex items-center gap-1">
+              <span className="text-sm">⚡</span>
+              <span>Auto-Login: {loginRoleLabel}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => copyCred(loginEmail, 'email')}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-800 hover:bg-amber-100/50 transition cursor-pointer"
+              title="Click to copy login email"
+            >
+              <span>{copiedField === 'email' ? '✓ Copied!' : loginEmail}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => copyCred(loginPassword, 'pass')}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-800 hover:bg-amber-100/50 transition cursor-pointer"
+              title="Click to copy password"
+            >
+              <span>{copiedField === 'pass' ? '✓ Copied!' : '••••••• (Copy Pass)'}</span>
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setKey(k => k + 1); setLoading(true); }}
@@ -1207,9 +1282,9 @@ function PortalFrame({
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg bg-black px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+            className="flex items-center gap-1.5 rounded-lg bg-black px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition shadow-xs"
           >
-            <span>Open in Full Browser</span>
+            <span>Open Full Screen</span>
             <ExternalLink className="size-3.5" />
           </a>
         </div>
@@ -1273,8 +1348,8 @@ function Shell({
   const canAccessAccounts = actor.role === 'Founder' || actor.role === 'HR Manager' || actor.email.includes('sanjana') || actor.id === 'person-1789737883615';
 
   return <div className="min-h-screen bg-[#f7f7f5] text-[hsl(var(--foreground))]">
-    {/* Full-Screen Freeze Overlay when on Break or Lunch */}
-    {(actor.presence === 'Break' || actor.presence === 'Lunch') && (
+    {/* Full-Screen Freeze Overlay when on Break or Lunch (Exempt Founder) */}
+    {(actor.presence === 'Break' || actor.presence === 'Lunch') && actor.role !== 'Founder' && (
       <BreakLunchFreezeOverlay
         presence={actor.presence}
         secondsRemaining={timerSecondsRemaining ?? null}
@@ -6880,27 +6955,44 @@ function AppRouter() {
 
       } else {
         const rawTimer = localStorage.getItem('arka_presence_timer');
+        let timerStartAt: string | null = null;
+        let timerLogId: string | null = null;
+
         if (rawTimer) {
           try {
             const parsed = JSON.parse(rawTimer);
-            if (parsed.breakLogId && (prevPresence === 'Break' || prevPresence === 'Lunch')) {
-              const nowIso = new Date().toISOString();
-              const startMs = parsed.startAt ? new Date(parsed.startAt).getTime() : Date.now();
-              const elapsedMinutes = Math.max(1, Math.round((Date.now() - startMs) / 60000));
-
-              await apiPatch(`/break-logs/${parsed.breakLogId}`, {
-                endAt: nowIso,
-                durationMinutes: elapsedMinutes
-              }).catch(() => {});
-
-              setBreakLogs((prev) => prev.map((b) => b.id === parsed.breakLogId ? { ...b, endAt: nowIso, durationMinutes: elapsedMinutes } : b));
-
-              const reason = isAuto 
-                ? `returned from ${prevPresence} (${elapsedMinutes}m used)` 
-                : `returned early from ${prevPresence} (${elapsedMinutes}m used)`;
-              await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' }).catch(() => {});
-            }
+            timerStartAt = parsed.startAt;
+            timerLogId = parsed.breakLogId;
           } catch {}
+        }
+
+        const openLog = (timerLogId ? breakLogs.find(b => b.id === timerLogId) : null) ||
+                        breakLogs.find(b => b.userId === actor.id && !b.endAt && b.date === TODAY) ||
+                        breakLogs.find(b => b.userId === actor.id && !b.endAt);
+
+        const nowIso = new Date().toISOString();
+        const startIso = timerStartAt || openLog?.startAt || nowIso;
+        const startMs = new Date(startIso).getTime();
+        const rawElapsed = Math.max(1, Math.round((Date.now() - startMs) / 60000));
+        const slotLimit = prevPresence === 'Lunch' ? 60 : 15;
+        const elapsedMinutes = Math.min(slotLimit, rawElapsed);
+
+        const targetLogId = timerLogId || openLog?.id;
+        if (targetLogId && (prevPresence === 'Break' || prevPresence === 'Lunch')) {
+          await apiPatch(`/break-logs/${targetLogId}`, {
+            endAt: nowIso,
+            durationMinutes: elapsedMinutes
+          }).catch((err) => console.error('Failed to update break log on end:', err));
+
+          setBreakLogs((prev) => prev.map((b) => b.id === targetLogId ? { ...b, endAt: nowIso, durationMinutes: elapsedMinutes } : b));
+
+          const curStats = getDailyBreakMinutes(actor.id, TODAY, breakLogs);
+          const newRemaining = Math.max(0, TOTAL_DAILY_BREAK_MINUTES - (curStats.totalUsedMinutes + elapsedMinutes));
+
+          const reason = isAuto 
+            ? `returned from ${prevPresence} (${elapsedMinutes}m used, ${newRemaining}m pool remaining)` 
+            : `returned early from ${prevPresence} (${elapsedMinutes}m used, ${newRemaining}m pool carried over)`;
+          await apiPost('/activities', { workId: 'system', actorId: actor.id, message: reason, tone: 'success' }).catch(() => {});
         }
 
         localStorage.removeItem('arka_presence_timer');
@@ -6952,31 +7044,47 @@ function AppRouter() {
         localStorage.setItem('arka_presence_timer', JSON.stringify({ userId: actor.id, presence: actor.presence, expiresAt }));
       }
 
-      const tick = () => {
+      const tick = async () => {
         const diff = Math.ceil((expiresAt - Date.now()) / 1000);
-        // Auto-logout immediately when countdown reaches 00:00 (diff <= 0)
+        // If countdown reached 00:00 (diff <= 0)
         if (diff <= 0) {
           setTimerSecondsRemaining(0);
           
+          // Founder is never auto-logged out
+          if (actor.role === 'Founder') {
+            localStorage.removeItem('arka_presence_timer');
+            setTimerSecondsRemaining(null);
+            return;
+          }
+
+          let closedLogId: string | null = null;
+          let elapsedMinutes = actor.presence === 'Lunch' ? 60 : 15;
+          const nowIso = new Date().toISOString();
           try {
             const curRaw = localStorage.getItem('arka_presence_timer');
             if (curRaw) {
               const parsed = JSON.parse(curRaw);
-              if (parsed.breakLogId) {
-                const nowIso = new Date().toISOString();
-                const startMs = parsed.startAt ? new Date(parsed.startAt).getTime() : Date.now();
-                const elapsedMinutes = Math.max(1, Math.round((Date.now() - startMs) / 60000));
-                void apiPatch(`/break-logs/${parsed.breakLogId}`, { endAt: nowIso, durationMinutes: elapsedMinutes }).catch(() => {});
-              }
+              closedLogId = parsed.breakLogId;
+              const startMs = parsed.startAt ? new Date(parsed.startAt).getTime() : Date.now();
+              elapsedMinutes = Math.max(1, Math.round((Date.now() - startMs) / 60000));
             }
           } catch {}
 
+          if (!closedLogId) {
+            const openLog = breakLogs.find(b => b.userId === actor.id && !b.endAt);
+            if (openLog) closedLogId = openLog.id;
+          }
+
+          if (closedLogId) {
+            await apiPatch(`/break-logs/${closedLogId}`, { endAt: nowIso, durationMinutes: elapsedMinutes }).catch(() => {});
+          }
+
           localStorage.removeItem('arka_presence_timer');
           const p = actor.presence;
-          const limitMsg = `Session ended: Your ${p} time and daily break pool (75 mins) has completed. You have been automatically logged out.`;
+          const limitMsg = `Session ended: Your ${p} session has completed. You have been automatically logged out.`;
           
-          void apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: ${p} pool completed`, tone: 'warning' }).catch(() => {});
-          void apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
+          await apiPost('/activities', { workId: 'system', actorId: actor.id, message: `Auto-logged out: ${p} completed (${elapsedMinutes}m used)`, tone: 'warning' }).catch(() => {});
+          await apiPatch(`/people/${actor.id}/presence`, { presence: 'Offline' }).catch(() => {});
           void handleLogout(limitMsg);
         } else {
           setTimerSecondsRemaining(diff);
@@ -7376,6 +7484,8 @@ function AppRouter() {
       url="https://sales.arkadigitalmedia.in/"
       isAllowed={canAccessSales}
       requiredRole="Founders & Sales Head (Nilesh Rawat)"
+      actor={actor}
+      portalType="sales"
     />
   ) : location === '/accounts-portal' ? (
     <PortalFrame
@@ -7383,6 +7493,8 @@ function AppRouter() {
       url="https://accounts.arkadigitalmedia.in/"
       isAllowed={canAccessAccounts}
       requiredRole="Founders & HR Manager (Sanjana CK)"
+      actor={actor}
+      portalType="accounts"
     />
   ) : location === '/content-calendar' ? (
     actor.role === 'Founder' || actor.role === 'Manager' ? (
